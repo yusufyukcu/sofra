@@ -65,7 +65,7 @@ export interface ApiClient {
   delete: <T>(path: string) => Promise<T>;
   /** Dosya yükleme — `multipart/form-data` sınırını tarayıcı belirler. */
   upload: <T>(path: string, form: FormData) => Promise<T>;
-  /** SSE veya harici kullanım için tam URL üretir. */
+  /** Harici kullanım (bağlantı, indirme) için tam URL üretir. */
   url: (path: string) => string;
 }
 

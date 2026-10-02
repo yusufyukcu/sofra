@@ -36,6 +36,7 @@ interface SessionState {
   }) => void;
   logout: () => Promise<void>;
   setAddresses: (addresses: Address[]) => void;
+  setCards: (cards: SavedCard[]) => void;
   selectAddress: (id: string) => void;
   setGuestLocation: (point: LatLng, label: string) => void;
   setUser: (user: User) => void;
@@ -119,6 +120,8 @@ export const useSession = create<SessionState>()(
           });
         }
       },
+
+      setCards: (cards) => set({ cards }),
 
       setAddresses: (addresses) => {
         const current = get().selectedAddressId;

@@ -387,3 +387,44 @@ export function createApplicationCode(): string {
   }
   return `SF-BV-${out}`;
 }
+
+/* ------------------------------------------------------------------ */
+/* Kart numarası                                                       */
+/* ------------------------------------------------------------------ */
+
+/** Luhn (mod 10) denetimi — yazım hatalarını sunucuya gitmeden yakalar. */
+export function luhnValid(number: string): boolean {
+  const digits = number.replace(/\D/g, "");
+  if (digits.length < 13 || digits.length > 19) return false;
+  let sum = 0;
+  let double = false;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let d = Number(digits[i]);
+    if (double) {
+      d *= 2;
+      if (d > 9) d -= 9;
+    }
+    sum += d;
+    double = !double;
+  }
+  return sum % 10 === 0;
+}
+
+/** Kart markası: Visa (4), Mastercard (51–55, 2221–2720), Troy (9792). */
+export function cardBrandOf(number: string): "visa" | "mastercard" | "troy" | null {
+  const digits = number.replace(/\D/g, "");
+  if (/^4/.test(digits)) return "visa";
+  if (/^5[1-5]/.test(digits)) return "mastercard";
+  const four = Number(digits.slice(0, 4));
+  if (four >= 2221 && four <= 2720) return "mastercard";
+  if (/^9792/.test(digits)) return "troy";
+  return null;
+}
+
+/** "4242424242424242" → "4242 4242 4242 4242" (yazarken biçimlendirme) */
+export function formatCardNumber(value: string): string {
+  return value
+    .replace(/\D/g, "")
+    .slice(0, 19)
+    .replace(/(\d{4})(?=\d)/g, "$1 ");
+}

@@ -1,11 +1,12 @@
 "use client";
 
-import { ArrowDownLeft, ArrowUpRight, Plus, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, CreditCard, Plus, Trash2, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, errorMessage } from "@/lib/api-client";
 import { useSession } from "@/lib/store/session";
-import { formatDateTime, formatPrice } from "@/lib/utils";
+import type { SavedCard } from "@/lib/types";
+import { cn, formatDateTime, formatPrice } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import {
   Button,
@@ -16,6 +17,7 @@ import {
   Skeleton,
 } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { AddCardModal } from "./add-card-modal";
 
 interface Transaction {
   id: string;
@@ -31,16 +33,24 @@ interface Transaction {
 
 const QUICK_AMOUNTS = [100, 250, 500, 1000];
 
-/** Platform cüzdanı: bakiye, hareketler ve bakiye yükleme. */
+/** Platform cüzdanı: bakiye, hareketler, bakiye yükleme ve kayıtlı kartlar. */
 export function WalletPanel() {
   const toast = useToast();
   const user = useSession((s) => s.user);
   const setUser = useSession((s) => s.setUser);
+  const cards = useSession((s) => s.cards);
+  const setCards = useSession((s) => s.setCards);
 
   const [transactions, setTransactions] = useState<Transaction[] | null>(null);
   const [topUpOpen, setTopUpOpen] = useState(false);
   const [amount, setAmount] = useState(250);
   const [saving, setSaving] = useState(false);
+  const [cardId, setCardId] = useState<string>("");
+  const [addCardOpen, setAddCardOpen] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
+
+  // Seçili kart silindiyse ya da hiç seçilmediyse ilk karta geç
+  const topUpCard = cards.find((c) => c.id === cardId) ?? cards[0];
 
   useEffect(() => {
     api
@@ -54,6 +64,7 @@ export function WalletPanel() {
     try {
       const data = await api.post<{ balance: number; transactions: Transaction[] }>("/wallet", {
         amount,
+        cardId: topUpCard?.id,
       });
       if (user) setUser({ ...user, walletBalance: data.balance });
       setTransactions(data.transactions);
@@ -63,6 +74,19 @@ export function WalletPanel() {
       toast.error(errorMessage(err));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function removeCard(card: SavedCard) {
+    setRemoving(card.id);
+    try {
+      const data = await api.delete<{ cards: SavedCard[] }>(`/cards/${card.id}`);
+      setCards(data.cards);
+      toast.success(`${card.brand.toUpperCase()} •••• ${card.last4} silindi.`);
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setRemoving(null);
     }
   }
 
@@ -99,6 +123,47 @@ export function WalletPanel() {
           <Plus className="size-4" />
           Bakiye yükle
         </Button>
+      </section>
+
+      <section className="card overflow-hidden">
+        <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
+          <h2 className="font-extrabold text-text">Kayıtlı kartlarım</h2>
+          <Button size="sm" variant="secondary" onClick={() => setAddCardOpen(true)}>
+            <Plus className="size-4" />
+            Kart ekle
+          </Button>
+        </div>
+        {cards.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-muted">
+            Online ödeme ve bakiye yükleme için bir kart ekle.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {cards.map((card) => (
+              <li key={card.id} className="flex items-center gap-3 px-5 py-3">
+                <CreditCard className="size-5 shrink-0 text-muted" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-ink">
+                    <span className="uppercase">{card.brand}</span> •••• {card.last4}
+                  </span>
+                  <span className="tabular block truncate text-xs text-muted">
+                    {card.nickname ? `${card.nickname} · ` : ""}
+                    {card.holder} · {card.expiry}
+                  </span>
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label={`${card.brand} ${card.last4} kartını sil`}
+                  loading={removing === card.id}
+                  onClick={() => removeCard(card)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="card overflow-hidden">
@@ -167,15 +232,44 @@ export function WalletPanel() {
         open={topUpOpen}
         onClose={() => setTopUpOpen(false)}
         title="Bakiye yükle"
-        description="Prototipte ödeme geçidi simüle edilir, gerçek tahsilat yapılmaz."
+        description="Tutar seçtiğin karttan çekilir. Ödeme geçidi simüle edilir, gerçek tahsilat yapılmaz."
         size="sm"
         footer={
-          <Button block size="lg" loading={saving} onClick={topUp}>
+          <Button block size="lg" loading={saving} disabled={!topUpCard} onClick={topUp}>
             {formatPrice(amount)} yükle
           </Button>
         }
       >
         <div className="space-y-4 pt-1">
+          {cards.length === 0 ? (
+            <div className="rounded-xl bg-surface-2 p-3 text-sm text-muted">
+              Bakiye yüklemek için önce bir kart ekle.
+              <Button size="sm" className="mt-2" onClick={() => setAddCardOpen(true)}>
+                <Plus className="size-4" />
+                Kart ekle
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <p className="text-sm font-semibold text-ink">Kart</p>
+              {cards.map((card) => (
+                <button
+                  key={card.id}
+                  type="button"
+                  onClick={() => setCardId(card.id)}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors",
+                    topUpCard?.id === card.id ? "border-brand bg-brand-soft" : "border-border bg-surface-2"
+                  )}
+                >
+                  <span className="font-mono text-xs uppercase text-muted">{card.brand}</span>
+                  <span className="font-semibold text-ink">•••• {card.last4}</span>
+                  <span className="truncate text-xs text-muted">{card.nickname}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-2">
             {QUICK_AMOUNTS.map((value) => (
               <Chip
@@ -199,6 +293,12 @@ export function WalletPanel() {
           </Field>
         </div>
       </Modal>
+
+      <AddCardModal
+        open={addCardOpen}
+        onClose={() => setAddCardOpen(false)}
+        onAdded={(_, added) => added && setCardId(added.id)}
+      />
     </div>
   );
 }

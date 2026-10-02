@@ -879,9 +879,9 @@ export async function sendPush(admin: AdminAccount, input: PushInput): Promise<P
     `;
     if (audience.length) {
       await tx`
-        insert into public.notifications (id, user_id, title, body, href, campaign_id)
+        insert into public.notifications (id, user_id, title, body, href, campaign_id, kind)
         select 'ntf_' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 14), u, ${title.slice(0, 80)},
-               ${body.slice(0, 240)}, ${href}, ${id}
+               ${body.slice(0, 240)}, ${href}, ${id}, 'campaign'
           from unnest(${audience}::text[]) as u
       `;
     }

@@ -8,6 +8,7 @@ import {
 import type { Address, AddressLabel, LatLng, User } from "../types";
 import { createId, round2 } from "../utils";
 import { DomainError } from "../errors";
+import { chargeCard } from "./cards";
 import { applyWallet } from "./wallet";
 
 /**
@@ -220,10 +221,11 @@ export async function toggleFavorite(user: User, restaurantId: string): Promise<
 /* ------------------------------------------------------------------ */
 
 /**
- * Bakiye yükleme. Ödeme geçidi şimdilik simüle: yükleme her zaman başarılı
- * kabul edilir ama ödeme kaydı tutulur (geçit raporunda görünür).
+ * Bakiye yükleme. Tutar kayıtlı karttan çekilir (ödeme geçidi şimdilik
+ * simüle: test kartıyla başarılı, "reddedilir" test kartıyla başarısız);
+ * ödeme kaydı tutulur ve geçit raporunda görünür.
  */
-export async function topUpWallet(user: User, amount: number): Promise<number> {
+export async function topUpWallet(user: User, amount: number, cardId?: string): Promise<number> {
   const value = round2(Number(amount));
   if (!Number.isFinite(value) || value <= 0) {
     throw new DomainError("invalid_amount", "Geçerli bir tutar gir.");
@@ -233,10 +235,12 @@ export async function topUpWallet(user: User, amount: number): Promise<number> {
   }
 
   return sql.begin(async (tx) => {
+    const card = await chargeCard(user.id, cardId, tx);
     await tx`
-      insert into public.payments (id, user_id, provider, method, purpose, amount, status)
-      values (${createId("pmt")}, ${user.id}, 'simulated', 'online_card', 'wallet_topup', ${value}, 'captured')
+      insert into public.payments (id, user_id, provider, method, purpose, amount, status, card_brand, card_last4)
+      values (${createId("pmt")}, ${user.id}, 'simulated', 'online_card', 'wallet_topup', ${value}, 'captured',
+              ${card.brand}, ${card.last4})
     `;
-    return applyWallet(tx, user.id, value, "topup", "Bakiye yükleme");
+    return applyWallet(tx, user.id, value, "topup", `Bakiye yükleme · ${card.brand.toUpperCase()} •••• ${card.last4}`);
   });
 }

@@ -2,6 +2,7 @@
 
 import {
   ChevronDown,
+  Bell,
   Heart,
   LogOut,
   Moon,
@@ -22,6 +23,7 @@ import { cartCount, useCart } from "@/lib/store/cart";
 import { useSession } from "@/lib/store/session";
 import { formatPrice } from "@/lib/utils";
 import { AddressSelector } from "./address-selector";
+import { NotificationBell } from "./notification-bell";
 
 /**
  * Üst bant. Patlıcan koyusu her sayfada sabit durur: sıcak kâğıt zemin
@@ -44,6 +46,7 @@ export function Header() {
 
         <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
           <ThemeToggle />
+          <NotificationBell />
           <AccountMenu />
           <CartButton />
         </div>
@@ -187,6 +190,7 @@ function AccountMenu() {
               { href: "/hesabim/siparislerim", label: "Siparişlerim", icon: Receipt },
               { href: "/hesabim/favorilerim", label: "Favorilerim", icon: Heart },
               { href: "/hesabim/cuzdan", label: "Cüzdanım", icon: Wallet },
+              { href: "/hesabim/bildirimler", label: "Bildirimler", icon: Bell },
             ].map((item) => (
               <Link
                 key={item.href}

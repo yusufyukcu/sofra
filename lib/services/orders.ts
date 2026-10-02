@@ -3,7 +3,6 @@ import { CANCELLABLE_STATUSES, PAYMENT_METHODS } from "../constants";
 import { asJson, dispatchNow, sql, type Db } from "../db/client";
 import {
   addOrderEvent,
-  cardsOf,
   findAddress,
   findCoupon,
   findOrder,
@@ -36,6 +35,7 @@ import {
   round2,
 } from "../utils";
 import { DomainError } from "../errors";
+import { chargeCard } from "./cards";
 import { cancelOrderTx } from "./lifecycle";
 import { applyWallet } from "./wallet";
 
@@ -126,15 +126,8 @@ export async function createOrder(
     throw new DomainError("meal_card_required", "Yemek kartı markası seçmelisin.");
   }
 
-  let card: { brand: string; last4: string } | null = null;
-  if (input.paymentMethod === "online_card") {
-    const cards = await cardsOf(user.id);
-    const chosen = input.cardId ? cards.find((c) => c.id === input.cardId) : cards[0];
-    if (input.cardId && !chosen) {
-      throw new DomainError("card_not_found", "Seçtiğin kart bu hesapta kayıtlı değil.");
-    }
-    card = chosen ? { brand: chosen.brand, last4: chosen.last4 } : null;
-  }
+  // Online ödeme kayıtlı kartla yapılır (simülasyonda test kartı)
+  const card = input.paymentMethod === "online_card" ? await chargeCard(user.id, input.cardId) : null;
 
   const coupon = input.couponCode ? await findCoupon(input.couponCode) : null;
   if (input.couponCode && !coupon) {

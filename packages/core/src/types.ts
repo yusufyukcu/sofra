@@ -634,6 +634,18 @@ export interface SupportQuickReply {
   label: string;
 }
 
+/** Bildirim kutusundaki bir kayıt (sipariş durumu, kampanya, sistem). */
+export interface AppNotification {
+  id: string;
+  kind: "order" | "campaign" | "system";
+  title: string;
+  body: string;
+  /** Tıklanınca açılacak sayfa */
+  href?: string;
+  readAt?: string;
+  createdAt: string;
+}
+
 export interface SupportMessage {
   id: string;
   role: "bot" | "user" | "agent";

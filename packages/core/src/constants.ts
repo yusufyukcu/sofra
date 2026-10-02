@@ -237,3 +237,16 @@ export const ADDRESS_LABELS = [
 export const DEFAULT_CENTER = { lat: 40.9903, lng: 29.0273 };
 
 export const APP_NAME = "Sofra";
+
+/**
+ * Ödeme simülasyonunda kabul edilen test kartları. Gerçek bir ödeme
+ * kuruluşu bağlanana kadar başka kart numarası kabul edilmez; böylece
+ * gerçek kart bilgisi sisteme hiç girmez. "Reddedilir" kartı, bankanın
+ * ödemeyi onaylamadığı durumu denemek içindir.
+ */
+export const TEST_PAYMENT_CARDS = [
+  { number: "4242424242424242", brand: "visa", label: "Visa", outcome: "approve" },
+  { number: "5555555555554444", brand: "mastercard", label: "Mastercard", outcome: "approve" },
+  { number: "9792030000000000", brand: "troy", label: "Troy", outcome: "approve" },
+  { number: "4000000000000002", brand: "visa", label: "Visa · reddedilir", outcome: "decline" },
+] as const;

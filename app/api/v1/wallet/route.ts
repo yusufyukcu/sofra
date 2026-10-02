@@ -16,12 +16,12 @@ export async function GET(request: Request) {
   });
 }
 
-/** POST /api/v1/wallet — bakiye yükleme (ödeme geçidi şimdilik simüle) */
+/** POST /api/v1/wallet — bakiye yükleme. Body: { amount, cardId? } (kart seçilmezse ilk kayıtlı kart) */
 export async function POST(request: Request) {
   return handle(async () => {
     const user = await requireUser(request);
-    const body = await readJson<{ amount?: number }>(request);
-    const balance = await topUpWallet(user, Number(body.amount));
+    const body = await readJson<{ amount?: number; cardId?: string }>(request);
+    const balance = await topUpWallet(user, Number(body.amount), body.cardId);
     return ok({ balance, transactions: await walletHistory(user.id) });
   });
 }

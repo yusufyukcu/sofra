@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { UnauthorizedError } from "../auth/session";
 import { DomainError } from "../errors";
+import { schedulePushFlush } from "../push";
 
 /**
  * Tüm API cevapları aynı zarfı kullanır:
@@ -27,10 +28,17 @@ export function fail(
   );
 }
 
-/** Route handler gövdesini sarar; beklenmeyen hataları 500'e çevirir. */
+/**
+ * Route handler gövdesini sarar; beklenmeyen hataları 500'e çevirir.
+ *
+ * Yanıt gönderildikten sonra bekleyen web push bildirimleri iletilir
+ * (sipariş tetikleyicisinin yazdıkları dahil); kuyruk en fazla 2 saniyede
+ * bir yoklanır, VAPID anahtarı yoksa hiçbir şey yapılmaz.
+ */
 export async function handle(
   fn: () => Promise<NextResponse>
 ): Promise<NextResponse> {
+  after(() => schedulePushFlush() ?? undefined);
   try {
     return await fn();
   } catch (err) {

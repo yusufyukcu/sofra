@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, SearchX, X } from "lucide-react";
+import { Search, SearchX, Sparkles, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CATEGORIES } from "@/lib/constants";
@@ -113,6 +113,16 @@ export function DiscoveryClient({
   const activeCategory = CATEGORIES.find((c) => c.id === filters.category);
   const activeQuery = debouncedQuery.trim();
 
+  // Yönetimin öne çıkardıkları (sıra yönetici panelinden) — yalnızca bu adrese teslim edenler
+  const featured = useMemo(
+    () =>
+      decorated
+        .filter((r) => r.featuredRank !== null && r.featuredRank !== undefined && r.deliverable)
+        .sort((a, b) => (a.featuredRank ?? 0) - (b.featuredRank ?? 0)),
+    [decorated]
+  );
+  const showFeatured = featured.length > 0 && filters.category === "all" && !activeQuery;
+
   return (
     <>
       {/* Koyu bant — başlıktan devam eder, tek işi burada karşılar */}
@@ -165,6 +175,25 @@ export function DiscoveryClient({
         <div className="space-y-6 pt-6 lg:space-y-8 lg:pt-8">
           <ActiveOrdersStrip />
           <BannerSlider banners={banners} />
+
+          {showFeatured && (
+            <section aria-labelledby="featured-title">
+              <h2
+                id="featured-title"
+                className="font-display mb-4 flex items-center gap-2 text-xl font-extrabold text-ink sm:text-2xl"
+              >
+                <Sparkles className="size-5 text-saffron" aria-hidden />
+                Öne çıkanlar
+              </h2>
+              <div className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-1 lg:mx-0 lg:px-0">
+                {featured.map((item) => (
+                  <div key={item.id} className="w-[18rem] shrink-0 snap-start sm:w-[20rem]">
+                    <RestaurantCard item={item} />
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
 
         <div className="mt-8 lg:grid lg:grid-cols-[17rem_minmax(0,1fr)] lg:items-start lg:gap-6">

@@ -33,6 +33,7 @@ import type {
   Restaurant,
 } from "@/lib/types";
 import { cn, formatPrice } from "@/lib/utils";
+import { AddCardModal } from "@/components/account/add-card-modal";
 import { AddressForm } from "@/components/account/address-form";
 import { Modal } from "@/components/ui/modal";
 import { RestaurantThumb } from "@/components/ui/restaurant-thumb";
@@ -88,6 +89,7 @@ export function CheckoutClient() {
   const [note, setNote] = useState("");
 
   const [addressModal, setAddressModal] = useState(false);
+  const [addCardOpen, setAddCardOpen] = useState(false);
   const [addingAddress, setAddingAddress] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -422,6 +424,18 @@ export function CheckoutClient() {
                     </button>
 
                     {/* Alt seçimler */}
+                    {active && id === "online_card" && cards.length === 0 && (
+                      <div className="mt-2 rounded-lg border border-dashed border-border-strong bg-surface-2 p-3 pl-4">
+                        <p className="text-sm text-muted">
+                          Online ödeme için kayıtlı kartın yok.
+                        </p>
+                        <Button size="sm" className="mt-2" onClick={() => setAddCardOpen(true)}>
+                          <CreditCard className="size-4" />
+                          Kart ekle
+                        </Button>
+                      </div>
+                    )}
+
                     {active && id === "online_card" && cards.length > 0 && (
                       <div className="mt-2 space-y-1.5 pl-4">
                         {cards.map((card) => (
@@ -450,8 +464,15 @@ export function CheckoutClient() {
                             )}
                           </button>
                         ))}
+                        <button
+                          type="button"
+                          onClick={() => setAddCardOpen(true)}
+                          className="text-xs font-semibold text-brand hover:underline"
+                        >
+                          + Yeni kart ekle
+                        </button>
                         <p className="pt-1 text-xs text-muted">
-                          Prototipte ödeme geçidi simüle edilir; gerçek tahsilat yapılmaz.
+                          Ödeme geçidi simüle edilir; gerçek tahsilat yapılmaz.
                         </p>
                       </div>
                     )}
@@ -628,7 +649,13 @@ export function CheckoutClient() {
               size="lg"
               className="mt-4"
               loading={submitting}
-              disabled={!address || !totals || Boolean(walletShort) || belowMin}
+              disabled={
+                !address ||
+                !totals ||
+                Boolean(walletShort) ||
+                belowMin ||
+                (payment === "online_card" && cards.length === 0)
+              }
               onClick={submit}
             >
               {totals
@@ -645,6 +672,12 @@ export function CheckoutClient() {
       </div>
 
       {/* Adres seçim / ekleme */}
+      <AddCardModal
+        open={addCardOpen}
+        onClose={() => setAddCardOpen(false)}
+        onAdded={(_, added) => added && setCardId(added.id)}
+      />
+
       <Modal
         open={addressModal}
         onClose={() => {
