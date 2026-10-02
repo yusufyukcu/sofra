@@ -3,6 +3,7 @@
 import { Bike, ChefHat, Inbox, Radio, ScrollText } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
+import { useRealtime } from "@/lib/realtime";
 import { useVendor } from "@/lib/store/vendor";
 import type { Order } from "@/lib/types";
 import type { VendorOrderBoard, VendorSummary } from "@/lib/services/vendor";
@@ -19,7 +20,7 @@ interface BoardPayload {
 /**
  * Canlı sipariş panosu.
  *
- * SSE akışına bağlı kalır; yeni bir "onay bekliyor" siparişi düştüğünde
+ * Restoranın Realtime kanalını dinler; yeni bir "onay bekliyor" siparişi düştüğünde
  * zil çalar ve bekleyen sipariş kalmayana kadar 5 saniyede bir tekrarlar.
  * Zil yalnızca panelden açıldığında çalar (tarayıcılar sesi kullanıcı
  * hareketi olmadan başlatmaz).
@@ -29,7 +30,6 @@ export function OrderBoard() {
   const setSummary = useVendor((s) => s.setSummary);
 
   const [data, setData] = useState<BoardPayload | null>(null);
-  const [live, setLive] = useState(false);
   const seenPending = useRef<Set<string>>(new Set());
   const initialised = useRef(false);
 
@@ -57,25 +57,30 @@ export function OrderBoard() {
     apply(payload);
   }, [apply]);
 
+  /* Realtime: restoranın kanalındaki her sipariş olayında pano tazelenir */
+  const restaurantId = useVendor((s) => s.restaurant?.id);
+  const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const status = useRealtime(
+    "vendor",
+    restaurantId ? [`restaurant:${restaurantId}`] : [],
+    (message) => {
+      if (message.event !== "order_changed" && message.event !== "restaurant_changed") return;
+      if (refetchTimer.current) clearTimeout(refetchTimer.current);
+      refetchTimer.current = setTimeout(() => void refresh().catch(() => undefined), 300);
+    },
+    Boolean(restaurantId)
+  );
+  const live = status === "live";
+
   useEffect(() => {
     void refresh().catch(() => undefined);
+  }, [refresh]);
 
-    const source = new EventSource("/api/v1/vendor/orders/stream", {
-      withCredentials: true,
-    });
-
-    source.addEventListener("board", (event) => {
-      try {
-        apply(JSON.parse((event as MessageEvent).data) as BoardPayload);
-        setLive(true);
-      } catch {
-        /* bozuk paket — yoksay */
-      }
-    });
-    source.onerror = () => setLive(false);
-
-    return () => source.close();
-  }, [apply, refresh]);
+  /* Yedek yoklama: canlı bağlantıda seyrek, bağlantı yoksa sık */
+  useEffect(() => {
+    const timer = setInterval(() => void refresh().catch(() => undefined), live ? 30_000 : 5_000);
+    return () => clearInterval(timer);
+  }, [live, refresh]);
 
   /* Bekleyen sipariş varken zil çalmaya devam eder */
   const pendingCount = data?.board.incoming.length ?? 0;

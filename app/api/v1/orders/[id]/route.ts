@@ -4,7 +4,10 @@ import { appSettings } from "@/lib/db/settings";
 import { progressOf, remainingMinutes } from "@/lib/orders/progress";
 import { getOrder } from "@/lib/services/orders";
 
-/** GET /api/v1/orders/:id — tek sipariş + takip bilgisi */
+/**
+ * GET /api/v1/orders/:id — tek sipariş + takip bilgisi.
+ * `timing` istemcinin ilerleme çubuğunu kendisi güncelleyebilmesi içindir.
+ */
 export async function GET(
   request: Request,
   ctx: { params: Promise<{ id: string }> }
@@ -18,6 +21,7 @@ export async function GET(
       order,
       progress: progressOf(order, settings),
       remainingMinutes: remainingMinutes(order),
+      timing: { simSpeed: settings.simSpeed, demoMode: settings.demoMode },
     });
   });
 }

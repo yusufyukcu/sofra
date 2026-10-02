@@ -1,22 +1,26 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api-client";
-import type { Order } from "./types";
+import { progressOf, remainingMinutes, type ProgressContext } from "./orders/progress";
+import { useRealtime } from "./realtime";
+import type { LatLng, Order } from "./types";
 
 /**
- * Canlı sipariş takibi.
+ * Canlı sipariş takibi (Supabase Realtime).
  *
- * Önce `/orders/:id` ile ilk durum çekilir (SSE açılana kadar ekran boş
- * kalmasın), ardından `/orders/:id/stream` üzerinden Server-Sent Events ile
- * saniyelik güncellemeler dinlenir. Bağlantı koparsa tarayıcı otomatik
- * yeniden bağlanır; ayrıca 5 saniyelik yoklama (polling) yedeği devreye girer.
+ * İlk durum `/orders/:id` ile çekilir. Ardından `order:<id>` kanalı dinlenir:
+ * kurye konumu yayını haritayı doğrudan kaydırır, durum değişikliği güncel
+ * siparişi yeniden çeker. İlerleme çubuğu ve kalan süre tarayıcıda her
+ * 2 saniyede bir yeniden hesaplanır. Realtime bağlantısı kurulamazsa
+ * yoklama (polling) yedeği devrede kalır.
  */
 
-interface StreamPayload {
+interface OrderPayload {
   order: Order;
   progress: number;
   remainingMinutes: number;
+  timing?: ProgressContext;
 }
 
 export interface OrderStreamState {
@@ -29,93 +33,80 @@ export interface OrderStreamState {
   setOrder: (order: Order) => void;
 }
 
+const finished = (order: Order | null) =>
+  order?.status === "delivered" || order?.status === "cancelled";
+
 export function useOrderStream(orderId: string): OrderStreamState {
-  const [state, setState] = useState<Omit<OrderStreamState, "setOrder">>({
-    order: null,
-    progress: 0,
-    remainingMinutes: 0,
-    live: false,
-    loading: true,
-    error: null,
-  });
-  const finished = useRef(false);
+  const [order, setOrderState] = useState<Order | null>(null);
+  const [timing, setTiming] = useState<ProgressContext>({ simSpeed: 1, demoMode: false });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [, tick] = useState(0);
+  const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    let source: EventSource | null = null;
-    let poll: ReturnType<typeof setInterval> | null = null;
-
-    function apply(payload: StreamPayload, live: boolean) {
-      if (cancelled) return;
-      finished.current =
-        payload.order.status === "delivered" ||
-        payload.order.status === "cancelled";
-      setState({
-        order: payload.order,
-        progress: payload.progress,
-        remainingMinutes: payload.remainingMinutes,
-        live,
-        loading: false,
-        error: null,
-      });
-    }
-
-    /* 1) İlk durum */
-    api
-      .get<StreamPayload>(`/orders/${orderId}`)
-      .then((data) => apply(data, false))
-      .catch((err: Error) => {
-        if (!cancelled) {
-          setState((s) => ({ ...s, loading: false, error: err.message }));
-        }
-      });
-
-    /* 2) Canlı akış */
+  const load = useCallback(async () => {
     try {
-      source = new EventSource(`/api/v1/orders/${orderId}/stream`, {
-        withCredentials: true,
-      });
-
-      source.addEventListener("update", (event) => {
-        try {
-          apply(JSON.parse((event as MessageEvent).data) as StreamPayload, true);
-        } catch {
-          /* bozuk paket — yoksay */
-        }
-      });
-
-      source.addEventListener("done", () => {
-        source?.close();
-        setState((s) => ({ ...s, live: false }));
-      });
-
-      source.onerror = () => {
-        setState((s) => ({ ...s, live: false }));
-      };
-    } catch {
-      /* EventSource desteklenmiyorsa yoklamaya düşeriz */
+      const data = await api.get<OrderPayload>(`/orders/${orderId}`);
+      setOrderState(data.order);
+      if (data.timing) setTiming(data.timing);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sipariş yüklenemedi");
+    } finally {
+      setLoading(false);
     }
-
-    /* 3) Yedek yoklama */
-    poll = setInterval(() => {
-      if (finished.current) return;
-      api
-        .get<StreamPayload>(`/orders/${orderId}`)
-        .then((data) => {
-          setState((s) => (s.live ? s : { ...s, ...data, loading: false }));
-        })
-        .catch(() => undefined);
-    }, 5000);
-
-    return () => {
-      cancelled = true;
-      source?.close();
-      if (poll) clearInterval(poll);
-    };
   }, [orderId]);
 
+  /* İlk durum */
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  /* Realtime */
+  const status = useRealtime(
+    "customer",
+    [`order:${orderId}`],
+    (message) => {
+      if (message.event === "courier_moved") {
+        const point = message.payload.courierPoint as LatLng | null | undefined;
+        if (point) setOrderState((current) => (current ? { ...current, courierPoint: point } : current));
+        return;
+      }
+      // Art arda gelen olaylar tek istekte birleşsin
+      if (refetchTimer.current) clearTimeout(refetchTimer.current);
+      refetchTimer.current = setTimeout(() => void load(), 250);
+    },
+    !finished(order)
+  );
+
+  /* Yedek yoklama: canlı bağlantıda seyrek, bağlantı yoksa sık */
+  useEffect(() => {
+    if (finished(order)) return;
+    const timer = setInterval(() => void load(), status === "live" ? 20_000 : 4_000);
+    return () => clearInterval(timer);
+  }, [status, order, load]);
+
+  /* İlerleme çubuğu ve kalan süre */
+  useEffect(() => {
+    if (finished(order)) return;
+    const timer = setInterval(() => tick((n) => n + 1), 2_000);
+    return () => clearInterval(timer);
+  }, [order]);
+
+  useEffect(
+    () => () => {
+      if (refetchTimer.current) clearTimeout(refetchTimer.current);
+    },
+    []
+  );
+
   return {
-    ...state,
-    setOrder: (order: Order) => setState((s) => ({ ...s, order })),
+    order,
+    progress: order ? progressOf(order, timing) : 0,
+    remainingMinutes: order ? remainingMinutes(order) : 0,
+    live: status === "live" && !finished(order),
+    loading,
+    error,
+    setOrder: setOrderState,
   };
 }

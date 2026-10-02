@@ -155,6 +155,7 @@ export async function updateLocation(courier: Courier, point: LatLng): Promise<C
      where courier_id = ${courier.id}
        and courier_stage = any(${ACTIVE_STAGES}::text[])
        and status not in ('delivered', 'cancelled')
+       and (courier_lat is distinct from ${point.lat} or courier_lng is distinct from ${point.lng})
   `;
   return (await findCourier(courier.id))!;
 }

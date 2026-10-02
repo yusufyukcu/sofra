@@ -3,7 +3,8 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { api } from "../api-client";
-import type { Courier, DeliveryOffer, Order } from "../types";
+import { closeRealtime } from "../realtime";
+import type { Courier, DeliveryOffer, LatLng, Order } from "../types";
 import type { CourierSummaryStats } from "../services/courier";
 
 /**
@@ -16,6 +17,11 @@ export type PublicCourier = Omit<Courier, "pin">;
 export type ActiveOffer = DeliveryOffer & {
   order: Order;
   secondsLeft: number;
+  /**
+   * Teklifin bu cihazın saatine göre bittiği an (ms). Sunucunun verdiği kalan
+   * süreden hesaplanır; böylece cihaz saati kaysa da geri sayım doğru kalır.
+   */
+  deadline?: number;
 };
 
 interface CourierState {
@@ -41,6 +47,10 @@ interface CourierState {
   }) => void;
   setCourier: (courier: PublicCourier) => void;
   setLocationSource: (source: "simulated" | "device") => void;
+  /** Geri sayımı tarayıcı saatinden günceller (saniyede bir çağrılır). */
+  tickOffer: () => void;
+  /** Kendi konum bildirimimizi panoya hemen yansıtır. */
+  setActivePoint: (point: LatLng) => void;
 }
 
 export const useCourier = create<CourierState>()(
@@ -75,6 +85,7 @@ export const useCourier = create<CourierState>()(
         try {
           await api.post("/courier/auth/logout");
         } finally {
+          closeRealtime("courier");
           set({
             status: "guest",
             courier: null,
@@ -86,10 +97,31 @@ export const useCourier = create<CourierState>()(
       },
 
       applyBoard: ({ courier, stats, offer, activeOrder }) =>
-        set({ courier, stats, offer, activeOrder }),
+        set({
+          courier,
+          stats,
+          activeOrder,
+          offer: offer ? { ...offer, deadline: Date.now() + offer.secondsLeft * 1000 } : null,
+        }),
 
       setCourier: (courier) => set({ courier }),
       setLocationSource: (locationSource) => set({ locationSource }),
+
+      tickOffer: () =>
+        set((state) => {
+          const offer = state.offer;
+          if (!offer?.deadline) return {};
+          const secondsLeft = Math.max(0, Math.round((offer.deadline - Date.now()) / 1000));
+          return secondsLeft === offer.secondsLeft ? {} : { offer: { ...offer, secondsLeft } };
+        }),
+
+      setActivePoint: (point) =>
+        set((state) => ({
+          courier: state.courier ? { ...state.courier, point } : state.courier,
+          activeOrder: state.activeOrder
+            ? { ...state.activeOrder, courierPoint: point }
+            : state.activeOrder,
+        })),
     }),
     {
       name: "sofra:courier",

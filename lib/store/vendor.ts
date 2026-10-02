@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { api } from "../api-client";
+import { closeRealtime } from "../realtime";
 import type { Restaurant } from "../types";
 import type { VendorSummary } from "../services/vendor";
 
@@ -78,6 +79,7 @@ export const useVendor = create<VendorState>()(
         try {
           await api.post("/vendor/auth/logout");
         } finally {
+          closeRealtime("vendor");
           set({
             status: "guest",
             vendor: null,

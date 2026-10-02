@@ -1,9 +1,10 @@
 "use client";
 
 import { AlertTriangle, History, Radio, XCircle } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, errorMessage } from "@/lib/api-client";
 import { ORDER_STATUS_META } from "@/lib/constants";
+import { useRealtime } from "@/lib/realtime";
 import type { AdminOverview, LiveOrder } from "@/lib/services/admin";
 import { useAdmin } from "@/lib/store/admin";
 import type { AuditEntry } from "@/lib/types";
@@ -40,7 +41,6 @@ export function LiveOperations() {
   const setKpi = useAdmin((s) => s.setKpi);
 
   const [data, setData] = useState<Payload | null>(null);
-  const [live, setLive] = useState(false);
   const [action, setAction] = useState<{
     order: LiveOrder["order"];
     kind: "cancel" | "refund";
@@ -58,24 +58,51 @@ export function LiveOperations() {
     apply(await api.get<Payload>("/admin/overview"));
   }, [apply]);
 
+  /*
+   * Realtime: sipariş/teklif/onay olayları özeti yeniden çeker (art arda
+   * gelenler tek istekte birleşir). Kurye konumu haritada yerinde güncellenir;
+   * vardiyaya giren ya da çıkan kurye olursa liste yeniden çekilir.
+   */
+  const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleRefresh = useCallback(() => {
+    if (refetchTimer.current) clearTimeout(refetchTimer.current);
+    refetchTimer.current = setTimeout(() => void refresh().catch(() => undefined), 800);
+  }, [refresh]);
+
+  const status = useRealtime("admin", ["admin:ops"], (message) => {
+    if (message.event === "courier_moved") return;
+    if (message.event === "courier_changed" && data) {
+      const { id, online, point } = message.payload as {
+        id: string;
+        online: boolean;
+        point: { lat: number; lng: number };
+      };
+      const known = data.couriers.some((c) => c.id === id);
+      if (known === online) {
+        if (known) {
+          setData((current) =>
+            current && {
+              ...current,
+              couriers: current.couriers.map((c) => (c.id === id ? { ...c, point } : c)),
+            }
+          );
+        }
+        return;
+      }
+    }
+    scheduleRefresh();
+  });
+  const live = status === "live";
+
   useEffect(() => {
     void refresh().catch(() => undefined);
+  }, [refresh]);
 
-    const source = new EventSource("/api/v1/admin/overview/stream", {
-      withCredentials: true,
-    });
-    source.addEventListener("overview", (event) => {
-      try {
-        apply(JSON.parse((event as MessageEvent).data) as Payload);
-        setLive(true);
-      } catch {
-        /* bozuk paket — yoksay */
-      }
-    });
-    source.onerror = () => setLive(false);
-
-    return () => source.close();
-  }, [apply, refresh]);
+  /* Gecikme alarmı zamana bağlı: canlı bağlantıda da düzenli tazele */
+  useEffect(() => {
+    const timer = setInterval(() => void refresh().catch(() => undefined), live ? 15_000 : 5_000);
+    return () => clearInterval(timer);
+  }, [live, refresh]);
 
   const markers = useMemo(() => {
     if (!data) return [];

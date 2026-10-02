@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { api } from "../api-client";
+import { closeRealtime } from "../realtime";
 import type { AdminOverview } from "../services/admin";
 
 /**
@@ -50,6 +51,7 @@ export const useAdmin = create<AdminState>()((set) => ({
     try {
       await api.post("/admin/auth/logout");
     } finally {
+      closeRealtime("admin");
       set({ status: "guest", admin: null, kpi: null });
     }
   },

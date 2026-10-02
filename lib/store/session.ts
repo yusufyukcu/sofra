@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { api } from "../api-client";
 import { DEFAULT_CENTER } from "../constants";
+import { closeRealtime } from "../realtime";
 import type { Address, LatLng, Order, SavedCard, User } from "../types";
 
 /**
@@ -107,6 +108,7 @@ export const useSession = create<SessionState>()(
         try {
           await api.post("/auth/logout");
         } finally {
+          closeRealtime("customer");
           set({
             status: "guest",
             user: null,

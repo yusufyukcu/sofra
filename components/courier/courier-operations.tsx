@@ -3,6 +3,7 @@
 import { Crosshair, Radio, Satellite } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
+import { useRealtime } from "@/lib/realtime";
 import {
   ARRIVAL_THRESHOLD_KM,
   LOCATION_PING_MS,
@@ -17,7 +18,8 @@ import { OfferCard } from "./offer-card";
 /**
  * Kurye ana ekranı.
  *
- * Canlı pano SSE ile beslenir; yeni teklif saniye saniye geri sayar.
+ * Pano kuryenin Realtime kanalındaki teklif/sipariş olaylarıyla tazelenir;
+ * yeni teklif tarayıcıda saniye saniye geri sayar.
  * Konum bildirimi iki kaynaktan gelebilir:
  *   simulated → kurye rota üzerinde ilerletilir (cihaz GPS'inin yerine geçer)
  *   device    → tarayıcının konum servisi
@@ -32,51 +34,81 @@ export function CourierOperations() {
   const applyBoard = useCourier((s) => s.applyBoard);
   const locationSource = useCourier((s) => s.locationSource);
   const setLocationSource = useCourier((s) => s.setLocationSource);
+  const tickOffer = useCourier((s) => s.tickOffer);
+  const setActivePoint = useCourier((s) => s.setActivePoint);
 
-  const [live, setLive] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   /* ---------------- Canlı pano ---------------- */
 
-  const apply = useCallback(
-    (payload: Parameters<typeof applyBoard>[0]) => {
-      applyBoard(payload);
+  const refresh = useCallback(async () => {
+    try {
+      applyBoard(await api.get<Parameters<typeof applyBoard>[0]>("/courier/board"));
+    } catch {
+      /* geçici hata — sıradaki olayda ya da yoklamada düzelir */
+    } finally {
       setLoaded(true);
+    }
+  }, [applyBoard]);
+
+  const courierId = courier?.id;
+  const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const status = useRealtime(
+    "courier",
+    courierId ? [`courier:${courierId}`] : [],
+    (message) => {
+      if (message.event === "courier_changed") {
+        // Kendi konum bildirimlerimiz de bu olayı üretir: yalnızca vardiya ya da hesap durumu değişince tazele
+        const current = useCourier.getState().courier;
+        if (
+          current &&
+          message.payload.online === current.online &&
+          message.payload.status === current.status
+        ) {
+          return;
+        }
+      } else if (message.event !== "offer_changed" && message.event !== "order_changed") {
+        return;
+      }
+      if (refetchTimer.current) clearTimeout(refetchTimer.current);
+      refetchTimer.current = setTimeout(() => void refresh(), 200);
     },
-    [applyBoard]
+    Boolean(courierId)
   );
+  const live = status === "live";
 
   useEffect(() => {
-    api
-      .get<Parameters<typeof applyBoard>[0]>("/courier/board")
-      .then(apply)
-      .catch(() => setLoaded(true));
+    void refresh();
+  }, [refresh]);
 
-    const source = new EventSource("/api/v1/courier/board/stream", {
-      withCredentials: true,
-    });
-    source.addEventListener("board", (event) => {
-      try {
-        apply(JSON.parse((event as MessageEvent).data));
-        setLive(true);
-      } catch {
-        /* bozuk paket — yoksay */
-      }
-    });
-    source.onerror = () => setLive(false);
+  /* Yedek yoklama: canlı bağlantıda seyrek, bağlantı yoksa sık */
+  useEffect(() => {
+    const timer = setInterval(() => void refresh(), live ? 20_000 : 4_000);
+    return () => clearInterval(timer);
+  }, [live, refresh]);
 
-    return () => source.close();
-  }, [apply, applyBoard]);
+  /* Teklif geri sayımı; süre dolunca pano tazelenir ve teklif kalkar */
+  const offerId = offer?.id;
+  useEffect(() => {
+    if (!offerId) return;
+    const timer = setInterval(() => {
+      tickOffer();
+      if (useCourier.getState().offer?.secondsLeft === 0) void refresh();
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [offerId, tickOffer, refresh]);
 
   /* ---------------- Konum bildirimi ---------------- */
 
   const sending = useRef(false);
+  const lastSent = useRef<LatLng | null>(null);
 
   const pushLocation = useCallback(async (point: LatLng) => {
     if (sending.current) return;
     sending.current = true;
     try {
       await api.post<{ courier: PublicCourier }>("/courier/location", { point });
+      lastSent.current = point;
     } catch {
       /* geçici hata — bir sonraki bildirimde düzelir */
     } finally {
@@ -84,26 +116,40 @@ export function CourierOperations() {
     }
   }, []);
 
-  /* Simüle edilen sürüş: hedefe doğru kademeli ilerleme */
+  /*
+   * Simüle edilen sürüş: hedefe doğru kademeli ilerleme. Konum mağazada
+   * tutulur ve her adımda hemen güncellenir; pano yeniden çekilmeden de
+   * sürüş kesintisiz devam eder. Hedefe varınca bildirim durur.
+   */
+  const activeId = activeOrder?.id;
+  const activeStage = activeOrder?.courierStage;
   useEffect(() => {
-    if (locationSource !== "simulated") return;
-    if (!activeOrder || !courier) return;
-
-    const target =
-      activeOrder.courierStage === "picked_up"
-        ? activeOrder.address.point
-        : activeOrder.restaurantLocation;
+    if (locationSource !== "simulated" || !activeId) return;
 
     const timer = setInterval(() => {
-      const current = activeOrder.courierPoint ?? courier.point;
-      const left = distanceKm(current, target);
+      const { activeOrder: order, courier: me } = useCourier.getState();
+      if (!order || !me) return;
+
+      const target =
+        order.courierStage === "picked_up" ? order.address.point : order.restaurantLocation;
+      const current = order.courierPoint ?? me.point;
+      if (current.lat === target.lat && current.lng === target.lng) {
+        // Hedefteyiz: son nokta sunucuya ulaşmadıysa bir kez daha gönder
+        const sent = lastSent.current;
+        if (!sent || sent.lat !== target.lat || sent.lng !== target.lng) void pushLocation(target);
+        return;
+      }
+
       const next =
-        left <= ARRIVAL_THRESHOLD_KM ? target : lerpPoint(current, target, 0.16);
+        distanceKm(current, target) <= ARRIVAL_THRESHOLD_KM
+          ? target
+          : lerpPoint(current, target, 0.16);
+      setActivePoint(next);
       void pushLocation(next);
     }, LOCATION_PING_MS);
 
     return () => clearInterval(timer);
-  }, [locationSource, activeOrder, courier, pushLocation]);
+  }, [locationSource, activeId, activeStage, setActivePoint, pushLocation]);
 
   /* Cihaz konumu */
   useEffect(() => {
@@ -111,16 +157,19 @@ export function CourierOperations() {
     if (typeof navigator === "undefined" || !navigator.geolocation) return;
 
     const id = navigator.geolocation.watchPosition(
-      (position) =>
-        void pushLocation({
+      (position) => {
+        const point = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
-        }),
+        };
+        setActivePoint(point);
+        void pushLocation(point);
+      },
       () => undefined,
       { enableHighAccuracy: true, maximumAge: 5000 }
     );
     return () => navigator.geolocation.clearWatch(id);
-  }, [locationSource, pushLocation]);
+  }, [locationSource, setActivePoint, pushLocation]);
 
   /* ---------------- Görünüm ---------------- */
 
