@@ -1,72 +1,22 @@
-import { cookies } from "next/headers";
+import "server-only";
 import { NextResponse } from "next/server";
-import { SignJWT, jwtVerify } from "jose";
+import type { Session } from "@supabase/supabase-js";
 import { findAdmin } from "../db/queries";
 import { DomainError } from "../errors";
 import type { AdminAccount } from "../types";
+import { claimsFor, passwordSignIn, sessionPayload, signOutRole } from "./roles";
 
 /**
- * Yönetici oturumu (Superadmin).
+ * Yönetici oturumu (Supabase Auth, e-posta + parola).
  *
- * Dördüncü ve son oturum türü. Diğer üçünden ayrı çerez ve `audience`
- * kullanır; müşteri, işletme veya kurye token'ı yönetim uç noktalarında
- * geçersizdir. Süre bilinçli olarak kısa tutuldu.
+ * Diğer üç rolden ayrı çerez ve JWT rolü. Süre bilinçli olarak kısa:
+ * girişten 4 saat sonra yeniden giriş istenir.
  */
 
-export const ADMIN_COOKIE = "sofra_admin";
-export const ADMIN_MAX_AGE = 60 * 60 * 4; // 4 saat
-
-const secret = new TextEncoder().encode(
-  process.env.SOFRA_JWT_SECRET ?? "sofra-dev-secret-degistirilmeli-0123456789"
-);
-
-export async function signAdminSession(adminId: string): Promise<string> {
-  return new SignJWT({ sub: adminId })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setIssuer("sofra")
-    .setAudience("sofra-admin")
-    .setExpirationTime(`${ADMIN_MAX_AGE}s`)
-    .sign(secret);
-}
-
-export async function verifyAdminSession(
-  token: string
-): Promise<string | null> {
-  try {
-    const { payload } = await jwtVerify(token, secret, {
-      issuer: "sofra",
-      audience: "sofra-admin",
-    });
-    return typeof payload.sub === "string" ? payload.sub : null;
-  } catch {
-    return null;
-  }
-}
-
-function bearerToken(request: Request): string | null {
-  const header = request.headers.get("authorization");
-  if (!header) return null;
-  const [scheme, value] = header.split(" ");
-  if (scheme?.toLowerCase() !== "bearer" || !value) return null;
-  return value.trim();
-}
-
-export async function currentAdmin(
-  request?: Request
-): Promise<AdminAccount | null> {
-  let token: string | null = null;
-
-  if (request) token = bearerToken(request);
-  if (!token) {
-    const jar = await cookies();
-    token = jar.get(ADMIN_COOKIE)?.value ?? null;
-  }
-  if (!token) return null;
-
-  const adminId = await verifyAdminSession(token);
-  if (!adminId) return null;
-  return (await findAdmin(adminId)) ?? null;
+export async function currentAdmin(request?: Request): Promise<AdminAccount | null> {
+  const claims = await claimsFor("admin", request);
+  if (!claims) return null;
+  return findAdmin(claims.sid);
 }
 
 export async function requireAdmin(request?: Request): Promise<AdminAccount> {
@@ -81,33 +31,31 @@ export async function requireAdmin(request?: Request): Promise<AdminAccount> {
   return admin;
 }
 
-export const adminCookieOptions = {
-  httpOnly: true,
-  sameSite: "lax" as const,
-  path: "/",
-  maxAge: ADMIN_MAX_AGE,
-  secure: process.env.NODE_ENV === "production",
-};
-
 export function publicAdmin(admin: AdminAccount) {
   return admin;
 }
 
-export async function respondWithAdminSession(
-  admin: AdminAccount,
-  extra: Record<string, unknown> = {}
-): Promise<NextResponse> {
-  const accessToken = await signAdminSession(admin.id);
-  const response = NextResponse.json({
-    ok: true,
-    data: { admin: publicAdmin(admin), accessToken, ...extra },
-  });
-  response.cookies.set(ADMIN_COOKIE, accessToken, adminCookieOptions);
-  return response;
+export async function adminPasswordLogin(
+  email: string,
+  password: string
+): Promise<{ admin: AdminAccount; session: Session }> {
+  const { session, claims } = await passwordSignIn("admin", email, password);
+  const admin = await findAdmin(claims.sid);
+  if (!admin) {
+    await signOutRole("admin");
+    throw new DomainError("admin_not_found", "Yönetici kaydı bulunamadı.", 404);
+  }
+  return { admin, session };
 }
 
-export function clearAdminSessionResponse(): NextResponse {
-  const response = NextResponse.json({ ok: true, data: { loggedOut: true } });
-  response.cookies.set(ADMIN_COOKIE, "", { ...adminCookieOptions, maxAge: 0 });
-  return response;
+export function adminSessionResponse(admin: AdminAccount, session: Session): NextResponse {
+  return NextResponse.json({
+    ok: true,
+    data: { admin: publicAdmin(admin), ...sessionPayload(session) },
+  });
+}
+
+export async function clearAdminSessionResponse(): Promise<NextResponse> {
+  await signOutRole("admin");
+  return NextResponse.json({ ok: true, data: { loggedOut: true } });
 }

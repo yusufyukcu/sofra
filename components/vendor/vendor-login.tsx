@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, Search, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -11,31 +11,33 @@ import { cn } from "@/lib/utils";
 import { Button, Field, Input, Skeleton } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 
-interface PickerItem {
-  id: string;
+interface DemoAccount {
+  restaurantId: string;
   name: string;
   emoji: string;
   district: string;
+  email: string;
 }
 
 /**
- * İşletme girişi.
+ * İşletme girişi — e-posta ve parola (Supabase Auth).
  *
- * Prototipte restoran listeden seçilir ve ortak bir PIN ile giriş yapılır.
- * Üretimde her işletmenin kendi e-posta + parolası ve iki adımlı doğrulaması
- * olur; bu ekranın yapısı aynı kalır.
+ * Demo modunda tohum restoranların hesapları listelenir; birine dokununca
+ * e-posta alanı dolar. Demo parolası yalnızca geliştirme ortamında
+ * gösterilir (sunucu sayfası `demoPassword` olarak verir).
  */
-export function VendorLogin() {
+export function VendorLogin({ demoPassword }: { demoPassword?: string }) {
   const router = useRouter();
   const toast = useToast();
   const status = useVendor((s) => s.status);
   const applyAuth = useVendor((s) => s.applyAuth);
   const bootstrap = useVendor((s) => s.bootstrap);
 
-  const [items, setItems] = useState<PickerItem[] | null>(null);
+  const [accounts, setAccounts] = useState<DemoAccount[] | null>(null);
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<string>("");
-  const [pin, setPin] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -48,27 +50,21 @@ export function VendorLogin() {
 
   useEffect(() => {
     api
-      .get<{ restaurants: PickerItem[] }>("/vendor/auth/login")
-      .then((data) => {
-        setItems(data.restaurants);
-        setSelected(data.restaurants[0]?.id ?? "");
-      })
-      .catch((err) => {
-        toast.error(errorMessage(err));
-        setItems([]);
-      });
-  }, [toast]);
+      .get<{ demo: boolean; accounts: DemoAccount[] }>("/vendor/auth/login")
+      .then((data) => setAccounts(data.accounts))
+      .catch(() => setAccounts([]));
+  }, []);
 
   const filtered = useMemo(() => {
-    if (!items) return [];
+    if (!accounts) return [];
     const q = query.trim().toLocaleLowerCase("tr");
-    if (!q) return items;
-    return items.filter(
+    if (!q) return accounts;
+    return accounts.filter(
       (item) =>
         item.name.toLocaleLowerCase("tr").includes(q) ||
         item.district.toLocaleLowerCase("tr").includes(q)
     );
-  }, [items, query]);
+  }, [accounts, query]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -77,14 +73,14 @@ export function VendorLogin() {
       const data = await api.post<{
         vendor: { id: string; name: string; email: string };
         restaurant: Restaurant;
-      }>("/vendor/auth/login", { restaurantId: selected, pin });
+      }>("/vendor/auth/login", { email, password });
 
       applyAuth({ vendor: data.vendor, restaurant: data.restaurant });
       toast.success(`${data.restaurant.name} paneline hoş geldin.`);
       router.replace("/isletme");
     } catch (err) {
       toast.error(errorMessage(err));
-      setPin("");
+      setPassword("");
     } finally {
       setBusy(false);
     }
@@ -95,12 +91,8 @@ export function VendorLogin() {
       {/* Tanıtım tarafı */}
       <section className="band-deep hidden flex-col justify-between p-10 lg:flex">
         <div className="flex items-center gap-2.5">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-brand text-xl">
-            🍽️
-          </span>
-          <span className="font-display text-xl font-extrabold tracking-tight text-on-deep">
-            Sofra İşletme
-          </span>
+          <span className="flex size-10 items-center justify-center rounded-xl bg-brand text-xl">🍽️</span>
+          <span className="font-display text-xl font-extrabold tracking-tight text-on-deep">Sofra İşletme</span>
         </div>
 
         <div className="max-w-md">
@@ -108,8 +100,8 @@ export function VendorLogin() {
             Mutfağın kontrol masası
           </h1>
           <p className="mt-4 text-[15px] leading-relaxed text-on-deep-muted">
-            Siparişleri anında gör ve onayla, menünü ve stoğunu tek ekrandan
-            yönet, cironu ve hakedişlerini takip et.
+            Siparişleri anında gör ve onayla, menünü ve stoğunu tek ekrandan yönet, cironu ve
+            hakedişlerini takip et.
           </p>
 
           <ul className="mt-9 space-y-3.5">
@@ -119,10 +111,7 @@ export function VendorLogin() {
               ["🍽️", "Ürün ekle, fiyat güncelle, tükeneni kapat"],
               ["📊", "Günlük ciro, komisyon ve hakediş tabloları"],
             ].map(([emoji, text]) => (
-              <li
-                key={text}
-                className="flex items-center gap-3 text-[15px] text-on-deep"
-              >
+              <li key={text} className="flex items-center gap-3 text-[15px] text-on-deep">
                 <span className="flex size-9 items-center justify-center rounded-xl bg-white/10 text-lg">
                   {emoji}
                 </span>
@@ -143,89 +132,39 @@ export function VendorLogin() {
       {/* Form tarafı */}
       <section className="flex items-center justify-center bg-paper p-5 sm:p-10">
         <form onSubmit={submit} className="w-full max-w-md">
-          <h2 className="font-display text-2xl font-extrabold text-ink">
-            İşletme girişi
-          </h2>
-          <p className="mt-1.5 text-sm text-muted">
-            Restoranını seç ve panel PIN&apos;ini gir.
-          </p>
+          <h2 className="font-display text-2xl font-extrabold text-ink">İşletme girişi</h2>
+          <p className="mt-1.5 text-sm text-muted">Panel hesabının e-posta adresi ve parolasıyla gir.</p>
 
-          <label className="mt-6 flex h-11 items-center gap-2 rounded-xl border border-border bg-surface px-3 focus-within:border-brand">
-            <Search className="size-4 shrink-0 text-muted" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Restoran ara"
-              aria-label="Restoran ara"
-              className="min-w-0 flex-1 bg-transparent text-sm text-ink placeholder:text-muted focus:outline-none"
-            />
-          </label>
-
-          <div className="mt-3 max-h-64 space-y-1.5 overflow-y-auto rounded-2xl border border-border bg-surface p-1.5">
-            {!items && (
-              <>
-                <Skeleton className="h-14 w-full" />
-                <Skeleton className="h-14 w-full" />
-                <Skeleton className="h-14 w-full" />
-              </>
-            )}
-            {items && filtered.length === 0 && (
-              <p className="px-3 py-6 text-center text-sm text-muted">
-                Eşleşen restoran yok.
-              </p>
-            )}
-            {filtered.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setSelected(item.id)}
-                className={cn(
-                  "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
-                  selected === item.id
-                    ? "bg-brand-soft"
-                    : "hover:bg-surface-2"
-                )}
-              >
-                <span className="text-xl">{item.emoji}</span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-bold text-ink">
-                    {item.name}
-                  </span>
-                  <span className="block text-xs text-muted">
-                    {item.district}
-                  </span>
-                </span>
-                {selected === item.id && (
-                  <span className="size-2.5 shrink-0 rounded-full bg-brand" />
-                )}
-              </button>
-            ))}
-          </div>
-
-          <Field label="Panel PIN" className="mt-5">
+          <Field label="E-posta" className="mt-6">
             <Input
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              inputMode="numeric"
-              placeholder="••••"
-              autoComplete="off"
-              className="text-center font-mono text-2xl tracking-[0.5em]"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="isletme@ornek.com"
+              autoComplete="username"
             />
           </Field>
 
-          <div className="mt-3 flex items-start gap-2 rounded-xl border border-info/25 bg-info-soft px-3.5 py-2.5 text-sm">
-            <ShieldCheck className="mt-0.5 size-4 shrink-0 text-info" />
-            <span className="text-text">
-              Prototip PIN&apos;i:{" "}
+          <Field label="Parola" className="mt-4">
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                className="pr-11"
+              />
               <button
                 type="button"
-                onClick={() => setPin("1234")}
-                className="font-mono font-extrabold text-info hover:underline"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Parolayı gizle" : "Parolayı göster"}
+                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-muted hover:text-ink"
               >
-                1234
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
-            </span>
-          </div>
+            </div>
+          </Field>
 
           <Button
             type="submit"
@@ -233,14 +172,81 @@ export function VendorLogin() {
             size="lg"
             className="mt-5"
             loading={busy}
-            disabled={!selected || pin.length < 4}
+            disabled={!email || password.length < 6}
           >
             Panele gir
           </Button>
 
+          {/* Demo hesapları — yalnızca demo modunda */}
+          {accounts === null ? (
+            <Skeleton className="mt-8 h-40 w-full" />
+          ) : accounts.length > 0 ? (
+            <div className="mt-8">
+              <div className="flex items-start gap-2 rounded-xl border border-info/25 bg-info-soft px-3.5 py-2.5 text-sm">
+                <ShieldCheck className="mt-0.5 size-4 shrink-0 text-info" />
+                <span className="text-text">
+                  Demo modu: bir restorana dokun, e-postası dolsun.
+                  {demoPassword ? (
+                    <>
+                      {" "}
+                      Parola:{" "}
+                      <button
+                        type="button"
+                        onClick={() => setPassword(demoPassword)}
+                        className="font-mono font-extrabold text-info hover:underline"
+                      >
+                        {demoPassword}
+                      </button>
+                    </>
+                  ) : (
+                    " Demo parolası .env.development.local dosyasındaki SOFRA_DEMO_PASSWORD."
+                  )}
+                </span>
+              </div>
+
+              <label className="mt-3 flex h-11 items-center gap-2 rounded-xl border border-border bg-surface px-3 focus-within:border-brand">
+                <Search className="size-4 shrink-0 text-muted" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Restoran ara"
+                  aria-label="Restoran ara"
+                  className="min-w-0 flex-1 bg-transparent text-sm text-ink placeholder:text-muted focus:outline-none"
+                />
+              </label>
+
+              <div className="mt-3 max-h-64 space-y-1.5 overflow-y-auto rounded-2xl border border-border bg-surface p-1.5">
+                {filtered.length === 0 && (
+                  <p className="px-3 py-6 text-center text-sm text-muted">Eşleşen restoran yok.</p>
+                )}
+                {filtered.map((item) => (
+                  <button
+                    key={item.restaurantId}
+                    type="button"
+                    onClick={() => {
+                      setEmail(item.email);
+                      if (demoPassword) setPassword(demoPassword);
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
+                      email === item.email ? "bg-brand-soft" : "hover:bg-surface-2"
+                    )}
+                  >
+                    <span className="text-xl">{item.emoji}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-bold text-ink">{item.name}</span>
+                      <span className="block truncate text-xs text-muted">{item.email}</span>
+                    </span>
+                    {email === item.email && <span className="size-2.5 shrink-0 rounded-full bg-brand" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <Link
             href="/"
-            className="mt-4 block text-center text-sm font-medium text-muted hover:text-ink lg:hidden"
+            className="mt-6 block text-center text-sm font-medium text-muted hover:text-ink lg:hidden"
           >
             ← Müşteri uygulamasına dön
           </Link>

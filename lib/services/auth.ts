@@ -29,7 +29,7 @@ const WINDOW_MINUTES = 15;
 export type OtpPurpose = "customer" | "courier";
 
 function pepper(): string {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SOFRA_JWT_SECRET;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key) throw new Error("Doğrulama kodu anahtarı yok (SUPABASE_SERVICE_ROLE_KEY).");
   return key;
 }

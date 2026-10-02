@@ -3,7 +3,6 @@ import { PAYMENT_METHODS } from "../constants";
 import { asJson, dispatchNow, sql, type Changes, type Db } from "../db/client";
 import {
   addOrderEvent,
-  allRestaurantRows,
   findOrderRow,
   findRestaurant,
   findRestaurantRow,
@@ -12,7 +11,6 @@ import {
 } from "../db/queries";
 import { toReview, type OrderRow, type ProductRow, type ReviewRow } from "../db/mappers";
 import { appSettings, scaledMs } from "../db/settings";
-import { VENDOR_PIN } from "../db/seed";
 import { DomainError } from "../errors";
 import type {
   LatLng,
@@ -23,7 +21,6 @@ import type {
   PaymentMethodId,
   Restaurant,
   Review,
-  VendorAccount,
 } from "../types";
 import {
   createId,
@@ -48,29 +45,22 @@ import { payoutsFor } from "./payouts";
  */
 
 /* ================================================================== */
-/* Giriş (geçici: Supabase Auth'a geçişte e-posta + parolayla değişecek) */
+/* Giriş                                                              */
 /* ================================================================== */
 
-export async function vendorLogin(
-  restaurantId: string,
-  pin: string
-): Promise<{ vendor: VendorAccount; restaurant: Restaurant }> {
-  const restaurant = await findRestaurant(restaurantId);
-  if (!restaurant) throw new DomainError("restaurant_not_found", "Restoran bulunamadı.", 404);
-  const [vendor] = await sql<VendorAccount[]>`
-    select id, restaurant_id, name, email, role, created_at::text as created_at
-      from public.vendor_members where restaurant_id = ${restaurant.id} order by created_at limit 1
+/**
+ * Demo giriş ekranındaki işletme hesapları. Yalnızca tohum verisindeki
+ * `@sofra.app` demo hesapları listelenir — başvuruyla gelen gerçek
+ * işletmelerin e-postaları hiçbir zaman açık listede görünmez.
+ */
+export async function demoVendorAccounts() {
+  return sql<{ restaurantId: string; name: string; emoji: string; district: string; email: string }[]>`
+    select r.id as restaurant_id, r.name, r.emoji, r.district, m.email
+      from public.vendor_members m
+      join public.restaurants r on r.id = m.restaurant_id
+     where m.email like '%@sofra.app'
+     order by r.name
   `;
-  if (!vendor) {
-    throw new DomainError("vendor_not_found", "Bu restoran için işletme hesabı tanımlı değil.", 404);
-  }
-  if (pin.trim() !== VENDOR_PIN) throw new DomainError("invalid_pin", "PIN hatalı. Tekrar dene.", 401);
-  return { vendor, restaurant };
-}
-
-export async function vendorLoginRestaurants() {
-  const rows = await allRestaurantRows();
-  return rows.map((r) => ({ id: r.id, name: r.name, emoji: r.emoji, district: r.district, tags: r.tags }));
 }
 
 /* ================================================================== */

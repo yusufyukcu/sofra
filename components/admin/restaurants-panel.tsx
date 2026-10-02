@@ -1,9 +1,10 @@
 "use client";
 
-import { Check, Percent, Search, Store, XCircle } from "lucide-react";
+import { Check, Copy, Link2, Percent, Search, Star, Store, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api, errorMessage } from "@/lib/api-client";
 import type { AdminRestaurantRow } from "@/lib/services/admin";
+import type { VendorInvite } from "@/lib/services/vendor-onboarding";
 import { useAdmin } from "@/lib/store/admin";
 import { cn, formatPhone, formatPrice } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
@@ -47,6 +48,7 @@ export function RestaurantsPanel() {
   );
   const [suspendFor, setSuspendFor] = useState<AdminRestaurantRow | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [invite, setInvite] = useState<(VendorInvite & { restaurant: string }) | null>(null);
 
   useEffect(() => {
     api
@@ -72,12 +74,14 @@ export function RestaurantsPanel() {
   ) {
     setBusyId(row.restaurant.id);
     try {
-      const data = await api.post<{ rows: AdminRestaurantRow[] }>(
+      const data = await api.post<{ rows: AdminRestaurantRow[]; invite: VendorInvite | null }>(
         `/admin/restaurants/${row.restaurant.id}`,
         body
       );
       setRows(data.rows);
       toast.success(message);
+      // Başvuruyla gelen restoran onaylandı: panel kurulum bağlantısı
+      if (data.invite) setInvite({ ...data.invite, restaurant: row.restaurant.name });
       const me = await api.get<{ kpi: Parameters<typeof setKpi>[0] }>(
         "/admin/auth/me"
       );
@@ -241,6 +245,38 @@ export function RestaurantsPanel() {
                 </button>
 
                 <div className="flex shrink-0 gap-1.5">
+                  {r.approvalStatus === "approved" && (
+                    <Button
+                      size="sm"
+                      variant={r.featuredRank ? "primary" : "secondary"}
+                      disabled={busy}
+                      title={r.featuredRank ? "Öne çıkanlardan çıkar" : "Anasayfada öne çıkar"}
+                      onClick={() => {
+                        const used = rows.map((x) => x.restaurant.featuredRank ?? 0);
+                        const rank = r.featuredRank ? null : Math.max(0, ...used) + 1;
+                        void act(
+                          row,
+                          { action: "feature", rank },
+                          rank ? `${r.name} öne çıkanlara eklendi (sıra ${rank}).` : `${r.name} öne çıkanlardan çıkarıldı.`
+                        );
+                      }}
+                    >
+                      <Star className={cn("size-3.5", Boolean(r.featuredRank) && "fill-current")} />
+                      {r.featuredRank ? `Öne çıkan · ${r.featuredRank}` : "Öne çıkar"}
+                    </Button>
+                  )}
+                  {r.approvalStatus === "approved" && app && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={busy}
+                      title="İşletmeye yeni panel kurulum bağlantısı üret"
+                      onClick={() => act(row, { action: "invite" }, "Yeni kurulum bağlantısı üretildi.")}
+                    >
+                      <Link2 className="size-3.5" />
+                      Kurulum bağlantısı
+                    </Button>
+                  )}
                   {r.approvalStatus !== "approved" && (
                     <Button
                       size="sm"
@@ -334,6 +370,44 @@ export function RestaurantsPanel() {
             setCommissionFor(null);
           }}
         />
+      )}
+
+      {/* Panel kurulum bağlantısı */}
+      {invite && (
+        <Modal
+          open
+          onClose={() => setInvite(null)}
+          title="Panel kurulum bağlantısı"
+          description={`${invite.restaurant} için tek kullanımlık bağlantı · ${new Date(invite.expiresAt).toLocaleDateString("tr-TR")} tarihine kadar geçerli`}
+          size="sm"
+          footer={
+            <Button block onClick={() => setInvite(null)}>
+              Tamam
+            </Button>
+          }
+        >
+          <p className="text-sm text-muted">
+            {invite.delivered
+              ? `Bağlantı ${invite.email} adresine e-postayla gönderildi.`
+              : `E-posta sağlayıcısı bağlı değil (test modu). Bağlantıyı ${invite.email} adresine sen ilet:`}
+          </p>
+          <div className="mt-3 flex items-center gap-2 rounded-xl border border-border bg-surface-2 p-2.5">
+            <code className="min-w-0 flex-1 truncate text-xs text-ink">
+              {typeof window === "undefined" ? invite.setupPath : window.location.origin + invite.setupPath}
+            </code>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                void navigator.clipboard?.writeText(window.location.origin + invite.setupPath);
+                toast.success("Bağlantı kopyalandı.");
+              }}
+            >
+              <Copy className="size-3.5" />
+              Kopyala
+            </Button>
+          </div>
+        </Modal>
       )}
 
       {/* Askıya alma */}

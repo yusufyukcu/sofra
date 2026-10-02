@@ -38,7 +38,7 @@ import type {
   User,
 } from "../types";
 import { createId, dayKey, formatDayKey, round2 } from "../utils";
-import { ADMIN_PIN } from "../db/seed";
+import { supabaseAdmin } from "../supabase/admin";
 import { cancelOrderTx } from "./lifecycle";
 import { pendingMediaCount } from "./media";
 import { applicationsByRestaurant, syncApplicationDecision } from "./partner";
@@ -55,19 +55,6 @@ import { applyWallet } from "./wallet";
  *
  * Tüm manuel işlemler iz kaydına yazılır.
  */
-
-/* ================================================================== */
-/* Giriş (geçici: Supabase Auth'a geçişte e-posta + parolayla değişecek) */
-/* ================================================================== */
-
-export async function adminLogin(pin: string): Promise<AdminAccount> {
-  const [admin] = await sql<AdminAccount[]>`
-    select id, name, email, created_at::text as created_at from public.admins order by created_at limit 1
-  `;
-  if (!admin) throw new DomainError("admin_not_found", "Yönetici hesabı yok.", 500);
-  if (pin.trim() !== ADMIN_PIN) throw new DomainError("invalid_pin", "PIN hatalı. Tekrar dene.", 401);
-  return admin;
-}
 
 /* ================================================================== */
 /* Canlı operasyon                                                    */
@@ -563,6 +550,16 @@ export async function setUserBlocked(
     returning name, auth_user_id
   `;
   if (!row) throw new DomainError("user_not_found", "Kullanıcı bulunamadı.", 404);
+
+  // Auth tarafında da yasakla: mevcut erişim token'ı en geç 1 saatte biter,
+  // yenilenemez. (API her istekte kara listeyi zaten ayrıca denetler.)
+  if (row.authUserId) {
+    const { error } = await supabaseAdmin().auth.admin.updateUserById(row.authUserId, {
+      ban_duration: blocked ? "876000h" : "none",
+    });
+    if (error) console.warn("[sofra/admin] Auth yasağı uygulanamadı:", error.message);
+  }
+
   await recordAudit(
     admin.name,
     blocked ? "Kullanıcı kara listeye alındı" : "Kara listeden çıkarıldı",

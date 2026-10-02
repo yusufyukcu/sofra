@@ -1,17 +1,26 @@
 import { handle, ok, readJson } from "@/lib/api/respond";
-import { respondWithVendorSession } from "@/lib/auth/vendor-session";
-import { vendorLogin, vendorLoginRestaurants } from "@/lib/services/vendor";
+import { vendorPasswordLogin, vendorSessionResponse } from "@/lib/auth/vendor-session";
+import { appSettings } from "@/lib/db/settings";
+import { demoVendorAccounts, vendorSummary } from "@/lib/services/vendor";
 
-/** GET /api/v1/vendor/auth/login — giriş ekranındaki restoran listesi */
+/**
+ * GET /api/v1/vendor/auth/login — demo modunda tohum işletme hesapları
+ * (giriş e-postasını doldurmak için). Demo kapalıysa liste boş döner.
+ */
 export async function GET() {
-  return handle(async () => ok({ restaurants: await vendorLoginRestaurants() }));
+  return handle(async () => {
+    const settings = await appSettings();
+    return ok({ demo: settings.demoMode, accounts: settings.demoMode ? await demoVendorAccounts() : [] });
+  });
 }
 
-/** POST /api/v1/vendor/auth/login — Body: { restaurantId, pin } */
+/** POST /api/v1/vendor/auth/login — Body: { email, password } */
 export async function POST(request: Request) {
   return handle(async () => {
-    const body = await readJson<{ restaurantId?: string; pin?: string }>(request);
-    const { vendor, restaurant } = await vendorLogin(body.restaurantId ?? "", body.pin ?? "");
-    return respondWithVendorSession(vendor, restaurant);
+    const body = await readJson<{ email?: string; password?: string }>(request);
+    const { vendor, restaurant, session } = await vendorPasswordLogin(body.email ?? "", body.password ?? "");
+    return vendorSessionResponse(vendor, restaurant, session, {
+      summary: await vendorSummary(restaurant.id),
+    });
   });
 }

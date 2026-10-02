@@ -38,7 +38,7 @@ const STATE = {
     icon: CheckCircle2,
     label: "Onaylandı",
     tone: "bg-pistachio-soft text-pistachio",
-    body: "Tebrikler, işletmen Sofra'da. Panel girişin açıldı — menünü hazırlayıp mağazanı açtığında siparişler düşmeye başlar.",
+    body: "Tebrikler, işletmen Sofra'da. Panel parolanı belirlemen için başvurudaki e-posta adresine tek kullanımlık bir kurulum bağlantısı gönderdik. Parolanı belirledikten sonra panele e-posta ve parolanla girersin; menünü hazırlayıp mağazanı açtığında siparişler düşmeye başlar.",
   },
   rejected: {
     icon: XCircle,

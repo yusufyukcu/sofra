@@ -1,69 +1,22 @@
-import { cookies } from "next/headers";
+import "server-only";
 import { NextResponse } from "next/server";
-import { SignJWT, jwtVerify } from "jose";
 import type { User } from "../types";
-import { findUser } from "../db/queries";
+import { findProfileRow, findUser } from "../db/queries";
+import { claimsFor, ensureAuthUser, mintSession, sessionPayload, signOutRole } from "./roles";
 
 /**
- * Müşteri oturumu.
+ * Müşteri oturumu (Supabase Auth).
  *
- * Web istemcisi `httpOnly` çerez kullanır; mobil uygulama aynı token'ı
- * `Authorization: Bearer <token>` başlığıyla gönderir.
+ * Web istemcisi `httpOnly` çerez kullanır; mobil uygulama aynı erişim
+ * token'ını `Authorization: Bearer` başlığıyla gönderir. Kara listedeki
+ * hesabın oturumu her istekte geçersiz sayılır.
  */
-
-export const SESSION_COOKIE = "sofra_session";
-export const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 gün
-
-const secret = new TextEncoder().encode(
-  process.env.SOFRA_JWT_SECRET ?? "sofra-dev-secret-degistirilmeli-0123456789"
-);
-
-export async function signSession(userId: string): Promise<string> {
-  return new SignJWT({ sub: userId })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setIssuer("sofra")
-    .setAudience("sofra-customer")
-    .setExpirationTime(`${SESSION_MAX_AGE}s`)
-    .sign(secret);
-}
-
-export async function verifySession(token: string): Promise<string | null> {
-  try {
-    const { payload } = await jwtVerify(token, secret, {
-      issuer: "sofra",
-      audience: "sofra-customer",
-    });
-    return typeof payload.sub === "string" ? payload.sub : null;
-  } catch {
-    return null;
-  }
-}
-
-function bearerToken(request: Request): string | null {
-  const header = request.headers.get("authorization");
-  if (!header) return null;
-  const [scheme, value] = header.split(" ");
-  if (scheme?.toLowerCase() !== "bearer" || !value) return null;
-  return value.trim();
-}
 
 /** İstekten oturum sahibini çözer. Giriş yoksa `null`. */
 export async function currentUser(request?: Request): Promise<User | null> {
-  let token: string | null = null;
-
-  if (request) token = bearerToken(request);
-  if (!token) {
-    const jar = await cookies();
-    token = jar.get(SESSION_COOKIE)?.value ?? null;
-  }
-  if (!token) return null;
-
-  const userId = await verifySession(token);
-  if (!userId) return null;
-
-  const user = await findUser(userId);
-  // Kara listeye alınan hesabın oturumu geçersizdir
+  const claims = await claimsFor("customer", request);
+  if (!claims) return null;
+  const user = await findUser(claims.sid);
   if (!user || user.blocked) return null;
   return user;
 }
@@ -82,33 +35,24 @@ export async function requireUser(request?: Request): Promise<User> {
   return user;
 }
 
-export const sessionCookieOptions = {
-  httpOnly: true,
-  sameSite: "lax" as const,
-  path: "/",
-  maxAge: SESSION_MAX_AGE,
-  secure: process.env.NODE_ENV === "production",
-};
-
 /**
- * Başarılı girişte hem `httpOnly` çerezi kurar (web) hem de `accessToken`
- * döner (mobil). İki istemci de aynı uç noktayı kullanabilir.
+ * Doğrulanmış müşteri için Supabase oturumu açar: web için çerez yazılır,
+ * mobil için erişim ve yenileme token'ları cevapta döner.
  */
 export async function respondWithSession(
   user: User,
   extra: Record<string, unknown> = {}
 ): Promise<NextResponse> {
-  const accessToken = await signSession(user.id);
-  const response = NextResponse.json({
+  const profile = await findProfileRow(user.id);
+  const auth = await ensureAuthUser("customer", user.id, user.name, profile?.authUserId ?? null);
+  const session = await mintSession("customer", auth.email);
+  return NextResponse.json({
     ok: true,
-    data: { user, accessToken, ...extra },
+    data: { user, ...sessionPayload(session), ...extra },
   });
-  response.cookies.set(SESSION_COOKIE, accessToken, sessionCookieOptions);
-  return response;
 }
 
-export function clearSessionResponse(): NextResponse {
-  const response = NextResponse.json({ ok: true, data: { loggedOut: true } });
-  response.cookies.set(SESSION_COOKIE, "", { ...sessionCookieOptions, maxAge: 0 });
-  return response;
+export async function clearSessionResponse(): Promise<NextResponse> {
+  await signOutRole("customer");
+  return NextResponse.json({ ok: true, data: { loggedOut: true } });
 }

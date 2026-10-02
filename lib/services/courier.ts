@@ -20,7 +20,6 @@ import { toCourierView } from "../orders/progress";
 import { DomainError } from "../errors";
 import type { Courier, CourierEarning, DeliveryOffer, LatLng, Order } from "../types";
 import { buildRoute, createId, dayKey, distanceKm, formatDayKey, round2 } from "../utils";
-import { COURIER_PIN } from "../db/seed";
 import { payoutsFor } from "./payouts";
 
 /**
@@ -40,21 +39,26 @@ export function courierFee(totalKm: number): number {
 export { OFFER_TTL_SECONDS } from "../courier-constants";
 
 /* ================================================================== */
-/* Giriş (geçici: Supabase Auth'a geçişte telefon + kodla değişecek)  */
+/* Giriş: telefon + doğrulama kodu                                    */
 /* ================================================================== */
 
-export async function courierLogin(courierId: string, pin: string): Promise<Courier> {
-  const courier = await findCourier(courierId);
-  if (!courier) throw new DomainError("courier_not_found", "Kurye hesabı bulunamadı.", 404);
-  if (pin.trim() !== COURIER_PIN) throw new DomainError("invalid_pin", "PIN hatalı. Tekrar dene.", 401);
-  return courier;
+/** Telefon numarasıyla kayıtlı kurye (giriş için). */
+export async function courierByPhone(phone: string): Promise<Courier | null> {
+  const normalized = phone.replace(/D/g, "").slice(-10);
+  if (normalized.length !== 10) return null;
+  const [row] = await sql<{ id: string }[]>`select id from public.couriers where phone = ${normalized}`;
+  return row ? findCourier(row.id) : null;
 }
 
-export async function courierPickerList() {
+/**
+ * Demo giriş ekranındaki kurye listesi. Telefon numarası yalnızca demo
+ * modunda döner (kurye kartına dokununca numara alanı dolsun diye).
+ */
+export async function courierPickerList(includePhone: boolean) {
   const rows = await sql<
-    { id: string; name: string; emoji: string; vehicle: Courier["vehicle"]; rating: number; online: boolean }[]
-  >`select id, name, emoji, vehicle, rating, online from public.couriers order by id`;
-  return rows;
+    { id: string; name: string; emoji: string; vehicle: Courier["vehicle"]; rating: number; online: boolean; phone: string; status: Courier["status"] }[]
+  >`select id, name, emoji, vehicle, rating, online, phone, status from public.couriers order by id`;
+  return rows.map(({ phone, ...rest }) => (includePhone ? { ...rest, phone } : rest));
 }
 
 /* ================================================================== */

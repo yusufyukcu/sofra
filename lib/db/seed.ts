@@ -1594,9 +1594,6 @@ export const COUPONS: Coupon[] = [
 /* Kurye havuzu (Platform kuryesi modeli)                              */
 /* ------------------------------------------------------------------ */
 
-/** Prototipte tüm kuryelerin PIN'i aynı; üretimde kurye kendi belirler. */
-export const COURIER_PIN = "1234";
-
 export const COURIERS: Courier[] = [
   {
     id: "crr_1",
@@ -1730,43 +1727,3 @@ export const DEMO_CARDS = [
     nickname: "Bonus",
   },
 ];
-
-/* ------------------------------------------------------------------ */
-/* Restoran paneli hesapları                                           */
-/* ------------------------------------------------------------------ */
-
-/**
- * Her restoran için bir işletme hesabı. Prototipte PIN düz metin ve
- * hepsinde aynı; üretimde restoran sahibi kendi belirler ve hash'lenir.
- */
-export const VENDOR_PIN = "1234";
-
-export function vendorSeed() {
-  return RESTAURANTS.map((restaurant, index) => ({
-    id: `vnd_${index + 1}`,
-    restaurantId: restaurant.id,
-    name: `${restaurant.name} — İşletme`,
-    email: `${restaurant.slug}@sofra.app`,
-    pin: VENDOR_PIN,
-    createdAt: new Date().toISOString(),
-  }));
-}
-
-/* ------------------------------------------------------------------ */
-/* Yönetici hesabı (Superadmin)                                        */
-/* ------------------------------------------------------------------ */
-
-/** Prototip PIN'i; üretimde parola + iki adımlı doğrulama olur. */
-export const ADMIN_PIN = "1234";
-
-export function adminSeed() {
-  return [
-    {
-      id: "adm_1",
-      name: "Platform Yöneticisi",
-      email: "yonetim@sofra.app",
-      pin: ADMIN_PIN,
-      createdAt: new Date("2023-01-01T09:00:00.000Z").toISOString(),
-    },
-  ];
-}

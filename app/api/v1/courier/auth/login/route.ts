@@ -1,23 +1,18 @@
-import { handle, ok, readJson } from "@/lib/api/respond";
-import { respondWithCourierSession } from "@/lib/auth/courier-session";
-import { courierLogin, courierPickerList } from "@/lib/services/courier";
+import { handle, ok } from "@/lib/api/respond";
+import { appSettings } from "@/lib/db/settings";
+import { courierPickerList } from "@/lib/services/courier";
 
 /**
- * GET /api/v1/courier/auth/login
- * Giris ekranindaki kurye secicisi (kimlik dogrulama gerekmez).
+ * GET /api/v1/courier/auth/login — demo giriş ekranının kurye listesi.
+ *
+ * Giriş telefon + doğrulama koduyla yapılır:
+ *   POST /api/v1/courier/auth/otp/start  { phone }
+ *   POST /api/v1/courier/auth/otp/verify { challengeId, code }
+ * Telefon numaraları yalnızca demo modunda listelenir.
  */
 export async function GET() {
-  return handle(async () => ok({ couriers: await courierPickerList() }));
-}
-
-/**
- * POST /api/v1/courier/auth/login
- * Body: { courierId, pin }
- */
-export async function POST(request: Request) {
   return handle(async () => {
-    const body = await readJson<{ courierId?: string; pin?: string }>(request);
-    const courier = await courierLogin(body.courierId ?? "", body.pin ?? "");
-    return respondWithCourierSession(courier);
+    const settings = await appSettings();
+    return ok({ couriers: await courierPickerList(settings.demoMode), demo: settings.demoMode });
   });
 }
