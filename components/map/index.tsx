@@ -40,3 +40,8 @@ export const StaticMap = dynamic(
   () => import("./leaflet-map").then((m) => m.StaticMap),
   { ssr: false, loading: () => <MapSkeleton className="h-full w-full" /> }
 );
+
+export const ZoneEditorMap = dynamic(
+  () => import("./leaflet-map").then((m) => m.ZoneEditorMap),
+  { ssr: false, loading: () => <MapSkeleton className="h-full w-full" /> }
+);

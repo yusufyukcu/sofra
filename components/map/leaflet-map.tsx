@@ -7,6 +7,7 @@ import {
   Circle,
   MapContainer,
   Marker,
+  Polygon,
   Polyline,
   TileLayer,
   useMap,
@@ -238,18 +239,31 @@ export function TrackingMap({
   );
 }
 
-/** Restoran konumunu ve teslimat yarıçapını gösteren küçük harita. */
+const ZONE_STYLE = {
+  color: "#e2452b",
+  fillColor: "#e2452b",
+  fillOpacity: 0.07,
+  weight: 1.5,
+};
+
+/**
+ * Restoran konumunu ve teslimat bölgesini gösteren küçük harita. Çizilmiş
+ * bölge (en az 3 köşe) varsa çember yerine o gösterilir.
+ */
 export function StaticMap({
   point,
   radiusKm,
+  zone,
   emoji = "🏪",
   className,
 }: {
   point: LatLng;
   radiusKm?: number;
+  zone?: LatLng[] | null;
   emoji?: string;
   className?: string;
 }) {
+  const polygon = zone && zone.length >= 3 ? zone : null;
   return (
     <div className={className}>
       <MapContainer
@@ -262,19 +276,109 @@ export function StaticMap({
         style={{ height: "100%", width: "100%" }}
       >
         <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
-        {radiusKm && (
-          <Circle
-            center={[point.lat, point.lng]}
-            radius={radiusKm * 1000}
-            pathOptions={{
-              color: "#e2452b",
-              fillColor: "#e2452b",
-              fillOpacity: 0.07,
-              weight: 1.5,
-            }}
-          />
+        {polygon ? (
+          <>
+            <Polygon positions={polygon.map((p) => [p.lat, p.lng] as [number, number])} pathOptions={ZONE_STYLE} />
+            <FitAll points={[point, ...polygon]} />
+          </>
+        ) : (
+          radiusKm && (
+            <Circle center={[point.lat, point.lng]} radius={radiusKm * 1000} pathOptions={ZONE_STYLE} />
+          )
         )}
         <Marker position={[point.lat, point.lng]} icon={pinIcon(emoji, "#e2452b")} />
+      </MapContainer>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Teslimat bölgesi çizimi (restoran paneli)                           */
+/* ------------------------------------------------------------------ */
+
+function vertexIcon(index: number) {
+  return L.divIcon({
+    className: "sofra-vertex",
+    html: `<span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:9999px;background:#fff;border:2px solid #e2452b;box-shadow:0 2px 6px rgba(0,0,0,.3);font:800 10px/1 system-ui,sans-serif;color:#e2452b;cursor:grab">${index + 1}</span>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+  });
+}
+
+function ZoneClicks({ onAdd }: { onAdd: (point: LatLng) => void }) {
+  useMapEvents({
+    click(event) {
+      onAdd({ lat: event.latlng.lat, lng: event.latlng.lng });
+    },
+  });
+  return null;
+}
+
+/**
+ * Poligon teslimat bölgesi düzenleyici: haritaya tıklayınca köşe eklenir,
+ * köşe sürüklenerek taşınır, köşeye tıklanınca silinir. Köşeler sırayla
+ * birleştirilir. Henüz bölge yoksa mevcut yarıçap soluk çemberle gösterilir.
+ */
+export function ZoneEditorMap({
+  center,
+  radiusKm,
+  zone,
+  onChange,
+  emoji = "🏪",
+  className,
+}: {
+  center: LatLng;
+  radiusKm: number;
+  zone: LatLng[];
+  onChange: (zone: LatLng[]) => void;
+  emoji?: string;
+  className?: string;
+}) {
+  const positions = zone.map((p) => [p.lat, p.lng] as [number, number]);
+
+  return (
+    <div className={className}>
+      <MapContainer
+        center={[center.lat, center.lng]}
+        zoom={radiusKm > 6 ? 12 : 13}
+        scrollWheelZoom
+        doubleClickZoom={false}
+        style={{ height: "100%", width: "100%" }}
+      >
+        <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
+        <ZoneClicks onAdd={(point) => onChange([...zone, point])} />
+
+        {zone.length < 3 && (
+          <Circle
+            center={[center.lat, center.lng]}
+            radius={radiusKm * 1000}
+            pathOptions={{ ...ZONE_STYLE, dashArray: "6 6", fillOpacity: 0.03 }}
+            interactive={false}
+          />
+        )}
+        {zone.length >= 3 && <Polygon positions={positions} pathOptions={{ ...ZONE_STYLE, fillOpacity: 0.12 }} interactive={false} />}
+        {zone.length === 2 && <Polyline positions={positions} pathOptions={ZONE_STYLE} interactive={false} />}
+
+        {zone.map((point, index) => (
+          <Marker
+            key={`${index}-${point.lat}-${point.lng}`}
+            position={[point.lat, point.lng]}
+            icon={vertexIcon(index)}
+            draggable
+            title="Taşımak için sürükle, silmek için tıkla"
+            eventHandlers={{
+              dragend(event) {
+                const moved = (event.target as L.Marker).getLatLng();
+                onChange(zone.map((p, i) => (i === index ? { lat: moved.lat, lng: moved.lng } : p)));
+              },
+              click() {
+                onChange(zone.filter((_, i) => i !== index));
+              },
+            }}
+          />
+        ))}
+
+        <Marker position={[center.lat, center.lng]} icon={pinIcon(emoji, "#e2452b")} interactive={false} />
       </MapContainer>
     </div>
   );

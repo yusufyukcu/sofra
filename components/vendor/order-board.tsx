@@ -1,6 +1,7 @@
 "use client";
 
 import { Bike, ChefHat, Inbox, Radio, ScrollText } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
 import { useRealtime } from "@/lib/realtime";
@@ -173,6 +174,12 @@ export function OrderBoard() {
           <span className="tabular rounded-md bg-surface-2 px-1.5 py-0.5 text-xs font-bold text-muted">
             {board.closed.length}
           </span>
+          <Link
+            href="/isletme/gecmis"
+            className="ml-auto text-sm font-semibold text-brand hover:underline"
+          >
+            Tüm geçmiş →
+          </Link>
         </h2>
 
         {board.closed.length === 0 ? (

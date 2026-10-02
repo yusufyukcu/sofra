@@ -215,6 +215,7 @@ export function RestaurantClient({
             <StaticMap
               point={restaurant.location}
               radiusKm={restaurant.deliveryRadiusKm}
+              zone={restaurant.deliveryZone}
               emoji={restaurant.emoji}
               className="h-48 w-full"
             />
@@ -224,7 +225,9 @@ export function RestaurantClient({
             {restaurant.workingHours.open} - {restaurant.workingHours.close}
           </InfoRow>
           <InfoRow label="Teslimat bölgesi">
-            {restaurant.deliveryRadiusKm} km yarıçap
+            {restaurant.deliveryZone && restaurant.deliveryZone.length >= 3
+              ? "Haritada işaretli alan"
+              : `${restaurant.deliveryRadiusKm} km yarıçap`}
           </InfoRow>
           <InfoRow label="Minimum sepet tutarı">
             {formatPrice(restaurant.minBasket)}

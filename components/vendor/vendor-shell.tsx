@@ -4,6 +4,7 @@ import {
   BellOff,
   BellRing,
   ClipboardList,
+  History,
   LogOut,
   MessageSquare,
   Settings,
@@ -27,6 +28,7 @@ import { useToast } from "@/components/ui/toast";
 
 const NAV: { href: Route; label: string; icon: LucideIcon; exact?: boolean }[] = [
   { href: "/isletme", label: "Siparişler", icon: ClipboardList, exact: true },
+  { href: "/isletme/gecmis", label: "Geçmiş", icon: History },
   { href: "/isletme/menu", label: "Menü & Stok", icon: UtensilsCrossed },
   { href: "/isletme/ayarlar", label: "Mağaza", icon: Settings },
   { href: "/isletme/finans", label: "Finans", icon: Wallet },

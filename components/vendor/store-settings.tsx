@@ -1,14 +1,23 @@
 "use client";
 
-import { Clock, CreditCard, ImageIcon, MapPin, Store } from "lucide-react";
+import {
+  CircleDashed,
+  Clock,
+  CreditCard,
+  Eraser,
+  ImageIcon,
+  MapPin,
+  Store,
+  Undo2,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { api, errorMessage } from "@/lib/api-client";
 import { PAYMENT_METHODS, PAYMENT_ORDER } from "@/lib/constants";
 import { restaurantPhoto } from "@/lib/photos";
 import { useVendor } from "@/lib/store/vendor";
-import type { MediaRequest, PaymentMethodId, Restaurant } from "@/lib/types";
+import type { LatLng, MediaRequest, PaymentMethodId, Restaurant } from "@/lib/types";
 import { cn, formatPrice } from "@/lib/utils";
-import { StaticMap } from "@/components/map";
+import { StaticMap, ZoneEditorMap } from "@/components/map";
 import {
   Button,
   Field,
@@ -23,8 +32,8 @@ import { PhotoRequestField } from "./photo-request";
 /**
  * Mağaza ayarları ve operasyon.
  *
- * Çalışma saatleri, mola, minimum sepet, teslimat bölgesi ve ödeme
- * yöntemleri buradan yönetilir. Kaydedilen her değişiklik müşteri
+ * Çalışma saatleri, mola, minimum sepet, teslimat bölgesi (yarıçap ya da
+ * haritada çizilen poligon) ve ödeme yöntemleri buradan yönetilir. Kaydedilen her değişiklik müşteri
  * uygulamasına anında yansır. Kapak fotoğrafı ise kayıttan bağımsız
  * olarak yönetici onayına gider.
  */
@@ -35,6 +44,9 @@ export function StoreSettings() {
 
   const [draft, setDraft] = useState<Restaurant | null>(restaurant);
   const [hasBreak, setHasBreak] = useState(Boolean(restaurant?.breakHours));
+  const [zoneMode, setZoneMode] = useState<"radius" | "polygon">(
+    hasPolygon(restaurant) ? "polygon" : "radius"
+  );
   const [busy, setBusy] = useState(false);
   const [requests, setRequests] = useState<MediaRequest[]>([]);
 
@@ -42,6 +54,7 @@ export function StoreSettings() {
     if (restaurant) {
       setDraft(restaurant);
       setHasBreak(Boolean(restaurant.breakHours));
+      setZoneMode(hasPolygon(restaurant) ? "polygon" : "radius");
     }
   }, [restaurant]);
 
@@ -73,8 +86,14 @@ export function StoreSettings() {
     });
   }
 
+  const zone = draft.deliveryZone ?? [];
+
   async function save() {
     if (!draft) return;
+    if (zoneMode === "polygon" && zone.length < 3) {
+      toast.error("Teslimat bölgesi için haritada en az 3 köşe işaretle.");
+      return;
+    }
     setBusy(true);
     try {
       const data = await api.patch<{ restaurant: Restaurant }>(
@@ -89,10 +108,13 @@ export function StoreSettings() {
           deliveryFee: draft.deliveryFee,
           freeDeliveryOver: draft.freeDeliveryOver,
           deliveryRadiusKm: draft.deliveryRadiusKm,
+          deliveryZone: zoneMode === "polygon" ? zone : null,
           etaMin: draft.etaMin,
           etaMax: draft.etaMax,
+          defaultPrepMinutes: draft.defaultPrepMinutes ?? 20,
           temporarilyClosed: draft.temporarilyClosed,
           autoAccept: draft.autoAccept,
+          soldOutDisplay: draft.soldOutDisplay ?? "dim",
           paymentMethods: draft.paymentMethods,
         }
       );
@@ -162,6 +184,35 @@ export function StoreSettings() {
               label="Siparişleri otomatik onayla"
               description="Kapatırsan her sipariş panelden elle onaylanır ve zil çalar."
             />
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Field
+              label="Varsayılan hazırlık süresi (dk)"
+              hint="Otomatik onayda bildirilir, elle onayda önerilir."
+            >
+              <Input
+                type="number"
+                min={5}
+                max={120}
+                value={draft.defaultPrepMinutes ?? 20}
+                onChange={(e) => patch({ defaultPrepMinutes: Number(e.target.value) })}
+                className="tabular"
+              />
+            </Field>
+            <Field
+              label="Tükenen ürünler"
+              hint="Stokta olmayan ürün müşteri menüsünde nasıl görünsün?"
+            >
+              <Segmented
+                value={draft.soldOutDisplay ?? "dim"}
+                onChange={(value) => patch({ soldOutDisplay: value })}
+                options={[
+                  ["dim", "Soluk göster"],
+                  ["hide", "Menüden gizle"],
+                ]}
+              />
+            </Field>
           </div>
 
           <Field label="Restoran açıklaması" className="mt-4">
@@ -278,39 +329,109 @@ export function StoreSettings() {
 
         {/* Teslimat bölgesi */}
         <Section icon={<MapPin className="size-5" />} title="Teslimat bölgesi">
-          <div className="overflow-hidden rounded-2xl border border-border">
-            <StaticMap
-              point={draft.location}
-              radiusKm={draft.deliveryRadiusKm}
-              emoji={draft.emoji}
-              className="h-56 w-full"
+          <div className="mb-3">
+            <Segmented
+              value={zoneMode}
+              onChange={setZoneMode}
+              options={[
+                ["radius", "Yarıçap"],
+                ["polygon", "Haritada çiz"],
+              ]}
             />
           </div>
 
-          <Field
-            label={`Teslimat yarıçapı — ${draft.deliveryRadiusKm} km`}
-            hint="Bu yarıçapın dışındaki adreslere sipariş verilemez."
-            className="mt-4"
-          >
-            <input
-              type="range"
-              min={0.5}
-              max={15}
-              step={0.5}
-              value={draft.deliveryRadiusKm}
-              onChange={(e) =>
-                patch({ deliveryRadiusKm: Number(e.target.value) })
-              }
-              className="w-full accent-[var(--brand)]"
-            />
-          </Field>
+          {zoneMode === "radius" ? (
+            <>
+              <div className="overflow-hidden rounded-2xl border border-border">
+                <StaticMap
+                  point={draft.location}
+                  radiusKm={draft.deliveryRadiusKm}
+                  emoji={draft.emoji}
+                  className="h-56 w-full"
+                />
+              </div>
 
-          <p className="mt-2 rounded-xl bg-surface-2 px-3 py-2.5 text-xs leading-relaxed text-muted">
-            Bölge şimdilik merkez + yarıçap olarak tanımlanıyor. Poligon
-            çizimi (mahalle bazlı özel bölgeler) sonraki sürümde bu ekrana
-            eklenecek; sipariş kontrolü tek noktadan yapıldığı için müşteri
-            tarafında değişiklik gerekmeyecek.
-          </p>
+              <Field
+                label={`Teslimat yarıçapı — ${draft.deliveryRadiusKm} km`}
+                hint="Bu yarıçapın dışındaki adreslere sipariş verilemez."
+                className="mt-4"
+              >
+                <input
+                  type="range"
+                  min={0.5}
+                  max={15}
+                  step={0.5}
+                  value={draft.deliveryRadiusKm}
+                  onChange={(e) =>
+                    patch({ deliveryRadiusKm: Number(e.target.value) })
+                  }
+                  className="w-full accent-[var(--brand)]"
+                />
+              </Field>
+            </>
+          ) : (
+            <>
+              <div className="overflow-hidden rounded-2xl border border-border">
+                <ZoneEditorMap
+                  center={draft.location}
+                  radiusKm={draft.deliveryRadiusKm}
+                  zone={zone}
+                  onChange={(next) => patch({ deliveryZone: next })}
+                  emoji={draft.emoji}
+                  className="h-72 w-full"
+                />
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={zone.length === 0}
+                  onClick={() => patch({ deliveryZone: zone.slice(0, -1) })}
+                >
+                  <Undo2 className="size-4" />
+                  Son köşeyi geri al
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={zone.length === 0}
+                  onClick={() => patch({ deliveryZone: [] })}
+                >
+                  <Eraser className="size-4" />
+                  Temizle
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    patch({
+                      deliveryZone: circleToPolygon(draft.location, draft.deliveryRadiusKm),
+                    })
+                  }
+                >
+                  <CircleDashed className="size-4" />
+                  Yarıçaptan başlat
+                </Button>
+              </div>
+
+              <p
+                className={cn(
+                  "tabular mt-3 text-sm font-semibold",
+                  zone.length < 3 ? "text-saffron" : "text-ink"
+                )}
+              >
+                {zone.length < 3
+                  ? `En az 3 köşe gerekli — şu an ${zone.length} köşe var.`
+                  : `${zone.length} köşeli bölge. Dışındaki adreslere sipariş verilemez.`}
+              </p>
+              <p className="mt-2 rounded-xl bg-surface-2 px-3 py-2.5 text-xs leading-relaxed text-muted">
+                Haritaya tıklayarak köşe ekle; köşeyi sürükleyerek taşı,
+                üzerine tıklayarak sil. Köşeler eklenme sırasıyla birleşir.
+                Kaydettiğinde müşterinin adres kontrolü bu alana göre yapılır.
+              </p>
+            </>
+          )}
         </Section>
 
         {/* Sepet ve ödeme */}
@@ -424,6 +545,52 @@ export function StoreSettings() {
 }
 
 /* ------------------------------------------------------------------ */
+
+function hasPolygon(restaurant: Restaurant | null): boolean {
+  return (restaurant?.deliveryZone?.length ?? 0) >= 3;
+}
+
+/** Yarıçap çemberini çizime başlangıç olarak sekizgene çevirir. */
+function circleToPolygon(center: LatLng, radiusKm: number, sides = 8): LatLng[] {
+  const kmPerLat = 110.574;
+  const kmPerLng = 111.32 * Math.cos((center.lat * Math.PI) / 180);
+  const round = (n: number) => Math.round(n * 1e6) / 1e6;
+  return Array.from({ length: sides }, (_, i) => {
+    const angle = (2 * Math.PI * i) / sides;
+    return {
+      lat: round(center.lat + (radiusKm * Math.sin(angle)) / kmPerLat),
+      lng: round(center.lng + (radiusKm * Math.cos(angle)) / kmPerLng),
+    };
+  });
+}
+
+function Segmented<T extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T;
+  onChange: (value: T) => void;
+  options: [T, string][];
+}) {
+  return (
+    <div className="flex gap-1 rounded-xl bg-surface-2 p-1">
+      {options.map(([id, label]) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => onChange(id)}
+          className={cn(
+            "flex-1 rounded-lg px-3 py-2 text-xs font-bold transition-colors",
+            value === id ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"
+          )}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function Section({
   icon,
