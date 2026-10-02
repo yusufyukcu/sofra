@@ -151,6 +151,7 @@ export function AdminFinancePanel() {
           <Row label="Kurye ödemeleri" value={-summary.courierCost} />
           <Row label="Karşılanan indirimler" value={-summary.discounts} />
           <Row label="Ödeme geçidi komisyonu" value={-summary.gatewayCost} />
+          <Row label="Manuel iadeler (teslim edilen)" value={-summary.refunds} />
           <div className="flex justify-between border-t border-border pt-2.5 text-base">
             <dt className="font-display font-extrabold text-ink">Net gelir</dt>
             <dd className="font-display font-extrabold text-brand">
@@ -333,13 +334,14 @@ export function AdminFinancePanel() {
           </h2>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[28rem] border-collapse text-sm">
+            <table className="w-full min-w-[32rem] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-border bg-surface-2/60 text-left">
                   <Th>Yöntem</Th>
                   <Th align="right">Sipariş</Th>
                   <Th align="right">Hacim</Th>
                   <Th align="right">Geçit kesintisi</Th>
+                  <Th align="right">İade</Th>
                   <Th>Valör</Th>
                 </tr>
               </thead>
@@ -351,6 +353,9 @@ export function AdminFinancePanel() {
                     <Td align="right">{formatPrice(row.volume)}</Td>
                     <Td align="right">
                       {row.gatewayFee > 0 ? `− ${formatPrice(row.gatewayFee)}` : "—"}
+                    </Td>
+                    <Td align="right">
+                      {row.refunded > 0 ? `− ${formatPrice(row.refunded)}` : "—"}
                     </Td>
                     <Td>
                       <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] font-semibold text-muted">
@@ -366,7 +371,8 @@ export function AdminFinancePanel() {
           <p className="border-t border-border px-5 py-3 text-xs leading-relaxed text-muted">
             Online ödemelerde geçit komisyonu işlem tutarının %1,8&apos;i +
             0,25&nbsp;₺ olarak hesaplanır. Kapıda ödeme ve cüzdan
-            harcamalarında geçit kesintisi yoktur.
+            harcamalarında geçit kesintisi yoktur. İade sütunu iptal ve manuel
+            iadelerde müşteriye geri verilen tutardır (cüzdana yatırılır).
           </p>
         </section>
 

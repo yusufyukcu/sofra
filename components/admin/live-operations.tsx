@@ -1,8 +1,8 @@
 "use client";
 
-import { AlertTriangle, History, Radio, XCircle } from "lucide-react";
+import { AlertTriangle, Bike, History, Radio, XCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, errorMessage } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
 import { ORDER_STATUS_META } from "@/lib/constants";
 import { useRealtime } from "@/lib/realtime";
 import type { AdminOverview, LiveOrder } from "@/lib/services/admin";
@@ -10,16 +10,10 @@ import { useAdmin } from "@/lib/store/admin";
 import type { AuditEntry } from "@/lib/types";
 import { cn, formatPrice, formatTime, relativeTime } from "@/lib/utils";
 import { OpsMap } from "@/components/map";
-import { Modal } from "@/components/ui/modal";
-import {
-  Button,
-  EmptyState,
-  Field,
-  Input,
-  Skeleton,
-  Textarea,
-} from "@/components/ui/primitives";
+import { Button, EmptyState, Skeleton } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { OrderActionModal, canCancel, canRefund } from "./order-action-modal";
+import { PlatformSettings } from "./platform-settings";
 
 type Payload = AdminOverview & { audit: AuditEntry[] };
 
@@ -152,6 +146,7 @@ export function LiveOperations() {
             {live ? "Canlı bağlantı açık" : "Bağlantı kuruluyor…"}
           </p>
         </div>
+        <PlatformSettings onChanged={() => void refresh().catch(() => undefined)} />
       </header>
 
       {/* KPI */}
@@ -328,6 +323,12 @@ function LiveRow({
           )}
           {item.order.courier ? ` · ${item.order.courier.name}` : " · kurye yok"}
         </p>
+        {item.waitingCourier && (
+          <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-saffron-soft px-1.5 py-0.5 text-[11px] font-bold text-saffron">
+            <Bike className="size-3" />
+            Kurye bekleniyor — teklifler karşılıksız
+          </p>
+        )}
       </div>
 
       <span className="tabular shrink-0 text-sm font-extrabold text-ink">
@@ -335,116 +336,19 @@ function LiveRow({
       </span>
 
       <div className="flex shrink-0 gap-1.5">
-        <Button size="sm" variant="secondary" onClick={() => onAction("refund")}>
-          İade
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => onAction("cancel")}>
-          <XCircle className="size-3.5" />
-          İptal
-        </Button>
+        {canRefund(item.order) && (
+          <Button size="sm" variant="secondary" onClick={() => onAction("refund")}>
+            İade
+          </Button>
+        )}
+        {canCancel(item.order) && (
+          <Button size="sm" variant="outline" onClick={() => onAction("cancel")}>
+            <XCircle className="size-3.5" />
+            İptal
+          </Button>
+        )}
       </div>
     </li>
-  );
-}
-
-function OrderActionModal({
-  order,
-  kind,
-  onClose,
-  onDone,
-  onError,
-}: {
-  order: LiveOrder["order"];
-  kind: "cancel" | "refund";
-  onClose: () => void;
-  onDone: (message: string) => void;
-  onError: (message: string) => void;
-}) {
-  const [reason, setReason] = useState("");
-  const [amount, setAmount] = useState(order.totals.grandTotal);
-  const [busy, setBusy] = useState(false);
-
-  async function submit() {
-    setBusy(true);
-    try {
-      await api.post(`/admin/orders/${order.id}`, {
-        action: kind,
-        reason,
-        amount: kind === "refund" ? amount : undefined,
-      });
-      onDone(
-        kind === "cancel"
-          ? `${order.code} iptal edildi, tutar müşterinin cüzdanına iade edildi.`
-          : `${order.code} için ${formatPrice(amount)} iade edildi.`
-      );
-    } catch (err) {
-      onError(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title={kind === "cancel" ? "Siparişi iptal et" : "Manuel iade"}
-      description={`${order.code} · ${order.restaurantName} · ${formatPrice(order.totals.grandTotal)}`}
-      size="sm"
-      footer={
-        <div className="flex gap-3">
-          <Button variant="secondary" block onClick={onClose}>
-            Vazgeç
-          </Button>
-          <Button
-            variant={kind === "cancel" ? "danger" : "primary"}
-            block
-            loading={busy}
-            onClick={submit}
-          >
-            {kind === "cancel" ? "İptal et" : "İadeyi uygula"}
-          </Button>
-        </div>
-      }
-    >
-      <div className="space-y-4 pt-1">
-        {kind === "refund" && (
-          <Field
-            label="İade tutarı (₺)"
-            hint={`En fazla ${formatPrice(order.totals.grandTotal)} — kısmi iade yapabilirsin.`}
-          >
-            <Input
-              type="number"
-              min={1}
-              max={order.totals.grandTotal}
-              value={amount}
-              onChange={(e) => setAmount(Number(e.target.value))}
-              className="tabular"
-            />
-          </Field>
-        )}
-
-        <Field label="Gerekçe" hint="İz kaydına yazılır.">
-          <Textarea
-            rows={2}
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            maxLength={160}
-            placeholder={
-              kind === "cancel"
-                ? "Restoran ulaşılamıyor, kurye bulunamadı…"
-                : "Eksik ürün, gecikme tazminatı…"
-            }
-            autoFocus
-          />
-        </Field>
-
-        <p className="rounded-xl bg-surface-2 px-3 py-2.5 text-xs leading-relaxed text-muted">
-          Tutar müşterinin Sofra Cüzdan bakiyesine eklenir. Kredi kartına
-          iade gerekiyorsa ödeme geçidi üzerinden ayrıca başlatılmalıdır.
-        </p>
-      </div>
-    </Modal>
   );
 }
 

@@ -2,9 +2,11 @@
 
 import {
   Activity,
+  Headset,
   Images,
   LogOut,
   Megaphone,
+  ReceiptText,
   Store,
   Users,
   Wallet,
@@ -31,7 +33,8 @@ const NAV: {
     | "pendingMedia"
     | "pendingCouriers"
     | "pendingPayouts"
-    | "lateOrders";
+    | "lateOrders"
+    | "waitingSupport";
 }[] = [
   {
     href: "/yonetim",
@@ -39,6 +42,13 @@ const NAV: {
     icon: Activity,
     exact: true,
     badge: "lateOrders",
+  },
+  { href: "/yonetim/siparisler", label: "Siparişler & iade", icon: ReceiptText },
+  {
+    href: "/yonetim/destek",
+    label: "Canlı destek",
+    icon: Headset,
+    badge: "waitingSupport",
   },
   {
     href: "/yonetim/restoranlar",

@@ -2,8 +2,9 @@
 
 import { Headset, Send, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "@/lib/api-client";
+import { useRealtime } from "@/lib/realtime";
 import { useSession } from "@/lib/store/session";
 import type { SupportMessage, SupportSession } from "@/lib/types";
 import { cn, formatTime } from "@/lib/utils";
@@ -13,6 +14,10 @@ import { useToast } from "@/components/ui/toast";
 /**
  * Canlı destek / chatbot paneli.
  * Hem sağ alttaki açılır pencerede hem de /destek sayfasında kullanılır.
+ *
+ * Konuşmanın Realtime kanalı (`support:<id>`) dinlenir: temsilcinin
+ * yazdıkları müşteri bir şey göndermeden anında görünür. Temsilci
+ * kuyruğundayken bağlantı koparsa yoklama yedeği devreye girer.
  */
 export function ChatPanel({
   orderId,
@@ -49,6 +54,38 @@ export function ChatPanel({
       cancelled = true;
     };
   }, [status, orderId, toast]);
+
+  const sessionId = session?.id;
+  const escalated = Boolean(session?.escalated);
+
+  const reload = useCallback(async () => {
+    if (!sessionId) return;
+    try {
+      const data = await api.get<{ session: SupportSession }>(
+        `/support/chat?sessionId=${sessionId}`
+      );
+      setSession(data.session);
+    } catch {
+      /* geçici hata — sıradaki olayda ya da yoklamada düzelir */
+    }
+  }, [sessionId]);
+
+  const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const realtime = useRealtime(
+    "customer",
+    sessionId ? [`support:${sessionId}`] : [],
+    () => {
+      if (refetchTimer.current) clearTimeout(refetchTimer.current);
+      refetchTimer.current = setTimeout(() => void reload(), 300);
+    },
+    status === "authenticated" && Boolean(sessionId)
+  );
+
+  useEffect(() => {
+    if (!escalated) return;
+    const timer = setInterval(() => void reload(), realtime === "live" ? 20_000 : 5_000);
+    return () => clearInterval(timer);
+  }, [escalated, realtime, reload]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -100,6 +137,18 @@ export function ChatPanel({
 
   return (
     <div className={cn("flex min-h-0 flex-col", className)}>
+      {session?.status === "waiting_agent" && (
+        <p className="mb-2 flex items-center gap-2 rounded-xl bg-saffron-soft px-3 py-2 text-xs font-semibold text-saffron">
+          <Headset className="size-4 shrink-0" />
+          Bir müşteri temsilcisine aktarıldın; yanıt burada görünecek.
+        </p>
+      )}
+      {session?.status === "with_agent" && (
+        <p className="mb-2 flex items-center gap-2 rounded-xl bg-info-soft px-3 py-2 text-xs font-semibold text-info">
+          <Headset className="size-4 shrink-0" />
+          Bir müşteri temsilcisiyle görüşüyorsun.
+        </p>
+      )}
       <div
         ref={scrollRef}
         className="min-h-0 flex-1 space-y-3 overflow-y-auto px-1 py-2"
@@ -211,7 +260,7 @@ function Bubble({ message }: { message: SupportMessage }) {
           <RichText text={message.text} />
         </div>
         <span className="mt-1 block px-1 text-[10px] text-muted">
-          {isAgent ? "Müşteri temsilcisi · " : ""}
+          {isAgent ? `Müşteri temsilcisi${message.authorName ? ` ${message.authorName}` : ""} · ` : ""}
           {formatTime(message.at)}
         </span>
       </div>

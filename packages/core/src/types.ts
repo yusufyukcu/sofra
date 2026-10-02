@@ -639,6 +639,8 @@ export interface SupportMessage {
   role: "bot" | "user" | "agent";
   text: string;
   at: string;
+  /** Temsilci mesajlarında temsilcinin adı */
+  authorName?: string;
   quickReplies?: SupportQuickReply[];
 }
 

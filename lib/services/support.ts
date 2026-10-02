@@ -1,9 +1,9 @@
 import "server-only";
 import { CANCELLABLE_STATUSES, ORDER_STATUS_META, PAYMENT_METHODS } from "../constants";
 import { sql, type Db } from "../db/client";
-import { findOrder, ordersOfUser } from "../db/queries";
+import { findOrder, ordersOfUser, recordAudit } from "../db/queries";
 import { remainingMinutes } from "../orders/progress";
-import type { Order, SupportMessage, SupportSession, User } from "../types";
+import type { AdminAccount, Order, SupportMessage, SupportSession, User } from "../types";
 import { createId, formatPrice, formatTime } from "../utils";
 import { DomainError } from "../errors";
 import { cancelOrder } from "./orders";
@@ -70,6 +70,7 @@ interface SessionRow {
   orderId: string | null;
   status: SessionStatus;
   topic: string | null;
+  assignedAdminId: string | null;
 }
 
 async function loadSession(id: string, db: Db = sql): Promise<SupportSession> {
@@ -88,7 +89,8 @@ async function loadSession(id: string, db: Db = sql): Promise<SupportSession> {
       id: m.id,
       // Arayüz sistem mesajlarını asistan balonuyla gösterir
       role: m.role === "system" ? "bot" : m.role,
-      text: m.authorName && m.role === "agent" ? `${m.text}` : m.text,
+      text: m.text,
+      authorName: m.role === "agent" ? (m.authorName ?? undefined) : undefined,
       at: m.at.toISOString(),
       quickReplies: m.quickReplies ?? undefined,
     })),
@@ -424,4 +426,206 @@ export async function chat(user: User, input: ChatInput): Promise<SupportSession
     if (outcome.escalate) await setStatus(tx, session.id, "waiting_agent", outcome.escalate);
   });
   return loadSession(session.id);
+}
+
+/* ------------------------------------------------------------------ */
+/* Temsilci konsolu (yönetici paneli)                                  */
+/* ------------------------------------------------------------------ */
+
+export type SupportQueueFilter = "open" | "closed" | "all";
+
+export interface SupportQueueItem {
+  id: string;
+  status: SessionStatus;
+  /** Asistanın aktarma sebebi (missing_item, invoice, agent …) */
+  topic: string | null;
+  customer: { id: string; name: string; phone: string | null };
+  orderId: string | null;
+  orderCode: string | null;
+  assignedAdmin: { id: string; name: string } | null;
+  lastMessage: { role: SupportMessage["role"] | "system"; text: string; at: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface QueueRow {
+  id: string;
+  status: SessionStatus;
+  topic: string | null;
+  userId: string;
+  customerName: string;
+  customerPhone: string | null;
+  orderId: string | null;
+  orderCode: string | null;
+  assignedAdminId: string | null;
+  assignedAdminName: string | null;
+  lastRole: SupportMessage["role"] | "system" | null;
+  lastText: string | null;
+  lastAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+function toQueueItem(row: QueueRow): SupportQueueItem {
+  return {
+    id: row.id,
+    status: row.status,
+    topic: row.topic,
+    customer: { id: row.userId, name: row.customerName, phone: row.customerPhone },
+    orderId: row.orderId,
+    orderCode: row.orderCode,
+    assignedAdmin: row.assignedAdminId
+      ? { id: row.assignedAdminId, name: row.assignedAdminName ?? "Temsilci" }
+      : null,
+    lastMessage:
+      row.lastRole && row.lastText !== null && row.lastAt
+        ? { role: row.lastRole, text: row.lastText, at: row.lastAt.toISOString() }
+        : null,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function queueQuery(filter: SupportQueueFilter | { id: string }, limit: number) {
+  const where =
+    typeof filter === "object"
+      ? sql`s.id = ${filter.id}`
+      : filter === "open"
+        ? sql`s.status in ('waiting_agent', 'with_agent')`
+        : filter === "closed"
+          ? sql`s.status = 'closed'`
+          : sql`true`;
+  return sql<QueueRow[]>`
+    select s.id, s.status, s.topic, s.user_id, s.order_id, s.assigned_admin_id,
+           s.created_at, s.updated_at,
+           p.name as customer_name, p.phone as customer_phone,
+           o.code as order_code, a.name as assigned_admin_name,
+           m.role as last_role, m.text as last_text, m.at as last_at
+      from public.support_sessions s
+      join public.profiles p on p.id = s.user_id
+      left join public.orders o on o.id = s.order_id
+      left join public.admins a on a.id = s.assigned_admin_id
+      left join lateral (
+        select role, text, at from public.support_messages
+         where session_id = s.id order by at desc, id desc limit 1
+      ) m on true
+     where ${where}
+     order by (s.status = 'waiting_agent') desc, s.updated_at desc
+     limit ${limit}
+  `;
+}
+
+/**
+ * Destek kuyruğu. `open`: temsilci bekleyen ve görüşmesi süren oturumlar
+ * (bekleyenler önce). `closed`: kapananlar. `all`: asistanla süren
+ * konuşmalar dahil son oturumlar.
+ */
+export async function supportQueue(filter: SupportQueueFilter = "open"): Promise<{
+  sessions: SupportQueueItem[];
+  counts: { waiting: number; withAgent: number };
+}> {
+  const [rows, [counts]] = await Promise.all([
+    queueQuery(filter, filter === "open" ? 100 : 50),
+    sql<{ waiting: number; withAgent: number }[]>`
+      select count(*) filter (where status = 'waiting_agent')::int as waiting,
+             count(*) filter (where status = 'with_agent')::int as with_agent
+        from public.support_sessions
+    `,
+  ]);
+  return { sessions: rows.map(toQueueItem), counts };
+}
+
+export interface AgentSessionView {
+  info: SupportQueueItem;
+  session: SupportSession;
+  /** Müşterinin son siparişleri — temsilci bağlamı görsün */
+  recentOrders: Order[];
+}
+
+export async function agentSession(sessionId: string): Promise<AgentSessionView> {
+  const [row] = await queueQuery({ id: sessionId }, 1);
+  if (!row) throw new DomainError("session_not_found", "Destek konuşması bulunamadı.", 404);
+  const [session, orders] = await Promise.all([loadSession(sessionId), ordersOfUser(row.userId)]);
+  return { info: toQueueItem(row), session, recentOrders: orders.slice(0, 5) };
+}
+
+export type AgentAction = "claim" | "message" | "release" | "close";
+
+/**
+ * Temsilci işlemleri. Mesaj yazmak bekleyen görüşmeyi otomatik üstlenir.
+ * Müşteri her adımı sohbet penceresinde görür (Realtime ile anında).
+ */
+export async function agentAct(
+  admin: AdminAccount,
+  sessionId: string,
+  action: AgentAction,
+  text = ""
+): Promise<AgentSessionView> {
+  const firstName = admin.name.split(" ")[0];
+  await sql.begin(async (tx) => {
+    const [session] = await tx<SessionRow[]>`
+      select * from public.support_sessions where id = ${sessionId} for update
+    `;
+    if (!session) throw new DomainError("session_not_found", "Destek konuşması bulunamadı.", 404);
+
+    const claim = async () => {
+      await tx`
+        update public.support_sessions
+           set status = 'with_agent', assigned_admin_id = ${admin.id}, closed_at = null
+         where id = ${sessionId}
+      `;
+      await tx`
+        insert into public.support_messages (id, session_id, role, text)
+        values (${createId("msg")}, ${sessionId}, 'system',
+                ${`Müşteri temsilcisi ${firstName} görüşmeye katıldı.`})
+      `;
+    };
+
+    switch (action) {
+      case "claim": {
+        if (session.status === "with_agent" && session.assignedAdminId === admin.id) return;
+        await claim();
+        await recordAudit(admin.name, "Destek görüşmesini üstlendi", sessionId, undefined, tx);
+        return;
+      }
+      case "message": {
+        const body = text.trim().slice(0, 1000);
+        if (!body) throw new DomainError("empty_message", "Boş mesaj gönderilemez.");
+        if (session.status !== "with_agent" || session.assignedAdminId !== admin.id) await claim();
+        await tx`
+          insert into public.support_messages (id, session_id, role, author_name, text)
+          values (${createId("msg")}, ${sessionId}, 'agent', ${firstName}, ${body})
+        `;
+        await tx`update public.support_sessions set updated_at = now() where id = ${sessionId}`;
+        return;
+      }
+      case "release": {
+        await tx`
+          update public.support_sessions
+             set status = 'waiting_agent', assigned_admin_id = null
+           where id = ${sessionId}
+        `;
+        await tx`
+          insert into public.support_messages (id, session_id, role, text)
+          values (${createId("msg")}, ${sessionId}, 'system',
+                  'Görüşmen başka bir temsilciye aktarılıyor, kısa süre içinde yanıt verilecek.')
+        `;
+        return;
+      }
+      case "close": {
+        if (session.status === "closed") return;
+        await setStatus(tx, sessionId, "closed");
+        await tx`
+          insert into public.support_messages (id, session_id, role, text)
+          values (${createId("msg")}, ${sessionId}, 'system',
+                  'Görüşme sonlandırıldı. Yeni bir konu için buraya yazabilirsin.')
+        `;
+        await recordAudit(admin.name, "Destek görüşmesini kapattı", sessionId, undefined, tx);
+        return;
+      }
+      default:
+        throw new DomainError("unknown_action", "Geçersiz işlem. Beklenen: claim, message, release, close.");
+    }
+  });
+  return agentSession(sessionId);
 }
