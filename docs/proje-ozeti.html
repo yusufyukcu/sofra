@@ -1,0 +1,1210 @@
+<title>Sofra Platform Teslimi</title>
+<style>
+  /* ---------------------------------------------------------------
+     Jetonlar — açık palet burada tanımlanır, koyu palet yalnızca
+     bu jetonları yeniden atar. Hiçbir renk yalnızca medya sorgusu
+     içinde tanımlı değildir.
+  ---------------------------------------------------------------- */
+  :root {
+    --paper:      #FBF9F7;
+    --surface:    #FFFFFF;
+    --surface-2:  #F4F0EC;
+    --ink:        #1A1512;
+    --ink-2:      #453C36;
+    --muted:      #6F635B;
+    --rule:       #E3DBD4;
+    --rule-2:     #CFC4BB;
+
+    --accent:     #D1402A;   /* paprika */
+    --accent-ink: #A62E1C;
+    --accent-bg:  #FBEDE9;
+
+    --verify:     #0E6B5E;   /* doğrulanmış / hazır */
+    --verify-bg:  #E2F1ED;
+    --pending:    #92610A;   /* simüle edilen / bekleyen */
+    --pending-bg: #FAF0DC;
+
+    --shadow:     0 1px 2px rgba(26, 21, 18, .05), 0 8px 24px -14px rgba(26, 21, 18, .22);
+
+    --display: "Segoe UI Variable Display", "Segoe UI", -apple-system,
+               "Helvetica Neue", Arial, sans-serif;
+    --body: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, "Liberation Mono", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #141110;
+      --surface:    #1C1817;
+      --surface-2:  #241F1D;
+      --ink:        #F6F1ED;
+      --ink-2:      #D9D0C9;
+      --muted:      #A2958C;
+      --rule:       #322B27;
+      --rule-2:     #463C36;
+
+      --accent:     #FF6B4D;
+      --accent-ink: #FF8B72;
+      --accent-bg:  #35170F;
+
+      --verify:     #46BFA8;
+      --verify-bg:  #0D2B26;
+      --pending:    #DDA33A;
+      --pending-bg: #302310;
+
+      --shadow:     0 1px 2px rgba(0, 0, 0, .5), 0 10px 28px -16px rgba(0, 0, 0, .8);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:      #141110;
+    --surface:    #1C1817;
+    --surface-2:  #241F1D;
+    --ink:        #F6F1ED;
+    --ink-2:      #D9D0C9;
+    --muted:      #A2958C;
+    --rule:       #322B27;
+    --rule-2:     #463C36;
+
+    --accent:     #FF6B4D;
+    --accent-ink: #FF8B72;
+    --accent-bg:  #35170F;
+
+    --verify:     #46BFA8;
+    --verify-bg:  #0D2B26;
+    --pending:    #DDA33A;
+    --pending-bg: #302310;
+
+    --shadow:     0 1px 2px rgba(0, 0, 0, .5), 0 10px 28px -16px rgba(0, 0, 0, .8);
+  }
+
+  /* ---------------------------------------------------------------
+     Temel
+  ---------------------------------------------------------------- */
+  body {
+    background: var(--paper);
+    color: var(--ink-2);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 62rem;
+    margin: 0 auto;
+    padding: clamp(2rem, 5vw, 4.5rem) clamp(1.1rem, 4vw, 2.5rem) 5rem;
+  }
+
+  h1, h2, h3, .label, .meta-k, th {
+    font-family: var(--display);
+  }
+
+  h1 {
+    font-size: clamp(2.1rem, 6vw, 3.4rem);
+    line-height: 1.02;
+    letter-spacing: -0.035em;
+    font-weight: 800;
+    color: var(--ink);
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  h2 {
+    font-size: clamp(1.35rem, 3vw, 1.75rem);
+    line-height: 1.15;
+    letter-spacing: -0.022em;
+    font-weight: 700;
+    color: var(--ink);
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  h3 {
+    font-size: 1.02rem;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  p { margin: 0; max-width: 66ch; }
+  a { color: var(--accent-ink); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 3px;
+  }
+
+  code, .mono { font-family: var(--mono); font-size: 0.855em; }
+
+  code {
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 0.06em 0.36em;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  .label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* ---------------------------------------------------------------
+     Sipariş fişi başlığı
+  ---------------------------------------------------------------- */
+  .ticket {
+    display: flex;
+    flex-direction: column;
+    gap: 1.6rem;
+    padding-bottom: 2.2rem;
+    border-bottom: 2px solid var(--ink);
+  }
+
+  .ticket-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-family: var(--display);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  .mark span:first-child {
+    width: 2rem; height: 2rem;
+    display: grid; place-items: center;
+    background: var(--accent);
+    border-radius: 8px;
+    font-size: 1.05rem;
+  }
+
+  .lede {
+    font-size: clamp(1.05rem, 2.2vw, 1.22rem);
+    line-height: 1.55;
+    color: var(--ink-2);
+    max-width: 54ch;
+  }
+
+  .meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: 1.1rem 1.6rem;
+    border-top: 1px dashed var(--rule-2);
+    padding-top: 1.4rem;
+  }
+  .meta-k {
+    font-size: 0.66rem; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted);
+    display: block; margin-bottom: 0.28rem;
+  }
+  .meta-v {
+    font-family: var(--mono);
+    font-size: 0.88rem;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------------------------------------------------------------
+     Bölümler
+  ---------------------------------------------------------------- */
+  section { margin-top: 3.6rem; }
+  .sec-head { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.6rem; }
+  .sec-head p { color: var(--muted); font-size: 0.97rem; }
+
+  .perf { border: 0; border-top: 1px dashed var(--rule-2); margin: 3.6rem 0 0; }
+
+  /* ---------------------------------------------------------------
+     Özellik kartları
+  ---------------------------------------------------------------- */
+  .features { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(17.5rem, 1fr)); }
+
+  .feature {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    padding: 1.25rem 1.3rem 1.35rem;
+    box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 0.7rem;
+  }
+  .feature > .label { color: var(--accent-ink); }
+  .feature ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+  .feature li {
+    font-size: 0.93rem; line-height: 1.5;
+    padding-left: 1.4rem; position: relative;
+    color: var(--ink-2);
+  }
+  .feature li::before {
+    content: "";
+    position: absolute; left: 0; top: 0.58em;
+    width: 0.62rem; height: 0.34rem;
+    border-left: 2px solid var(--verify);
+    border-bottom: 2px solid var(--verify);
+    transform: rotate(-45deg);
+  }
+
+  /* ---------------------------------------------------------------
+     Tablolar
+  ---------------------------------------------------------------- */
+  .scroller { overflow-x: auto; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 34rem; }
+  th, td { text-align: left; padding: 0.78rem 1.05rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th {
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted); background: var(--surface-2); white-space: nowrap;
+  }
+  td { font-size: 0.92rem; line-height: 1.5; color: var(--ink-2); }
+  tr:last-child td { border-bottom: 0; }
+  td:first-child { color: var(--ink); font-weight: 600; }
+
+  /* ---------------------------------------------------------------
+     Rozetler
+  ---------------------------------------------------------------- */
+  .pill {
+    display: inline-block;
+    font-family: var(--display);
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em;
+    padding: 0.14rem 0.5rem; border-radius: 999px; white-space: nowrap;
+  }
+  .pill-ok   { background: var(--verify-bg);  color: var(--verify); }
+  .pill-sim  { background: var(--pending-bg); color: var(--pending); }
+  .pill-next { background: var(--accent-bg);  color: var(--accent-ink); }
+
+  /* ---------------------------------------------------------------
+     Kod bloğu
+  ---------------------------------------------------------------- */
+  pre {
+    margin: 0;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    padding: 1.05rem 1.2rem;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 0.855rem;
+    line-height: 1.75;
+    color: var(--ink);
+  }
+  pre .c { color: var(--muted); }
+
+  /* ---------------------------------------------------------------
+     Akış şeridi
+  ---------------------------------------------------------------- */
+  .flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 0.55rem; }
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 0.85rem 0.95rem;
+    display: flex; flex-direction: column; gap: 0.2rem;
+  }
+  .step b { font-family: var(--display); font-size: 0.93rem; color: var(--ink); }
+  .step .t { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .step .who { font-size: 0.78rem; color: var(--muted); }
+  .step:last-child { border-left-color: var(--verify); }
+
+  /* ---------------------------------------------------------------
+     Katman yığını
+  ---------------------------------------------------------------- */
+  .stack { display: flex; flex-direction: column; gap: 0.45rem; }
+  .layer {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 0.8rem 1.05rem;
+    display: flex; align-items: baseline; gap: 0.85rem; flex-wrap: wrap;
+  }
+  .layer b { font-family: var(--display); font-size: 0.92rem; color: var(--ink); min-width: 9rem; }
+  .layer span { font-size: 0.88rem; color: var(--muted); font-family: var(--mono); }
+  .clients { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.45rem; }
+  .clients .layer { border-style: dashed; }
+  .clients .layer.later { border-color: var(--rule-2); opacity: .75; }
+
+  /* ---------------------------------------------------------------
+     Kanıt kutuları
+  ---------------------------------------------------------------- */
+  .proofs { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+  .proof {
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+  }
+  .proof .k { display: block; font-size: 0.85rem; color: var(--ink-2); margin-bottom: 0.35rem; line-height: 1.45; }
+  .proof .v { font-family: var(--mono); font-size: 0.83rem; color: var(--verify); line-height: 1.5; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: 1.2rem; }
+  .stat b {
+    display: block;
+    font-family: var(--display); font-weight: 800;
+    font-size: clamp(1.6rem, 4vw, 2.1rem); letter-spacing: -0.03em;
+    color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.1;
+  }
+  .stat span { font-size: 0.8rem; color: var(--muted); }
+
+  .note {
+    background: var(--accent-bg);
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+    border-radius: 10px;
+    padding: 1.05rem 1.2rem;
+    font-size: 0.93rem;
+    line-height: 1.6;
+    color: var(--ink-2);
+  }
+  .note b { color: var(--ink); font-family: var(--display); }
+
+  footer {
+    margin-top: 4rem; padding-top: 1.6rem;
+    border-top: 1px dashed var(--rule-2);
+    font-size: 0.85rem; color: var(--muted);
+    display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="ticket">
+    <div class="ticket-top">
+      <span class="mark"><span>🍽️</span><span>Sofra</span></span>
+      <span class="label">Sistem Analizi · Dört modül + mobil</span>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:1.05rem">
+      <h1>Dört modül,<br>beş istemci</h1>
+      <p class="lede">
+        Analiz raporundaki dört modülün tamamı çalışıyor: müşteri sipariş
+        veriyor, restoran mutfak tabletinden onaylıyor, kurye teslimatı
+        üstleniyor, yönetici hepsini canlı haritada izleyip hakedişleri
+        onaylıyor. Üstüne <strong>iOS ve Android uygulaması</strong> geldi —
+        aynı sunucuya, aynı uç noktalara, tek satır backend değişikliği
+        olmadan bağlanıyor. Alan modeli, fiyat hesabı ve palet paylaşılan bir
+        pakette; bir kuralın iki istemcide ayrışması mümkün değil.
+      </p>
+    </div>
+
+    <div class="meta">
+      <div><span class="meta-k">Durum</span><span class="meta-v">Çalışıyor · derleme temiz</span></div>
+      <div><span class="meta-k">Teknoloji</span><span class="meta-v">Next.js 16 · Expo 57</span></div>
+      <div><span class="meta-k">Müşteri</span><span class="meta-v">localhost:3000</span></div>
+      <div><span class="meta-k">İşletme</span><span class="meta-v">/isletme · PIN 1234</span></div>
+      <div><span class="meta-k">Kurye</span><span class="meta-v">/kurye · PIN 1234</span></div>
+      <div><span class="meta-k">Yönetim</span><span class="meta-v">/yonetim · PIN 1234</span></div>
+      <div><span class="meta-k">Mobil</span><span class="meta-v">mobile/ · expo start</span></div>
+    </div>
+  </header>
+
+  <section>
+    <div class="stats">
+      <div class="stat"><b>30</b><span>web sayfası</span></div>
+      <div class="stat"><b>16</b><span>mobil ekran</span></div>
+      <div class="stat"><b>60</b><span>API uç noktası</span></div>
+      <div class="stat"><b>0</b><span>mobil için backend değişikliği</span></div>
+      <div class="stat"><b>245</b><span>kaynak dosya</span></div>
+      <div class="stat"><b>38.8K</b><span>satır kod</span></div>
+    </div>
+  </section>
+
+  <hr class="perf">
+
+  <section>
+    <div class="sec-head">
+      <h2>Modül 1 — Müşteri Uygulaması</h2>
+      <p>Analiz belgesindeki beş alt başlığın tamamı uygulandı ve uçtan uca çalıştırılarak doğrulandı.</p>
+    </div>
+
+    <div class="features">
+      <article class="feature">
+        <span class="label">Kimlik &amp; profil</span>
+        <ul>
+          <li>Telefon OTP, e-posta OTP, Google ve Apple ile giriş</li>
+          <li>Birden fazla adres, harita üzerinde pin ile konum seçimi</li>
+          <li>Pin durunca mahalle/cadde/ilçe otomatik dolar</li>
+          <li>Favori restoranlar ve sipariş geçmişi</li>
+          <li>“Tekrar Sipariş Ver” — varyantlar dâhil</li>
+        </ul>
+      </article>
+
+      <article class="feature">
+        <span class="label">Keşif &amp; listeleme</span>
+        <ul>
+          <li>Konuma göre teslimat bölgesi filtresi</li>
+          <li>Otomatik ilerleyen kampanya afişleri, kod kopyalama</li>
+          <li>16 kategori: Burger, Kebap, Tatlı, Sağlıklı, Puanı Yüksekler…</li>
+          <li>Min. sepet, teslimat süresi, puan, mesafe filtreleri</li>
+          <li>Filtreler URL’e yazılır — derin bağlantı çalışır</li>
+        </ul>
+      </article>
+
+      <article class="feature">
+        <span class="label">Restoran &amp; menü</span>
+        <ul>
+          <li>Kategorili menü, görünür bölümü izleyen navigasyon</li>
+          <li>Tekli seçim: boyut, pişirme derecesi, hamur</li>
+          <li>Çoklu seçim: malzemeler, “istemediklerim”</li>
+          <li>Ücretli ekstralar, min/max seçim sınırları</li>
+          <li>Ürün özelinde sipariş notu</li>
+        </ul>
+      </article>
+
+      <article class="feature">
+        <span class="label">Sepet &amp; ödeme</span>
+        <ul>
+          <li>Minimum sepet kontrolü ve ilerleme çubuğu</li>
+          <li>Promosyon kodu + kullanılabilir kampanya önerileri</li>
+          <li>Temassız teslimat, zile basma, çatal-bıçak tercihleri</li>
+          <li>Online kart · kapıda nakit/kart · yemek kartı · cüzdan</li>
+          <li>Tutarlar her zaman sunucuda hesaplanır</li>
+        </ul>
+      </article>
+
+      <article class="feature">
+        <span class="label">Takip &amp; satış sonrası</span>
+        <ul>
+          <li>Onay bekliyor → Hazırlanıyor → Yolda → Teslim edildi</li>
+          <li>Server-Sent Events ile saniyelik canlı güncelleme</li>
+          <li>Kurye canlı harita takibi, kat edilen/kalan rota</li>
+          <li>Maskeli numara ile kuryeyi arama</li>
+          <li>Restoran ve kurye için ayrı puanlama + yorum</li>
+          <li>İptal → online ödemede cüzdana anında iade</li>
+        </ul>
+      </article>
+
+      <article class="feature">
+        <span class="label">Canlı destek</span>
+        <ul>
+          <li>“Siparişim nerede?” — güncel durum ve kalan süre</li>
+          <li>Sohbetten iptal talebi, onaylı akış</li>
+          <li>Eksik/yanlış ürün kaydı, iade ve fatura soruları</li>
+          <li>Çözülemeyen konu müşteri temsilcisine devredilir</li>
+          <li>SSS sayfası ve her ekranda açılır destek penceresi</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <hr class="perf">
+
+  <section>
+    <div class="sec-head">
+      <h2>Modül 2 — Restoran Paneli</h2>
+      <p>Mutfakta tablet üzerinde kullanılmak üzere tasarlandı: koyu yan menü, geniş dokunma hedefleri, her ekranda görünen iki kritik kontrol — siparişe açık/kapalı ve zil.</p>
+    </div>
+
+    <div class="features">
+      <article class="feature">
+        <span class="label">Sipariş yönetimi</span>
+        <ul>
+          <li>Canlı pano: bekleyen · hazırlanan · yolda · kapananlar</li>
+          <li>Yeni sipariş düşünce sesli ve görsel bildirim</li>
+          <li>Zil Web Audio ile sentezlenir — ses dosyası yok</li>
+          <li>Onayla: hazırlık süresini tek dokunuşla bildir</li>
+          <li>Süreyi güncelle — müşterinin ETA’sı anında kayar</li>
+          <li>Reddet: neden seçimli, tutar cüzdana iade edilir</li>
+          <li>“Yola çıktı” → müşterinin takip ekranına iletilir</li>
+        </ul>
+      </article>
+
+      <article class="feature">
+        <span class="label">Menü &amp; stok</span>
+        <ul>
+          <li>Kategori ekle, düzenle, sil ve sırala</li>
+          <li>Ürün ekle, fiyat ve kampanyalı eski fiyat güncelle</li>
+          <li>Varyant ağacı düzenleyici: tekli/çoklu grup, zorunluluk</li>
+          <li>Seçenek başına fiyat farkı, varsayılan seçim, min/max</li>
+          <li>Anlık stok kapatma — ürün düzeyinde</li>
+          <li>Malzeme düzeyinde stok: “Trüf patates tükendi”</li>
+        </ul>
+      </article>
+
+      <article class="feature">
+        <span class="label">Mağaza ayarları</span>
+        <ul>
+          <li>Çalışma saatleri ve gün ortası molası</li>
+          <li>Minimum sepet, teslimat ücreti, ücretsiz eşiği</li>
+          <li>Teslimat yarıçapı — harita üzerinde canlı önizleme</li>
+          <li>Kabul edilen ödeme yöntemleri</li>
+          <li>Yoğunlukta siparişe kapat</li>
+          <li>Otomatik onayı kapat → her sipariş elle onaylanır</li>
+        </ul>
+      </article>
+
+      <article class="feature">
+        <span class="label">Finans &amp; değerlendirme</span>
+        <ul>
+          <li>Günlük, haftalık, aylık ciro grafiği</li>
+          <li>Net hakediş ve platform komisyonu üst üste yığılır</li>
+          <li>Haftalık hakediş tablosu: ödendi / işleniyor / beklemede</li>
+          <li>En çok ciro getiren ürünler</li>
+          <li>Grafik yerine tablo görünümü</li>
+          <li>Yorumlara cevap — müşteri sayfasında anında görünür</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <hr class="perf">
+
+  <section>
+    <div class="sec-head">
+      <h2>Modül 3 — Kurye Uygulaması</h2>
+      <p>Telefonda tek elle, çoğu zaman hareket hâlinde kullanılır: tek sütun, 64 piksel yüksek birincil aksiyon düğmesi, her ekranda görünen mesai anahtarı. Masaüstünde bile telefon genişliğinde ortalanır.</p>
+    </div>
+
+    <div class="features">
+      <article class="feature">
+        <span class="label">Operasyon</span>
+        <ul>
+          <li>Mesai başlat / bitir — Online / Offline</li>
+          <li>Açık teslimat varken mesai kapatılamaz</li>
+          <li>Atanan sipariş 45 saniyelik teklif olarak gelir</li>
+          <li>Kalan süre saniye saniye geri sayar</li>
+          <li>Reddedilen sipariş anında sıradaki en yakın kuryeye geçer</li>
+          <li>Restorana ve müşteriye navigasyon</li>
+        </ul>
+      </article>
+
+      <article class="feature">
+        <span class="label">Teslimat akışı</span>
+        <ul>
+          <li>Restorana vardım → Teslim aldım → Teslim ettim</li>
+          <li>“Teslim aldım” siparişi müşteride “Yolda”ya çevirir</li>
+          <li>Konum bildirimi müşterinin takip haritasını besler</li>
+          <li>Simüle sürüş veya cihaz GPS’i arasında geçiş</li>
+          <li>Maskelenmiş numara ile müşteriyi arama</li>
+          <li>Kapıda ödemede tahsil edilecek tutar fişte</li>
+        </ul>
+      </article>
+
+      <article class="feature">
+        <span class="label">Kazanç</span>
+        <ul>
+          <li>Paket başı ücret: 35 ₺ taban + km başına 11 ₺</li>
+          <li>Müşterinin bıraktığı bahşiş doğrudan kuryeye</li>
+          <li>Günlük, haftalık ve toplam kazanç</li>
+          <li>14 günlük grafik — ücret ve bahşiş ayrı seriler</li>
+          <li>Haftalık hakediş tablosu</li>
+          <li>Son teslimatlar: mesafe, süre, kazanç</li>
+        </ul>
+      </article>
+
+      <article class="feature">
+        <span class="label">Performans</span>
+        <ul>
+          <li>Puan ve değerlendirme sayısı</li>
+          <li>Ortalama teslimat süresi (teslim alma → teslim etme)</li>
+          <li>En hızlı teslimat</li>
+          <li>Kabul oranı ve teklif kırılımı</li>
+          <li>Ortalama mesafe, haftalık teslimat sayısı</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <hr class="perf">
+
+  <section>
+    <div class="sec-head">
+      <h2>Modül 4 — Yönetici Paneli</h2>
+      <p>Masaüstü kontrol masası: diğer üç modülün üzerinde durur. Onay, kontrol ve mutabakat. Her manuel yetki kullanımı iz kaydına yazılır.</p>
+    </div>
+
+    <div class="features">
+      <article class="feature">
+        <span class="label">Kullanıcı ve restoran</span>
+        <ul>
+          <li>Yeni restoran onaylama — onaysız restoran hiç görünmez</li>
+          <li>Restoran bazlı komisyon oranı, %0–40 arası</li>
+          <li>Kurye aktivasyonu; onaysız kurye mesaiye başlayamaz</li>
+          <li>Kara liste — oturum anında geçersiz olur</li>
+          <li>Manuel bakiye yükleme ve düşüm, gerekçeli</li>
+        </ul>
+      </article>
+
+      <article class="feature">
+        <span class="label">Canlı operasyon</span>
+        <ul>
+          <li>Tüm aktif siparişler harita ve listede anlık</li>
+          <li>Çevrimiçi kuryeler haritada: teslimatta / boşta</li>
+          <li>Gecikme alarmı: 5 dk uyarı, 15 dk kritik</li>
+          <li>Manuel sipariş iptali ve kısmi iade</li>
+          <li>Son yönetici işlemleri akışı</li>
+        </ul>
+      </article>
+
+      <article class="feature">
+        <span class="label">Pazarlama</span>
+        <ul>
+          <li>Global promosyon kodları — yüzde, tutar, ücretsiz teslimat</li>
+          <li>Minimum sepet, üst sınır, ilk siparişe özel, restoran kısıtı</li>
+          <li>Yayından kalkan kod ödeme adımında reddedilir</li>
+          <li>Vitrin afişleri: canlı önizleme, sıralama, gizleme</li>
+          <li>Push: segment ve bölge hedefleme, hedef kitle sayacı</li>
+        </ul>
+      </article>
+
+      <article class="feature">
+        <span class="label">Finansal mutabakat</span>
+        <ul>
+          <li>GMV, platform net geliri, komisyon kârlılığı</li>
+          <li>Gelir kırılımı: gelirler eksi kurye, indirim, geçit maliyeti</li>
+          <li>Ödeme geçidi raporu: hacim, kesinti, valör</li>
+          <li>Hakediş onay akışı: bekliyor → onaylandı → ödendi</li>
+          <li>Durum restoran ve kurye taraflarında aynı anda görünür</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <hr class="perf">
+
+  <section>
+    <div class="sec-head">
+      <h2>Mobil Uygulama</h2>
+      <p>Expo + React Native. Müşteri ve kurye uygulamaları tek projede, ayrı oturumlarla. Sunucu tarafında tek satır değişmedi.</p>
+    </div>
+
+    <div class="features">
+      <article class="feature">
+        <span class="label">Müşteri</span>
+        <ul>
+          <li>Keşfet · Ara · Siparişlerim · Hesabım — alt sekmeler</li>
+          <li>Varyantlı ürün seçimi, adet ve not için alttan açılan yaprak</li>
+          <li>Ekranların altında beliren canlı sepet çubuğu</li>
+          <li>Canlı takip: durum çizgisi, harita, kurye kartı</li>
+          <li>Değerlendirme: restoran + kurye puanı, cüzdandan bahşiş</li>
+        </ul>
+      </article>
+
+      <article class="feature">
+        <span class="label">Kurye</span>
+        <ul>
+          <li>Mesai anahtarı ve günlük özet</li>
+          <li>45 saniyelik teklif: ücret, mesafe, harita, geri sayım, titreşim</li>
+          <li>Aktif teslimatta tek birincil eylem — sürüşte karar verilmez</li>
+          <li>Cihazın harita uygulamasıyla yol tarifi</li>
+          <li>Kazanç ve performans ekranları</li>
+        </ul>
+      </article>
+
+      <article class="feature">
+        <span class="label">Paylaşılan çekirdek</span>
+        <ul>
+          <li>Alan modeli, fiyat ve kupon hesabı tek dosyadan</li>
+          <li>Keşif filtreleri ve sepet kuralları ortak</li>
+          <li>Palet, tipografi ölçeği ve boşluk ritmi ortak</li>
+          <li>Ürün görselleri iki istemcide birebir aynı</li>
+          <li>Palet ayrışması betikle denetleniyor</li>
+        </ul>
+      </article>
+
+      <article class="feature">
+        <span class="label">Mobile özgü</span>
+        <ul>
+          <li>Token cihazın güvenli alanında (Keychain · EncryptedSharedPreferences)</li>
+          <li>Kurye konumu artık simüle değil, gerçek GPS</li>
+          <li>Harita: OpenStreetMap karoları + SVG katmanı, tek kod üç platform</li>
+          <li>Arka plandayken yoklama durur — pil harcanmaz</li>
+          <li>Ana eylemlerde haptik geri bildirim</li>
+        </ul>
+      </article>
+    </div>
+
+    <div class="note" style="margin-top:1.4rem">
+      <b>Backend'e neden dokunulmadı:</b> API baştan sürümlenmiş uç noktalar,
+      tek cevap zarfı ve <em>hem çerez hem <code>Bearer</code></em> kabul eden
+      oturumlarla yazılmıştı. Mobil uygulama bu kararların hiçbirini
+      değiştirmeden 60 uç noktanın tamamını kullanıyor. Eklenen tek şey,
+      yalnızca web önizlemesi için geliştirme CORS'u.
+    </div>
+  </section>
+
+  <hr class="perf">
+
+  <section>
+    <div class="sec-head">
+      <h2>Dört modül birbirine nasıl bağlanıyor</h2>
+      <p>Her modül devraldığı bacağın sahibi olur: restoran mutfağı, kurye teslimatı, yönetici de onay ve mutabakatı. Simülatör yalnızca panellerin hiçbiri devrede değilken çalışır.</p>
+    </div>
+
+    <div class="flow">
+      <div class="step"><b>Sipariş düşer</b><span class="who">Müşteri</span><span class="t">panelde zil çalar</span></div>
+      <div class="step"><b>Onayla · 15 dk</b><span class="who">Restoran</span><span class="t">müşterinin ETA’sı güncellenir</span></div>
+      <div class="step"><b>Teklif · 45 sn</b><span class="who">En yakın kurye</span><span class="t">kabul veya ret</span></div>
+      <div class="step"><b>Teslim aldım</b><span class="who">Kurye</span><span class="t">müşteride “Yolda”</span></div>
+      <div class="step"><b>Teslim ettim</b><span class="who">Kurye</span><span class="t">kazanç yazılır</span></div>
+      <div class="step"><b>Hakediş ödenir</b><span class="who">Yönetim</span><span class="t">iki panelde de “ödendi”</span></div>
+    </div>
+
+    <div class="note" style="margin-top:1.4rem">
+      <b>Kim neyi yönetiyor:</b> Restoran “otomatik onayı” kapattığında sipariş
+      <code>manual</code> doğar ve onaylanana kadar ilerlemez. Kurye teklifi
+      kabul ettiği anda teslimat bacağı da <strong>tamamen kuryeye geçer</strong> —
+      <code>courierStage</code> aktifken zamanlayıcı hiç devreye girmez.
+      Vardiyada kurye yoksa akışı yine simülatör tamamlar, böylece müşteri
+      uygulaması tek başına da denenebilir. Yönetim bu zincirin dışında değil
+      üstünde durur: onay, komisyon ve kara liste kararları zincirin
+      <em>başlayıp başlayamayacağını</em> belirler, iptal ve iade ise akışı her
+      noktasında durdurabilir.
+    </div>
+
+    <h3 style="margin-top:2rem">Katmanlar</h3>
+    <div class="stack" style="margin-top:0.85rem">
+      <div class="clients">
+        <div class="layer"><b>Müşteri web</b><span>sofra_session</span></div>
+        <div class="layer"><b>Restoran paneli</b><span>sofra_vendor</span></div>
+        <div class="layer"><b>Kurye uygulaması</b><span>sofra_courier</span></div>
+        <div class="layer"><b>Yönetim paneli</b><span>sofra_admin</span></div>
+        <div class="layer"><b>Mobil — müşteri</b><span>sofra_customer_token</span></div>
+        <div class="layer"><b>Mobil — kurye</b><span>sofra_courier_token</span></div>
+      </div>
+      <div class="layer"><b>/api/v1</b><span>sürümlenmiş · tek cevap zarfı · dört ayrı audience</span></div>
+      <div class="layer"><b>Servisler</b><span>orders · account · auth · support · vendor · courier · admin · payouts</span></div>
+      <div class="layer"><b>@sofra/core</b><span>types · pricing · discovery · cart · theme — web ve mobil aynı dosya</span></div>
+      <div class="layer"><b>Depo</b><span>restaurants · vendors · users · orders · reviews</span></div>
+    </div>
+
+    <p style="margin-top:1rem;font-size:0.9rem;color:var(--muted)">
+      Dört oturum aynı tarayıcıda birlikte açık kalabilir; biri diğerinin
+      uç noktasına erişemez. Restoran kataloğu, kampanya kodları, vitrin
+      afişleri ve hakediş defteri tek veri deposunda: bir panel yazar,
+      diğerleri aynı kaynaktan okur — değişiklik kaydedildiği anda görünür.
+    </p>
+  </section>
+
+  <hr class="perf">
+
+  <section>
+    <div class="sec-head">
+      <h2>Arayüz yenilendi</h2>
+      <p>Tek tip kart kitinden çıkıldı; renk ve yapı artık bilgi taşıyor.</p>
+    </div>
+
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>Alan</th><th>Önce</th><th>Şimdi</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Renk</td>
+            <td>Nötr gri-bej zemin, tek kırmızı vurgu</td>
+            <td>Türk mutfağı paleti: patlıcan koyusu çapa, biber salçası marka, safran puan, antep fıstığı olumlu durum</td>
+          </tr>
+          <tr>
+            <td>Tipografi</td>
+            <td>Tek aile (Geist), Türkçe karakterler yedek fontla</td>
+            <td>Bricolage Grotesque başlık + Geist arayüz; her ikisinde <code>latin-ext</code> alt kümesi</td>
+          </tr>
+          <tr>
+            <td>Görseller</td>
+            <td>Rastgele degrade + emoji</td>
+            <td>Mutfağa göre renklenen katmanlı degrade + gren — kebapçı kırmızı, sağlıklı yeşil, balıkçı mavi</td>
+          </tr>
+          <tr>
+            <td>Yerleşim</td>
+            <td>Tek tip kart ızgarası</td>
+            <td>Sıralamadaki ilk restoran geniş kartla açılır: yapı “en iyi eşleşme” bilgisini kodlar</td>
+          </tr>
+          <tr>
+            <td>Başlık</td>
+            <td>Yarı saydam beyaz bar</td>
+            <td>Her sayfada sabit patlıcan bandı; anasayfada tek soruyla açılan hero’ya uzanır</td>
+          </tr>
+          <tr>
+            <td>Grafik renkleri</td>
+            <td>—</td>
+            <td>Açık ve koyu mod adımları ayrı seçildi; parlaklık bandı, kroma, renk körlüğü ayrımı ve kontrast kontrollerinden geçti</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <hr class="perf">
+
+  <section>
+    <div class="sec-head">
+      <h2>Doğrulama</h2>
+      <p>Aşağıdakiler çalışan uygulama üzerinde gerçekten koşturuldu — anlatılan değil, ölçülen sonuçlar.</p>
+    </div>
+
+    <h3>Sunucu, istemciye güvenmiyor</h3>
+    <div class="proofs" style="margin-top:0.85rem">
+      <div class="proof">
+        <span class="k">İstemci ürün fiyatını 1&nbsp;₺ olarak gönderdi</span>
+        <span class="v">→ sunucu menüden 665,00&nbsp;₺ hesapladı</span>
+      </div>
+      <div class="proof">
+        <span class="k">Zorunlu “Boyut” varyantı seçilmeden sipariş denendi</span>
+        <span class="v">→ option_required</span>
+      </div>
+      <div class="proof">
+        <span class="k">Süresi dolmuş kampanya kodu girildi</span>
+        <span class="v">→ coupon_expired</span>
+      </div>
+      <div class="proof">
+        <span class="k">Aynı kupon ikinci kez kullanılmak istendi</span>
+        <span class="v">→ coupon_used</span>
+      </div>
+      <div class="proof">
+        <span class="k">Müşteri oturumuyla işletme uç noktası çağrıldı</span>
+        <span class="v">→ vendor_unauthorized</span>
+      </div>
+      <div class="proof">
+        <span class="k">Kurye oturumuyla işletme uç noktası çağrıldı</span>
+        <span class="v">→ vendor_unauthorized</span>
+      </div>
+      <div class="proof">
+        <span class="k">Oturumsuz kullanıcı /isletme ve /kurye adresine gitti</span>
+        <span class="v">→ 307 ilgili giriş ekranına</span>
+      </div>
+    </div>
+
+    <h3 style="margin-top:2rem">Kurye teslimatı gerçekten yönetiyor</h3>
+    <div class="proofs" style="margin-top:0.85rem">
+      <div class="proof">
+        <span class="k">Sipariş hazırlanmaya başlayınca</span>
+        <span class="v">→ restorana en yakın kuryeye teklif gitti (0,2 km)</span>
+      </div>
+      <div class="proof">
+        <span class="k">Kurye reddetti</span>
+        <span class="v">→ sıradaki kuryeye geçti (0,6 km)</span>
+      </div>
+      <div class="proof">
+        <span class="k">45 saniye yanıt verilmedi</span>
+        <span class="v">→ teklif düştü, diğer kuryeye gitti</span>
+      </div>
+      <div class="proof">
+        <span class="k">Kurye “Teslim aldım” dedi</span>
+        <span class="v">→ müşteride anında “Yolda” · ilerleme %55</span>
+      </div>
+      <div class="proof">
+        <span class="k">Ardından 20 saniye beklendi</span>
+        <span class="v">→ kendiliğinden teslim olmadı, kuryeyi bekledi</span>
+      </div>
+      <div class="proof">
+        <span class="k">Sırasız bildirim denendi (önce “teslim aldım”)</span>
+        <span class="v">→ invalid_stage</span>
+      </div>
+      <div class="proof">
+        <span class="k">Kurye konum bildirdi</span>
+        <span class="v">→ müşterinin takip haritasına aynı nokta düştü</span>
+      </div>
+      <div class="proof">
+        <span class="k">Açık teslimat varken mesai kapatılmak istendi</span>
+        <span class="v">→ active_delivery</span>
+      </div>
+      <div class="proof">
+        <span class="k">Müşteri 30 ₺ bahşiş bıraktı</span>
+        <span class="v">→ cüzdan 450 → 420 ₺ · kurye kazancı 49,69 → 79,69 ₺</span>
+      </div>
+      <div class="proof">
+        <span class="k">Kurye üstlenmişken restoran “Yola çıktı” dedi</span>
+        <span class="v">→ courier_owns_delivery</span>
+      </div>
+    </div>
+
+    <h3 style="margin-top:2rem">Panel gerçekten yönetiyor</h3>
+    <div class="proofs" style="margin-top:0.85rem">
+      <div class="proof">
+        <span class="k">Elle onay modunda sipariş, 25 saniye sonra</span>
+        <span class="v">→ hâlâ “Onay bekliyor” · ilerleme %6</span>
+      </div>
+      <div class="proof">
+        <span class="k">Restoran 15 dk ile onayladı</span>
+        <span class="v">→ müşteri anında “Hazırlanıyor” gördü</span>
+      </div>
+      <div class="proof">
+        <span class="k">Hazırlık süresi 30 dk’ya çıkarıldı</span>
+        <span class="v">→ müşterinin tahmini teslimatı kaydı</span>
+      </div>
+      <div class="proof">
+        <span class="k">Panelden yeni ürün + 2 varyant grubu eklendi</span>
+        <span class="v">→ müşteri menüsünde anında göründü</span>
+      </div>
+      <div class="proof">
+        <span class="k">Ürün stoktan düşürüldü, sipariş denendi</span>
+        <span class="v">→ product_sold_out</span>
+      </div>
+      <div class="proof">
+        <span class="k">Restoran siparişi reddetti (online ödeme)</span>
+        <span class="v">→ cüzdan 450,00 → 939,80&nbsp;₺</span>
+      </div>
+      <div class="proof">
+        <span class="k">Yorum cevabı yazıldı</span>
+        <span class="v">→ müşteri restoran sayfasında yayında</span>
+      </div>
+      <div class="proof">
+        <span class="k">Finans: 440&nbsp;₺ brüt, %12 komisyon</span>
+        <span class="v">→ komisyon 52,80 · net 387,20&nbsp;₺</span>
+      </div>
+    </div>
+
+    <h3 style="margin-top:2rem">Mobil uygulama aynı sunucuyla konuşuyor</h3>
+    <div class="proofs" style="margin-top:0.85rem">
+      <div class="proof">
+        <span class="k">Çerez olmadan, yalnızca Bearer ile /auth/me</span>
+        <span class="v">→ çalıştı · token yoksa unauthorized</span>
+      </div>
+      <div class="proof">
+        <span class="k">Müşteri token'ıyla kurye ucu çağrıldı</span>
+        <span class="v">→ courier_unauthorized</span>
+      </div>
+      <div class="proof">
+        <span class="k">Telefondan sipariş verildi</span>
+        <span class="v">→ tutarlar sunucudan, istemcide hesaplanmadı</span>
+      </div>
+      <div class="proof">
+        <span class="k">Kurye telefonda mesai açtı</span>
+        <span class="v">→ 18 sn sonra ₺45,00'lık teklif düştü</span>
+      </div>
+      <div class="proof">
+        <span class="k">Kurye “Restorana vardım” dedi</span>
+        <span class="v">→ müşteri telefonunda anında “Restoranda”</span>
+      </div>
+      <div class="proof">
+        <span class="k">“Teslim aldım” → “Teslim ettim”</span>
+        <span class="v">→ müşteride “Yolda · Sana geliyor” → “Teslim edildi”</span>
+      </div>
+      <div class="proof">
+        <span class="k">Teslimat bitti</span>
+        <span class="v">→ kurye kazancına ₺45,00 yazıldı</span>
+      </div>
+      <div class="proof">
+        <span class="k">Native paket üretimi (iOS + Android)</span>
+        <span class="v">→ derlendi · expo-doctor 21/21</span>
+      </div>
+      <div class="proof">
+        <span class="k">Palet denetimi</span>
+        <span class="v">→ 58 jeton, açık + koyu, web ↔ mobil aynı</span>
+      </div>
+    </div>
+
+    <h3 style="margin-top:2rem">Yönetim kararları her yerde karşılık buluyor</h3>
+    <div class="proofs" style="margin-top:0.85rem">
+      <div class="proof">
+        <span class="k">Onay bekleyen restoranın sayfası açıldı</span>
+        <span class="v">→ 404 · onaylanınca 200 ve ilçe listesinde</span>
+      </div>
+      <div class="proof">
+        <span class="k">Komisyon %14 → %22 yapıldı</span>
+        <span class="v">→ restoran panelinde anında %22</span>
+      </div>
+      <div class="proof">
+        <span class="k">%80 komisyon denendi</span>
+        <span class="v">→ invalid_rate</span>
+      </div>
+      <div class="proof">
+        <span class="k">Onaysız kurye mesai açmak istedi</span>
+        <span class="v">→ courier_not_active · aktive edilince açıldı</span>
+      </div>
+      <div class="proof">
+        <span class="k">Mesaideki kurye askıya alındı</span>
+        <span class="v">→ mesai aynı anda kapandı</span>
+      </div>
+      <div class="proof">
+        <span class="k">Müşteri kara listeye alındı</span>
+        <span class="v">→ açık oturum düştü · girişte account_blocked</span>
+      </div>
+      <div class="proof">
+        <span class="k">Kampanya yayından kaldırıldı</span>
+        <span class="v">→ ödeme adımında coupon_inactive</span>
+      </div>
+      <div class="proof">
+        <span class="k">Yeni afiş eklendi</span>
+        <span class="v">→ anasayfa vitrininde göründü</span>
+      </div>
+      <div class="proof">
+        <span class="k">Cüzdana elle 150&nbsp;₺ yüklendi</span>
+        <span class="v">→ 450 → 600&nbsp;₺ · eksi tutar invalid_amount</span>
+      </div>
+      <div class="proof">
+        <span class="k">Sipariş tutarından büyük iade denendi</span>
+        <span class="v">→ amount_too_large · 75&nbsp;₺ kısmi iade geçti</span>
+      </div>
+      <div class="proof">
+        <span class="k">Destek siparişi iptal etti</span>
+        <span class="v">→ müşteride “Platform iptali” olarak göründü</span>
+      </div>
+      <div class="proof">
+        <span class="k">Onaylanmadan hakediş “ödendi” yapılmak istendi</span>
+        <span class="v">→ not_approved</span>
+      </div>
+      <div class="proof">
+        <span class="k">Hakediş onaylandı, sonra ödendi</span>
+        <span class="v">→ restoran panelinde aynı anda approved → paid</span>
+      </div>
+      <div class="proof">
+        <span class="k">444,80&nbsp;₺ ciro, %12 komisyon</span>
+        <span class="v">→ hakediş 347,60 · geçit 8,26 · net gelir 88,94&nbsp;₺</span>
+      </div>
+      <div class="proof">
+        <span class="k">Müşteri oturumuyla yönetim uç noktası çağrıldı</span>
+        <span class="v">→ admin_unauthorized</span>
+      </div>
+      <div class="proof">
+        <span class="k">Yapılan 12 işlem denetim kaydına bakıldı</span>
+        <span class="v">→ hepsi aktör, hedef ve zamanla listelendi</span>
+      </div>
+    </div>
+  </section>
+
+  <hr class="perf">
+
+  <section>
+    <div class="sec-head">
+      <h2>Prototip sınırları</h2>
+      <p>Bilerek simüle edilen noktalar. Her biri tek bir modül değiştirilerek gerçeğe bağlanacak şekilde yalıtıldı.</p>
+    </div>
+
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>Konu</th><th>Şu an</th><th>Üretimde</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>SMS / e-posta OTP</td><td><span class="pill pill-sim">Simüle</span> kod cevapta döner</td><td>Netgsm, Twilio</td></tr>
+          <tr><td>Apple / Google girişi</td><td><span class="pill pill-sim">Simüle</span> sabit profil</td><td>OAuth + <code>id_token</code> doğrulama</td></tr>
+          <tr><td>İşletme girişi</td><td><span class="pill pill-sim">Simüle</span> restoran seçimi + ortak PIN</td><td>E-posta + parola + iki adımlı doğrulama</td></tr>
+          <tr><td>Ödeme</td><td><span class="pill pill-sim">Simüle</span> her zaman başarılı</td><td>Ödeme geçidi + 3D Secure</td></tr>
+          <tr><td>Veritabanı</td><td><span class="pill pill-sim">Simüle</span> JSON dosyası</td><td>PostgreSQL + Prisma/Drizzle</td></tr>
+          <tr><td>Kurye girişi</td><td><span class="pill pill-sim">Simüle</span> kurye seçimi + ortak PIN</td><td>Telefon + OTP, kimlik doğrulama</td></tr>
+          <tr><td>Yönetici girişi</td><td><span class="pill pill-sim">Simüle</span> tek hesap + ortak PIN</td><td>Kurumsal SSO veya parola + 2FA, rol bazlı yetki</td></tr>
+          <tr><td>Push bildirimi</td><td><span class="pill pill-sim">Simüle</span> hedef kitle sayılır, gönderi kaydedilir</td><td>APNs / FCM sağlayıcısı</td></tr>
+          <tr><td>Hakediş ödemesi</td><td><span class="pill pill-sim">Simüle</span> onay → ödendi işaretlenir</td><td>Banka transferi / toplu ödeme dosyası</td></tr>
+          <tr><td>Kurye konumu</td><td><span class="pill pill-ok">Gerçek</span> mobilde cihazın GPS'i (webde simüle)</td><td>Aynı — değişiklik gerekmez</td></tr>
+          <tr><td>Mobil canlı veri</td><td><span class="pill pill-sim">Simüle</span> yoklama (RN'de EventSource yok)</td><td>WebSocket veya push ile uyandırma</td></tr>
+          <tr><td>Mobil harita</td><td><span class="pill pill-ok">Gerçek</span> OSM karoları · sürüklenmez</td><td>Ticari SDK ya da react-native-maps</td></tr>
+          <tr><td>Mağaza dağıtımı</td><td><span class="pill pill-sim">Simüle</span> Expo Go ile denenir</td><td>EAS Build → App Store / Play Store</td></tr>
+          <tr><td>Teslimat bölgesi</td><td><span class="pill pill-sim">Simüle</span> merkez + yarıçap</td><td>Poligon çizimi</td></tr>
+          <tr><td>Sipariş zili</td><td><span class="pill pill-ok">Gerçek</span> Web Audio sentezi</td><td>Aynı — dosya indirmeye gerek yok</td></tr>
+          <tr><td>Harita &amp; adres çözümleme</td><td><span class="pill pill-ok">Gerçek</span> Leaflet + OpenStreetMap</td><td>Ticari harita/geocoding servisi (isteğe bağlı)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <hr class="perf">
+
+  <section>
+    <div class="sec-head">
+      <h2>Modül durumu</h2>
+      <p>Beşi de aynı alan modelini, aynı iş kurallarını ve aynı veri deposunu paylaşıyor.</p>
+    </div>
+
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>Modül</th><th>Durum</th><th>Bağlantı noktası</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1 · Customer App</td>
+            <td><span class="pill pill-ok">Tamamlandı</span></td>
+            <td>Keşiften canlı takibe tüm müşteri akışı</td>
+          </tr>
+          <tr>
+            <td>2 · Vendor Dashboard</td>
+            <td><span class="pill pill-ok">Tamamlandı</span></td>
+            <td>Sipariş onayı, menü/stok, mağaza ayarları, finans, yorum cevabı</td>
+          </tr>
+          <tr>
+            <td>3 · Courier App</td>
+            <td><span class="pill pill-ok">Tamamlandı</span></td>
+            <td>Vardiya, süre kısıtlı teklif akışı, aşama bildirimleri, konum yayını, kazanç ve performans</td>
+          </tr>
+          <tr>
+            <td>4 · Superadmin</td>
+            <td><span class="pill pill-ok">Tamamlandı</span></td>
+            <td>Restoran ve kurye onayı, komisyon oranı, kara liste, canlı operasyon haritası, kampanya · afiş · push, ciro analitiği ve hakediş onay akışı</td>
+          </tr>
+          <tr>
+            <td>5 · Mobil uygulama</td>
+            <td><span class="pill pill-ok">Tamamlandı</span></td>
+            <td>iOS + Android (Expo). Müşteri ve kurye uygulamaları, paylaşılan çekirdek, gerçek GPS — backend değişmeden</td>
+          </tr>
+          <tr>
+            <td>Mağazaya çıkış</td>
+            <td><span class="pill pill-next">Sırada</span></td>
+            <td>EAS Build, push bildirimi (APNs/FCM), gerçek ödeme geçidi ve PostgreSQL</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <hr class="perf">
+
+  <section>
+    <div class="sec-head">
+      <h2>Dördünü birlikte denemek</h2>
+    </div>
+
+    <pre><span class="c"># proje dizini: C:\Users\yusuf\sofra</span>
+npm install
+npm run dev
+
+<span class="c"># sekme 1 — yönetim</span>
+/yonetim/giris   <span class="c">→ PIN 1234</span>
+                 <span class="c">→ Restoranlar: onay kuyruğunu boşalt</span>
+                 <span class="c">→ Kullanıcılar › Kuryeler: bekleyeni aktive et</span>
+
+<span class="c"># sekme 2 — kurye</span>
+/kurye/giris     <span class="c">→ Elif Şahin · PIN 1234 → mesaiyi başlat</span>
+
+<span class="c"># sekme 3 — restoran paneli</span>
+/isletme/giris   <span class="c">→ Kasap Burger Co. · PIN 1234</span>
+                 <span class="c">→ Mağaza: otomatik onayı kapat · zili aç</span>
+
+<span class="c"># sekme 4 — müşteri</span>
+/giris           <span class="c">→ "Demo hesabıyla hızlı giriş" → sipariş ver</span>
+
+<span class="c"># panelde zil çalar → Onayla</span>
+<span class="c"># kuryeye 45 sn'lik teklif düşer → Siparişi al → aşamaları bildir</span>
+<span class="c"># yönetimde canlı harita siparişi ve kuryeyi aynı anda gösterir</span>
+<span class="c"># müşteri: Değerlendir → puan ver, bahşiş bırak</span>
+<span class="c"># yönetim › Finans: hakedişi Onayla → Ödendi işaretle</span>
+<span class="c">#          restoran panelinde durum aynı anda değişir</span>
+
+<span class="c"># --- mobil uygulama (ayrı terminal) ---</span>
+cd mobile
+npm install
+npx expo start   <span class="c">→ w = tarayıcı · i = iOS · a = Android · QR = Expo Go</span>
+
+<span class="c"># telefonda /kurye → mesaiyi aç: konum artık gerçek GPS</span>
+<span class="c"># telefonda sipariş ver: aşama bildirimleri anında düşer</span></pre>
+
+    <div class="note" style="margin-top:1rem">
+      <b>Demoyu izlenebilir kılmak için:</b> <code>SOFRA_SIM_SPEED=12</code>
+      ayarıyla 30 dakikalık bir sipariş yaklaşık 2,5 dakikada teslim edilir.
+      Değeri <code>1</code> yaparsan gerçek zamanlı çalışır. Panellerden biri
+      kapalıysa hiçbir şey durmaz — devreye giren yoksa akışı simülatör
+      tamamlar.
+    </div>
+  </section>
+
+  <footer>
+    <span>Sofra · Müşteri · Restoran · Kurye · Yönetim · Mobil</span>
+    <span class="mono">README.md · docs/MIMARI.md · docs/API.md</span>
+  </footer>
+
+</div>

@@ -1,0 +1,420 @@
+@import "tailwindcss";
+
+/* Karanlık mod: sistem tercihi + kullanıcının seçtiği `.dark` sınıfı */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ==================================================================
+   Jetonlar
+
+   Palet Türk mutfağından türetildi: patlıcan koyusu (başlık/alt bilgi
+   çapası), biber salçası kırmızısı (marka), safran (puan), antep fıstığı
+   (olumlu durum). Zemin nötr bej değil, neredeyse beyaz sıcak kâğıt.
+   ================================================================== */
+
+:root {
+  /* Zemin & yüzeyler */
+  --paper: #fcfaf7;
+  --surface: #ffffff;
+  --surface-2: #f5f0ea;
+  --surface-3: #eae2d9;
+  --border: #e9e1d7;
+  --border-strong: #d4c8ba;
+
+  /* Metin */
+  --ink: #1c1214;
+  --text: #241a1b;
+  --muted: #7a6b66;
+
+  /* Patlıcan — başlık, alt bilgi, koyu bantlar */
+  --deep: #2e1720;
+  --deep-2: #3e2029;
+  --deep-3: #522b36;
+  --on-deep: #f8f1ec;
+  --on-deep-muted: #c3a7ac;
+
+  /* Marka — biber salçası */
+  --brand: #df4128;
+  --brand-hover: #c4351e;
+  --brand-soft: #fceae5;
+  --brand-contrast: #ffffff;
+
+  /* Safran — puan, kampanya vurgusu */
+  --saffron: #c47f0a;
+  --saffron-soft: #fbf1dc;
+
+  /* Antep fıstığı — olumlu durum */
+  --pistachio: #4b7f3e;
+  --pistachio-soft: #e8f1e4;
+
+  --danger: #c42b1f;
+  --danger-soft: #fceae8;
+  --info: #2a62c4;
+  --info-soft: #e8effc;
+
+  /* Gölgeler — sıcak tonlu, katmanlı */
+  --shadow-sm: 0 1px 2px rgba(28, 18, 20, 0.05), 0 1px 3px rgba(28, 18, 20, 0.04);
+  --shadow-md: 0 2px 6px -1px rgba(28, 18, 20, 0.07), 0 12px 28px -10px rgba(28, 18, 20, 0.16);
+  --shadow-lg: 0 6px 16px -4px rgba(28, 18, 20, 0.1), 0 32px 64px -20px rgba(28, 18, 20, 0.3);
+  --shadow-brand: 0 6px 18px -6px rgba(223, 65, 40, 0.5);
+
+  /* Grafik serileri — dataviz dogrulayicisindan gecmis kategorik cift
+     (acik mod: L bandi, kroma, CVD ayrimi ve kontrast kontrolleri PASS) */
+  --chart-net: #c4351e;
+  --chart-commission: #2f6bb5;
+  --chart-grid: #ece5dd;
+
+  --ring: var(--brand);
+  --radius-card: 1.125rem;
+}
+
+.dark {
+  --paper: #131011;
+  --surface: #1b1617;
+  --surface-2: #241d1f;
+  --surface-3: #312629;
+  --border: #302729;
+  --border-strong: #463a3c;
+
+  --ink: #f9f4f1;
+  --text: #efe7e4;
+  --muted: #a6938f;
+
+  --deep: #1d0f15;
+  --deep-2: #291620;
+  --deep-3: #3a1f2a;
+  --on-deep: #f8f1ec;
+  --on-deep-muted: #b6999f;
+
+  --brand: #ff5c3e;
+  --brand-hover: #ff7357;
+  --brand-soft: #3a1710;
+  --brand-contrast: #190a06;
+
+  --saffron: #eeac36;
+  --saffron-soft: #33240c;
+
+  --pistachio: #72b25e;
+  --pistachio-soft: #182710;
+
+  --danger: #f5695c;
+  --danger-soft: #331512;
+  --info: #6d9bf5;
+  --info-soft: #13203a;
+
+  /* Koyu mod serileri ayri secildi — otomatik ters cevirme degil */
+  --chart-net: #ea6244;
+  --chart-commission: #4e8fe2;
+  --chart-grid: #2b2325;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 2px 6px -1px rgba(0, 0, 0, 0.5), 0 12px 28px -10px rgba(0, 0, 0, 0.7);
+  --shadow-lg: 0 6px 16px -4px rgba(0, 0, 0, 0.6), 0 32px 64px -20px rgba(0, 0, 0, 0.85);
+  --shadow-brand: 0 6px 18px -6px rgba(255, 92, 62, 0.45);
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-bg: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-ink: var(--ink);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+
+  --color-deep: var(--deep);
+  --color-deep-2: var(--deep-2);
+  --color-deep-3: var(--deep-3);
+  --color-on-deep: var(--on-deep);
+  --color-on-deep-muted: var(--on-deep-muted);
+
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-contrast: var(--brand-contrast);
+
+  /* Eski adlar — bileşenler bozulmasın */
+  --color-accent: var(--saffron);
+  --color-accent-soft: var(--saffron-soft);
+  --color-success: var(--pistachio);
+  --color-success-soft: var(--pistachio-soft);
+
+  --color-saffron: var(--saffron);
+  --color-saffron-soft: var(--saffron-soft);
+  --color-pistachio: var(--pistachio);
+  --color-pistachio-soft: var(--pistachio-soft);
+
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  --color-chart-net: var(--chart-net);
+  --color-chart-commission: var(--chart-commission);
+  --color-chart-grid: var(--chart-grid);
+
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-display: var(--font-bricolage), var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), monospace;
+
+  --radius-card: 1.125rem;
+}
+
+/* ==================================================================
+   Temel
+   ================================================================== */
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    color-scheme: light;
+    scrollbar-gutter: stable;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--paper);
+    color: var(--text);
+    font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-bricolage), var(--font-geist-sans), system-ui, sans-serif;
+    color: var(--ink);
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background-color: var(--brand);
+    color: var(--brand-contrast);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  button,
+  [role="button"] {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  /* Fiyatlar ve sayılar hizalı dursun */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* ==================================================================
+   Yardımcı sınıflar
+   ================================================================== */
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-bricolage), var(--font-geist-sans), system-ui, sans-serif;
+  }
+
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .card {
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .shadow-soft {
+    box-shadow: var(--shadow-md);
+  }
+  .shadow-float {
+    box-shadow: var(--shadow-lg);
+  }
+  .shadow-brand {
+    box-shadow: var(--shadow-brand);
+  }
+
+  /* Koyu patlıcan bant — başlık, hero, alt bilgi */
+  .band-deep {
+    background-color: var(--deep);
+    color: var(--on-deep);
+  }
+
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Görsellerin üzerine ince film grenini bindirir */
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.32;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+}
+
+/* ==================================================================
+   Sabit alt bantlar
+
+   Mobilde alt gezinme (restoran sayfasında ayrıca mini sepet) ekranın
+   altına sabitlenir. Sayfanın sonu bu bantların altında kalmasın diye
+   pay, içerikle alt bilgi arasına değil alt bilginin altına eklenir.
+   ================================================================== */
+
+@media (width < 64rem) {
+  body:has([data-bottom-nav]) .site-footer {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  body:has([data-mini-cart]) .site-footer {
+    padding-bottom: calc(9rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Canlı destek düğmesi mini sepetin tutarını örtmesin */
+  body:has([data-mini-cart]) [data-support-launcher] {
+    bottom: calc(8.5rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ==================================================================
+   Hareket — yalnızca kullanıcı eylemine yanıt olarak
+   ================================================================== */
+
+@keyframes sofra-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sofra-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes sofra-pulse-ring {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  70% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes sofra-shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+.animate-fade-up {
+  animation: sofra-fade-up 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-slide-up {
+  animation: sofra-slide-up 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-pulse-ring {
+  animation: sofra-pulse-ring 2s ease-out infinite;
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    var(--surface-3) 37%,
+    var(--surface-2) 63%
+  );
+  background-size: 200% 100%;
+  animation: sofra-shimmer 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ==================================================================
+   Leaflet harita uyumu
+   ================================================================== */
+
+.leaflet-container {
+  background: var(--surface-2);
+  font-family: inherit;
+  z-index: 0;
+}
+
+.leaflet-control-attribution {
+  background: color-mix(in srgb, var(--surface) 85%, transparent) !important;
+  color: var(--muted) !important;
+  font-size: 10px !important;
+}
+
+.leaflet-control-attribution a {
+  color: var(--muted) !important;
+}
+
+.dark .leaflet-tile {
+  filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
+}
+
+.dark .leaflet-control-zoom a {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}

@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "Sofra",
+    "slug": "sofra",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "sofra",
+    "userInterfaceStyle": "automatic",
+    "icon": "./assets/images/icon.png",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.sofra.mobile",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Teslimat adresini bulmak ve kurye modunda konumunu paylaşmak için konumun kullanılır.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Kurye modunda teslimat boyunca konumun müşteriyle paylaşılır."
+      }
+    },
+    "android": {
+      "package": "app.sofra.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#2e1720",
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Kurye modunda teslimat boyunca konumun müşteriyle paylaşılır."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#2e1720",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 120
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
