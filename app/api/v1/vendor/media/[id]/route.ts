@@ -13,7 +13,7 @@ export async function DELETE(
   return handle(async () => {
     const { restaurant } = await requireVendor(request);
     const { id } = await ctx.params;
-    withdrawMediaRequest(restaurant.id, id);
-    return ok({ requests: vendorMediaRequests(restaurant.id) });
+    await withdrawMediaRequest(restaurant.id, id);
+    return ok({ requests: await vendorMediaRequests(restaurant.id) });
   });
 }

@@ -40,9 +40,23 @@ export async function handle(
     if (err instanceof DomainError) {
       return fail(err.code, err.message, err.status);
     }
+
+    // Veritabanı kısıtları son savunma hattıdır: aynı anda gelen iki istek
+    // servis kontrolünü birlikte geçerse biri burada durur.
+    const pgCode = (err as { code?: unknown })?.code;
+    if (pgCode === "23505") {
+      return fail("conflict", "Bu kayıt zaten var ya da az önce değişti. Sayfayı yenileyip tekrar dene.", 409);
+    }
+    if (pgCode === "23514") {
+      return fail("constraint_violation", "İşlem bir kuralı ihlal ettiği için yapılamadı.", 409);
+    }
+
     console.error("[sofra/api]", err);
+    // Canlıda iç hata ayrıntısı (SQL vb.) istemciye gönderilmez
     const message =
-      err instanceof Error ? err.message : "Beklenmeyen bir hata oluştu.";
+      process.env.NODE_ENV !== "production" && err instanceof Error
+        ? err.message
+        : "Beklenmeyen bir hata oluştu. Lütfen tekrar dene.";
     return fail("internal_error", message, 500);
   }
 }

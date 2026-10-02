@@ -7,6 +7,6 @@ export async function GET(request: Request) {
   return handle(async () => {
     const courier = await currentCourier(request);
     if (!courier) return fail("courier_unauthorized", "Giris yapilmamis.", 401);
-    return ok({ courier: publicCourier(courier), stats: courierStats(courier) });
+    return ok({ courier: publicCourier(courier), stats: await courierStats(courier) });
   });
 }

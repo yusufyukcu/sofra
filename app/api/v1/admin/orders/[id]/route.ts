@@ -22,10 +22,10 @@ export async function POST(
     }>(request);
 
     if (body.action === "cancel") {
-      return ok({ order: adminCancelOrder(admin, id, body.reason ?? "") });
+      return ok({ order: await adminCancelOrder(admin, id, body.reason ?? "") });
     }
     if (body.action === "refund") {
-      return ok(adminRefund(admin, id, Number(body.amount), body.reason ?? ""));
+      return ok(await adminRefund(admin, id, Number(body.amount), body.reason ?? ""));
     }
 
     throw new DomainError(

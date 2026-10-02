@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { SignJWT, jwtVerify } from "jose";
-import { findAdminById } from "../db/store";
+import { findAdmin } from "../db/queries";
 import { DomainError } from "../errors";
 import type { AdminAccount } from "../types";
 
@@ -66,7 +66,7 @@ export async function currentAdmin(
 
   const adminId = await verifyAdminSession(token);
   if (!adminId) return null;
-  return findAdminById(adminId) ?? null;
+  return (await findAdmin(adminId)) ?? null;
 }
 
 export async function requireAdmin(request?: Request): Promise<AdminAccount> {
@@ -90,8 +90,7 @@ export const adminCookieOptions = {
 };
 
 export function publicAdmin(admin: AdminAccount) {
-  const { pin: _pin, ...rest } = admin;
-  return rest;
+  return admin;
 }
 
 export async function respondWithAdminSession(

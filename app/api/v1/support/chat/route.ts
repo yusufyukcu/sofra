@@ -7,7 +7,7 @@ export async function GET(request: Request) {
   return handle(async () => {
     const user = await requireUser(request);
     const params = new URL(request.url).searchParams;
-    const session = getOrCreateSession(
+    const session = await getOrCreateSession(
       user,
       params.get("sessionId") ?? undefined,
       params.get("orderId") ?? undefined
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   return handle(async () => {
     const user = await requireUser(request);
     const body = await readJson<ChatInput>(request);
-    const session = chat(user, body);
+    const session = await chat(user, body);
     return ok({ session });
   });
 }

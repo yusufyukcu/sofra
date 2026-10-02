@@ -1,41 +1,36 @@
-import fs from "node:fs";
-import path from "node:path";
+import "server-only";
+import { supabaseAdmin } from "../supabase/admin";
 
 /**
- * Restoranların yüklediği fotoğrafların deposu.
- *
- * Prototipte `.data/uploads` klasörü kullanılır (git'e girmez, `.data`
- * silinince sıfırlanır). Üretimde nesne deposuna (Vercel Blob, S3) geçmek
- * için yalnızca bu dosyanın değişmesi yeterli: okuma, yazma ve silme
- * başka hiçbir yerde yapılmaz.
+ * Restoranların yüklediği fotoğrafların deposu: Supabase Storage'daki özel
+ * `media` bucket'ı. Bucket herkese açık değil; dosyalar `/media/<ad>`
+ * rotasından onay durumuna göre sunulur (onay bekleyeni yalnızca yükleyen
+ * restoran ve yönetici görür).
  */
 
-const UPLOAD_DIR = path.join(process.cwd(), ".data", "uploads");
+const BUCKET = "media";
 
-/** Dosya adları sunucuda üretilir; bu kalıp dışındaki her ad reddedilir
- *  (`../` ile klasör dışına çıkılamasın). */
+/** Dosya adları sunucuda üretilir; bu kalıp dışındaki her ad reddedilir. */
 const SAFE_NAME = /^med_[a-z0-9]+\.webp$/;
 
-export function saveMedia(name: string, data: Buffer): void {
+export async function saveMedia(name: string, data: Buffer): Promise<void> {
   if (!SAFE_NAME.test(name)) throw new Error(`Geçersiz dosya adı: ${name}`);
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-  fs.writeFileSync(path.join(UPLOAD_DIR, name), data);
+  const { error } = await supabaseAdmin()
+    .storage.from(BUCKET)
+    .upload(name, data, { contentType: "image/webp", upsert: false, cacheControl: "31536000" });
+  if (error) throw new Error(`Fotoğraf depoya yazılamadı: ${error.message}`);
 }
 
-export function readMedia(name: string): Buffer | null {
+export async function readMedia(name: string): Promise<Buffer | null> {
   if (!SAFE_NAME.test(name)) return null;
-  try {
-    return fs.readFileSync(path.join(UPLOAD_DIR, name));
-  } catch {
-    return null;
-  }
+  const { data, error } = await supabaseAdmin().storage.from(BUCKET).download(name);
+  if (error || !data) return null;
+  return Buffer.from(await data.arrayBuffer());
 }
 
-export function deleteMedia(name: string): void {
-  if (!SAFE_NAME.test(name)) return;
-  try {
-    fs.unlinkSync(path.join(UPLOAD_DIR, name));
-  } catch {
-    /* dosya zaten yok */
-  }
+export async function deleteMedia(names: string[]): Promise<void> {
+  const safe = names.filter((n) => SAFE_NAME.test(n));
+  if (safe.length === 0) return;
+  const { error } = await supabaseAdmin().storage.from(BUCKET).remove(safe);
+  if (error) console.warn("[sofra/media] silinemedi:", error.message);
 }

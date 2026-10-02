@@ -2,14 +2,13 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { SignJWT, jwtVerify } from "jose";
 import type { User } from "../types";
-import { findUserById } from "../db/store";
+import { findUser } from "../db/queries";
 
 /**
- * Oturum yönetimi.
+ * Müşteri oturumu.
  *
  * Web istemcisi `httpOnly` çerez kullanır; mobil uygulama aynı token'ı
- * `Authorization: Bearer <token>` başlığıyla gönderir. API her iki kaynağı
- * da kabul ettiği için tek bir backend iki istemciye birden hizmet eder.
+ * `Authorization: Bearer <token>` başlığıyla gönderir.
  */
 
 export const SESSION_COOKIE = "sofra_session";
@@ -63,7 +62,7 @@ export async function currentUser(request?: Request): Promise<User | null> {
   const userId = await verifySession(token);
   if (!userId) return null;
 
-  const user = findUserById(userId);
+  const user = await findUser(userId);
   // Kara listeye alınan hesabın oturumu geçersizdir
   if (!user || user.blocked) return null;
   return user;

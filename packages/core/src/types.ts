@@ -103,8 +103,13 @@ export interface Restaurant {
   freeDeliveryOver: number | null;
   location: LatLng;
   district: string;
-  /** Teslimat yarıçapı (km) — Vendor panelindeki poligonun basitleştirilmiş hâli */
+  /** Teslimat yarıçapı (km) — poligon çizilmemişse bölge budur */
   deliveryRadiusKm: number;
+  /**
+   * Poligon teslimat bölgesi (restoran panelinden çizilir). Tanımlıysa
+   * yarıçap yerine adresin bu çokgenin içinde olup olmadığına bakılır.
+   */
+  deliveryZone?: LatLng[] | null;
   workingHours: { open: string; close: string };
   /** Gun ortasi mola (opsiyonel) */
   breakHours?: { start: string; end: string } | null;
@@ -124,10 +129,16 @@ export interface Restaurant {
    * false → her sipariş restoran panelinden elle onaylanır
    */
   autoAccept: boolean;
+  /** Otomatik onaylanan siparişlerde bildirilen hazırlık süresi (dk) */
+  defaultPrepMinutes?: number;
   /** Platform kuryesi mi yoksa restoran kuryesi mi */
   courierMode: "platform" | "vendor";
   paymentMethods: PaymentMethodId[];
   badges: string[];
+  /** Öne çıkanlar sırası (Superadmin) — boşsa öne çıkmaz */
+  featuredRank?: number | null;
+  /** Tükenen ürün müşteri menüsünde gizlenir ya da soluk görünür */
+  soldOutDisplay?: "hide" | "dim";
   menu: MenuCategory[];
 }
 
@@ -347,8 +358,6 @@ export interface CourierSummary {
 /** Kurye hesabı — Courier App'in operasyonel durumu. */
 export interface Courier extends CourierSummary {
   phone: string;
-  /** Prototipte düz metin; üretimde hash'lenir */
-  pin: string;
   /** Vardiya açık mı (Online/Offline) */
   online: boolean;
   shiftStartedAt?: string;
@@ -476,11 +485,6 @@ export interface Order {
 
   /* --- Restoran paneli (Vendor Dashboard) --------------------------- */
 
-  /**
-   * `auto`   → durum geçişleri zaman tabanlı simülatörden gelir
-   * `manual` → restoran paneli siparişi devraldı, geçişler oradan yapılır
-   */
-  controlMode: "auto" | "manual";
   /** Restoranın siparişi onayladığı an */
   approvedAt?: string;
   /** Kuryenin siparişi restorandan aldığı an */
@@ -491,6 +495,13 @@ export interface Order {
   travelMinutes: number;
   /** İptali kim başlattı */
   cancelledBy?: "user" | "vendor" | "support";
+  /**
+   * Demo modunda vardiyada kurye yoksa teslimatı simülasyon üstlenir.
+   * Bu siparişte gerçek bir kurye yoktur (bahşiş ve kurye puanı sorulmaz).
+   */
+  simulated?: boolean;
+  /** Bu siparişe yapılan iadelerin toplamı (sipariş tutarını aşamaz) */
+  refundedTotal?: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -557,8 +568,7 @@ export interface VendorAccount {
   restaurantId: string;
   name: string;
   email: string;
-  /** Prototipte düz metin; üretimde bcrypt/argon2 ile saklanır */
-  pin: string;
+  role?: "owner" | "staff";
   createdAt: string;
 }
 
@@ -637,7 +647,9 @@ export interface SupportSession {
   userId: string;
   orderId?: string;
   messages: SupportMessage[];
+  /** Temsilci kuyruğunda ya da temsilciyle görüşüyor */
   escalated: boolean;
+  status?: "bot" | "waiting_agent" | "with_agent" | "closed";
 }
 
 
@@ -649,8 +661,6 @@ export interface AdminAccount {
   id: string;
   name: string;
   email: string;
-  /** Prototipte düz metin; üretimde hash + iki adımlı doğrulama */
-  pin: string;
   createdAt: string;
 }
 

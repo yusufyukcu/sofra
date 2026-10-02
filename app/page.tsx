@@ -1,17 +1,20 @@
-import { activeBanners, publishedRestaurants } from "@/lib/db/store";
-import { filtersFromParams, toBase } from "@/lib/discovery";
+import { connection } from "next/server";
+import { activeBanners, publishedRestaurantBases } from "@/lib/db/queries";
+import { filtersFromParams } from "@/lib/discovery";
 import { DiscoveryClient } from "@/components/discovery/discovery-client";
 import { PartnerPopup } from "@/components/partner/partner-popup";
 
 /**
  * Anasayfa (Keşif).
  *
- * Restoran kataloğu sunucuda okunur ve menüler ayıklanarak istemciye
+ * Restoran kataloğu sunucuda veritabanından okunur (menüsüz) ve istemciye
  * aktarılır; mesafe/teslimat hesapları kullanıcının seçtiği adrese göre
  * istemcide yapılır. Derin bağlantılar (`/?kategori=burger`) sunucuda
  * çözümlenir, böylece ilk boyama doğru filtreyle gelir.
  */
 export default async function HomePage(props: PageProps<"/">) {
+  // Katalog her istekte güncel okunur (restoran paneli anında değiştirebilir)
+  await connection();
   const searchParams = await props.searchParams;
 
   const params = {
@@ -22,15 +25,14 @@ export default async function HomePage(props: PageProps<"/">) {
     },
   };
 
-  const filters = filtersFromParams(params);
-  const restaurants = publishedRestaurants().map(toBase);
+  const [restaurants, banners] = await Promise.all([publishedRestaurantBases(), activeBanners()]);
 
   return (
     <>
       <DiscoveryClient
         restaurants={restaurants}
-        banners={activeBanners()}
-        initialFilters={filters}
+        banners={banners}
+        initialFilters={filtersFromParams(params)}
       />
       {/* Restoran katılım daveti — ilk ziyarette bir kez görünür */}
       <PartnerPopup />

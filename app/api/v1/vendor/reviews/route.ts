@@ -6,13 +6,13 @@ import { replyToReview, vendorReviews } from "@/lib/services/vendor";
 export async function GET(request: Request) {
   return handle(async () => {
     const { restaurant } = await requireVendor(request);
-    const reviews = vendorReviews(restaurant.id);
+    const reviews = await vendorReviews(restaurant.id);
 
     return ok({
       reviews,
       rating: restaurant.rating,
       ratingCount: restaurant.ratingCount,
-      unanswered: reviews.filter((r) => !r.reply).length,
+      unanswered: reviews.filter((r) => !r.reply && r.comment).length,
     });
   });
 }
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   return handle(async () => {
     const { restaurant } = await requireVendor(request);
     const body = await readJson<{ reviewId?: string; reply?: string }>(request);
-    const review = replyToReview(
+    const review = await replyToReview(
       restaurant.id,
       body.reviewId ?? "",
       body.reply ?? ""

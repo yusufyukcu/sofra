@@ -1,14 +1,28 @@
+import "server-only";
 import { PAYMENT_METHODS, SERVICE_FEE } from "../constants";
-import { progressOf, remainingMinutes, syncOrder } from "../db/simulator";
+import { sql } from "../db/client";
 import {
-  allAdmins,
-  commit,
-  db,
-  findCourier,
-  findRestaurant,
-  findUserById,
+  addOrderEvent,
+  findOrderRow,
+  findRestaurantRow,
+  hydrateOrders,
   recordAudit,
-} from "../db/store";
+} from "../db/queries";
+import {
+  toBanner,
+  toCoupon,
+  toCourier,
+  toRestaurantBase,
+  toUser,
+  type BannerRow,
+  type CouponRow,
+  type CourierRow,
+  type OrderRow,
+  type ProfileRow,
+  type RestaurantRow,
+} from "../db/mappers";
+import { appSettings } from "../db/settings";
+import { progressOf, remainingMinutes } from "../orders/progress";
 import { DomainError } from "../errors";
 import type {
   AdminAccount,
@@ -23,41 +37,35 @@ import type {
   Restaurant,
   User,
 } from "../types";
-import { createId, round2 } from "../utils";
-import { syncOffers } from "./courier";
+import { createId, dayKey, formatDayKey, round2 } from "../utils";
+import { ADMIN_PIN } from "../db/seed";
+import { cancelOrderTx } from "./lifecycle";
 import { pendingMediaCount } from "./media";
-import {
-  applicationForRestaurant,
-  syncApplicationDecision,
-} from "./partner";
-import { syncPayouts } from "./payouts";
-
-export { syncPayouts };
+import { applicationsByRestaurant, syncApplicationDecision } from "./partner";
+import { listPayouts } from "./payouts";
+import { applyWallet } from "./wallet";
 
 /**
  * Yönetici paneli (Superadmin) iş mantığı.
  *
- * Dört sorumluluk:
  *   1. Kullanıcı, restoran ve kurye yönetimi (onay, aktivasyon, kara liste)
  *   2. Canlı operasyon (aktif siparişler, gecikme alarmı, manuel iptal/iade)
- *   3. Pazarlama (kampanya kodları, vitrin afişleri, push bildirimi)
+ *   3. Pazarlama (kampanya kodları, vitrin afişleri, öne çıkanlar, push)
  *   4. Finansal mutabakat (GMV, net gelir, ödeme geçidi, hakediş onayı)
  *
- * Tüm manuel işlemler `recordAudit` ile iz kaydına yazılır.
+ * Tüm manuel işlemler iz kaydına yazılır.
  */
 
 /* ================================================================== */
-/* Giriş                                                              */
+/* Giriş (geçici: Supabase Auth'a geçişte e-posta + parolayla değişecek) */
 /* ================================================================== */
 
-export function adminLogin(pin: string): AdminAccount {
-  const admin = allAdmins()[0];
-  if (!admin) {
-    throw new DomainError("admin_not_found", "Yönetici hesabı yok.", 500);
-  }
-  if (admin.pin !== pin.trim()) {
-    throw new DomainError("invalid_pin", "PIN hatalı. Tekrar dene.", 401);
-  }
+export async function adminLogin(pin: string): Promise<AdminAccount> {
+  const [admin] = await sql<AdminAccount[]>`
+    select id, name, email, created_at::text as created_at from public.admins order by created_at limit 1
+  `;
+  if (!admin) throw new DomainError("admin_not_found", "Yönetici hesabı yok.", 500);
+  if (pin.trim() !== ADMIN_PIN) throw new DomainError("invalid_pin", "PIN hatalı. Tekrar dene.", 401);
   return admin;
 }
 
@@ -77,25 +85,25 @@ export interface LiveOrder {
   /** Tahmini teslim saatinin kaç dakika aşıldığı (negatifse zamanında) */
   lateMinutes: number;
   severity: "ontime" | "late" | "critical";
+  /** Hazırlanıyor ama hiçbir kurye üstlenmedi (vardiyada kurye var, teklifler karşılıksız) */
+  waitingCourier: boolean;
 }
 
-function syncAll(now = Date.now()): Order[] {
-  syncOffers(now);
-  const orders = db().orders;
-  orders.forEach((o) => syncOrder(o, now));
-  return orders;
-}
+export async function liveOrders(now = Date.now()): Promise<LiveOrder[]> {
+  const settings = await appSettings();
+  const rows = await sql<OrderRow[]>`
+    select * from public.orders
+     where status in ('pending_approval', 'preparing', 'on_the_way')
+     order by created_at
+  `;
+  const orders = await hydrateOrders(rows);
 
-export function liveOrders(now = Date.now()): LiveOrder[] {
-  return syncAll(now)
-    .filter((o) => o.status !== "delivered" && o.status !== "cancelled")
+  return orders
     .map((order) => {
-      const lateMinutes = Math.round(
-        (now - new Date(order.etaAt).getTime()) / 60_000
-      );
+      const lateMinutes = Math.round((now - new Date(order.etaAt).getTime()) / 60_000);
       return {
         order,
-        progress: progressOf(order, now),
+        progress: progressOf(order, settings, now),
         remainingMinutes: remainingMinutes(order, now),
         lateMinutes,
         severity:
@@ -104,6 +112,11 @@ export function liveOrders(now = Date.now()): LiveOrder[] {
             : lateMinutes >= LATE_THRESHOLD_MINUTES
               ? "late"
               : "ontime",
+        waitingCourier:
+          order.status === "preparing" &&
+          order.courierMode === "platform" &&
+          !order.courier &&
+          !order.simulated,
       } satisfies LiveOrder;
     })
     .sort((a, b) => b.lateMinutes - a.lateMinutes);
@@ -123,6 +136,8 @@ export interface AdminOverview {
     /** Restoranların onaya gönderdiği fotoğraflar */
     pendingMedia: number;
     blockedUsers: number;
+    /** Temsilci bekleyen destek konuşmaları */
+    waitingSupport: number;
   };
   live: LiveOrder[];
   /** Haritada gösterilecek çevrimiçi kuryeler */
@@ -135,135 +150,178 @@ export interface AdminOverview {
   }[];
 }
 
-export function adminOverview(now = Date.now()): AdminOverview {
-  const store = db();
-  const live = liveOrders(now);
+export async function adminOverview(now = Date.now()): Promise<AdminOverview> {
+  const live = await liveOrders(now);
 
-  const startOfDay = new Date(now);
-  startOfDay.setHours(0, 0, 0, 0);
-  const today = store.orders.filter(
-    (o) =>
-      new Date(o.createdAt).getTime() >= startOfDay.getTime() &&
-      o.status !== "cancelled"
-  );
+  const [kpi] = await sql<
+    {
+      todayOrders: number;
+      todayGmv: number;
+      onlineCouriers: number;
+      openRestaurants: number;
+      pendingRestaurants: number;
+      pendingCouriers: number;
+      pendingPayouts: number;
+      blockedUsers: number;
+      waitingSupport: number;
+    }[]
+  >`
+    with day as (
+      select (date_trunc('day', now() at time zone 'Europe/Istanbul') at time zone 'Europe/Istanbul') as start
+    )
+    select
+      (select count(*)::int from public.orders, day where created_at >= day.start and status <> 'cancelled') as today_orders,
+      (select coalesce(sum(grand_total), 0) from public.orders, day where created_at >= day.start and status <> 'cancelled') as today_gmv,
+      (select count(*)::int from public.couriers where online) as online_couriers,
+      (select count(*)::int from public.restaurants where approval_status = 'approved' and not temporarily_closed) as open_restaurants,
+      (select count(*)::int from public.restaurants where approval_status = 'pending') as pending_restaurants,
+      (select count(*)::int from public.couriers where status = 'pending') as pending_couriers,
+      (select count(*)::int from public.payouts where status = 'pending') as pending_payouts,
+      (select count(*)::int from public.profiles where blocked) as blocked_users,
+      (select count(*)::int from public.support_sessions where status = 'waiting_agent') as waiting_support
+  `;
 
   const busyIds = new Set(
-    live.filter((l) => l.order.courier).map((l) => l.order.courier!.id)
+    live
+      .filter((l) => l.order.courier && !l.order.simulated)
+      .map((l) => l.order.courier!.id)
   );
+  const couriers = await sql<{ id: string; name: string; emoji: string; lat: number; lng: number }[]>`
+    select id, name, emoji, lat, lng from public.couriers where online order by name
+  `;
 
   return {
     kpi: {
       activeOrders: live.length,
       lateOrders: live.filter((l) => l.severity !== "ontime").length,
-      todayOrders: today.length,
-      todayGmv: round2(
-        today.reduce((sum, o) => sum + o.totals.grandTotal, 0)
-      ),
-      onlineCouriers: store.couriers.filter((c) => c.online).length,
-      openRestaurants: store.restaurants.filter(
-        (r) => r.approvalStatus === "approved" && !r.temporarilyClosed
-      ).length,
-      pendingRestaurants: store.restaurants.filter(
-        (r) => r.approvalStatus === "pending"
-      ).length,
-      pendingCouriers: store.couriers.filter((c) => c.status === "pending")
-        .length,
-      pendingPayouts: syncPayouts().filter((p) => p.status === "pending").length,
-      pendingMedia: pendingMediaCount(),
-      blockedUsers: store.users.filter((u) => u.blocked).length,
+      todayOrders: kpi.todayOrders,
+      todayGmv: round2(kpi.todayGmv),
+      onlineCouriers: kpi.onlineCouriers,
+      openRestaurants: kpi.openRestaurants,
+      pendingRestaurants: kpi.pendingRestaurants,
+      pendingCouriers: kpi.pendingCouriers,
+      pendingPayouts: kpi.pendingPayouts,
+      pendingMedia: await pendingMediaCount(),
+      blockedUsers: kpi.blockedUsers,
+      waitingSupport: kpi.waitingSupport,
     },
     live,
-    couriers: store.couriers
-      .filter((c) => c.online)
-      .map((c) => ({
-        id: c.id,
-        name: c.name,
-        emoji: c.emoji,
-        point: c.point,
-        busy: busyIds.has(c.id),
-      })),
+    couriers: couriers.map((c) => ({
+      id: c.id,
+      name: c.name,
+      emoji: c.emoji,
+      point: { lat: c.lat, lng: c.lng },
+      busy: busyIds.has(c.id),
+    })),
   };
 }
 
-/** Yöneticinin manuel sipariş iptali — tutar müşterinin cüzdanına iade edilir. */
-export function adminCancelOrder(
-  admin: AdminAccount,
-  orderId: string,
-  reason: string
-): Order {
-  const order = db().orders.find((o) => o.id === orderId);
-  if (!order) {
-    throw new DomainError("order_not_found", "Sipariş bulunamadı.", 404);
-  }
-  if (order.status === "delivered" || order.status === "cancelled") {
-    throw new DomainError("order_closed", "Bu sipariş zaten kapanmış.");
-  }
-
-  const now = new Date().toISOString();
-  order.status = "cancelled";
-  order.cancelledAt = now;
-  order.cancelledBy = "support";
-  order.cancelReason = reason.trim() || "Platform tarafından iptal edildi";
-  order.timeline.push({
-    status: "cancelled",
-    at: now,
-    note: `Platform iptali: ${order.cancelReason}`,
+/** Yöneticinin manuel sipariş iptali — online ödemede kalan tutar cüzdana iade edilir. */
+export async function adminCancelOrder(admin: AdminAccount, orderId: string, reason: string): Promise<Order> {
+  const result = await sql.begin(async (tx) => {
+    const row = await findOrderRow(orderId, tx, { forUpdate: true });
+    if (!row) throw new DomainError("order_not_found", "Sipariş bulunamadı.", 404);
+    if (row.status === "delivered" || row.status === "cancelled") {
+      throw new DomainError("order_closed", "Bu sipariş zaten kapanmış.");
+    }
+    const cleanReason = reason.trim().slice(0, 200) || "Platform tarafından iptal edildi";
+    const { refunded } = await cancelOrderTx(tx, row, "support", cleanReason, `Platform iptali: ${cleanReason}`);
+    return { code: row.code, reason: cleanReason, refunded };
   });
 
-  if (!PAYMENT_METHODS[order.paymentMethod].onDelivery) {
-    const user = findUserById(order.userId);
-    if (user) {
-      user.walletBalance = round2(user.walletBalance + order.totals.grandTotal);
-    }
-  }
-
-  commit();
-  recordAudit(
+  await recordAudit(
     admin.name,
     "Sipariş iptali",
-    order.code,
-    `${order.cancelReason} · ${order.totals.grandTotal} ₺ iade`
+    result.code,
+    `${result.reason}${result.refunded ? ` · ${result.refunded} ₺ iade` : ""}`
   );
-  return order;
+  return (await hydrateOrders([(await findOrderRow(orderId))!]))[0];
 }
 
-/** Teslim edilmiş bir siparişe manuel iade (kısmi veya tam). */
-export function adminRefund(
+/**
+ * Manuel iade (kısmi veya tam). Toplam iade, siparişin henüz iade edilmemiş
+ * kısmını aşamaz — aynı tutar iki kez geri ödenemez. Tahsil edilmemiş kapıda
+ * ödeme için iade yapılmaz.
+ */
+export async function adminRefund(
   admin: AdminAccount,
   orderId: string,
   amount: number,
   reason: string
-): { order: Order; refunded: number; balance: number } {
-  const order = db().orders.find((o) => o.id === orderId);
-  if (!order) {
-    throw new DomainError("order_not_found", "Sipariş bulunamadı.", 404);
-  }
+): Promise<{ order: Order; refunded: number; balance: number }> {
   const value = round2(Number(amount));
   if (!Number.isFinite(value) || value <= 0) {
     throw new DomainError("invalid_amount", "Geçerli bir iade tutarı gir.");
   }
-  if (value > order.totals.grandTotal) {
-    throw new DomainError(
-      "amount_too_large",
-      "İade tutarı sipariş tutarını aşamaz."
+  const cleanReason = reason.trim().slice(0, 200) || "gerekçe belirtilmedi";
+
+  const result = await sql.begin(async (tx) => {
+    const row = await findOrderRow(orderId, tx, { forUpdate: true });
+    if (!row) throw new DomainError("order_not_found", "Sipariş bulunamadı.", 404);
+
+    if (PAYMENT_METHODS[row.paymentMethod].onDelivery && row.status !== "delivered") {
+      throw new DomainError(
+        "not_collected",
+        "Kapıda ödemeli bu siparişin tutarı henüz tahsil edilmedi; iade yapılamaz."
+      );
+    }
+    const refundable = round2(row.grandTotal - row.refundedTotal);
+    if (refundable <= 0) {
+      throw new DomainError("already_refunded", "Bu siparişin tutarının tamamı zaten iade edildi.");
+    }
+    if (value > refundable) {
+      throw new DomainError(
+        "amount_too_large",
+        `Bu siparişe en fazla ${refundable.toFixed(2).replace(".", ",")} ₺ daha iade edilebilir.`
+      );
+    }
+
+    await tx`update public.orders set refunded_total = refunded_total + ${value} where id = ${row.id}`;
+    await tx`
+      update public.payments
+         set refunded_amount = least(amount, refunded_amount + ${value}),
+             status = case when refunded_amount + ${value} >= amount then 'refunded' else 'partially_refunded' end
+       where order_id = ${row.id} and status in ('captured', 'partially_refunded', 'collected')
+    `;
+    const balance = await applyWallet(
+      tx,
+      row.userId,
+      value,
+      "manual_refund",
+      `${row.restaurantName} — iade · ${cleanReason}`,
+      row.id
     );
-  }
-
-  const user = findUserById(order.userId);
-  if (!user) {
-    throw new DomainError("user_not_found", "Müşteri bulunamadı.", 404);
-  }
-  user.walletBalance = round2(user.walletBalance + value);
-
-  order.timeline.push({
-    status: order.status,
-    at: new Date().toISOString(),
-    note: `Platform iadesi: ${value} ₺ · ${reason || "gerekçe belirtilmedi"}`,
+    await addOrderEvent(tx, row.id, row.status, `Platform iadesi: ${value} ₺ · ${cleanReason}`);
+    return { code: row.code, balance };
   });
 
-  commit();
-  recordAudit(admin.name, "Manuel iade", order.code, `${value} ₺ · ${reason}`);
-  return { order, refunded: value, balance: user.walletBalance };
+  await recordAudit(admin.name, "Manuel iade", result.code, `${value} ₺ · ${cleanReason}`);
+  const order = (await hydrateOrders([(await findOrderRow(orderId))!]))[0];
+  return { order, refunded: value, balance: result.balance };
+}
+
+/** Destek ve iade için sipariş arama (kod, müşteri adı ya da telefon). */
+export async function searchOrders(query: string, limit = 20): Promise<Order[]> {
+  const q = query.trim();
+  if (q.length < 2) {
+    const rows = await sql<OrderRow[]>`
+      select * from public.orders where status in ('delivered', 'cancelled')
+       order by created_at desc limit ${limit}
+    `;
+    return hydrateOrders(rows);
+  }
+  const like = `%${q.replace(/[%_]/g, "")}%`;
+  const digits = q.replace(/\D/g, "");
+  const rows = await sql<OrderRow[]>`
+    select o.* from public.orders o
+      join public.profiles p on p.id = o.user_id
+     where o.code ilike ${like}
+        or p.name ilike ${like}
+        or (${digits.length >= 4} and p.phone like ${`%${digits}%`})
+     order by o.created_at desc
+     limit ${limit}
+  `;
+  return hydrateOrders(rows);
 }
 
 /* ================================================================== */
@@ -281,88 +339,99 @@ export interface AdminRestaurantRow {
   application?: PartnerApplication;
 }
 
-export function adminRestaurants(): AdminRestaurantRow[] {
-  const orders = db().orders;
+export async function adminRestaurants(): Promise<AdminRestaurantRow[]> {
+  const rows = await sql<(RestaurantRow & { deliveredOrders: number; gmv: number; commissionEarned: number })[]>`
+    select r.*,
+           coalesce(s.orders, 0)::int as delivered_orders,
+           coalesce(s.gmv, 0) as gmv,
+           coalesce(s.commission, 0) as commission_earned
+      from public.restaurants r
+      left join (
+        select restaurant_id, count(*) as orders, sum(grand_total) as gmv,
+               sum(round(subtotal * commission_rate, 2)) as commission
+          from public.orders where status = 'delivered' group by restaurant_id
+      ) s on s.restaurant_id = r.id
+  `;
+  const applications = await applicationsByRestaurant();
 
-  return db()
-    .restaurants.map((restaurant) => {
-      const mine = orders.filter(
-        (o) => o.restaurantId === restaurant.id && o.status === "delivered"
-      );
-      const gross = round2(mine.reduce((s, o) => s + o.totals.subtotal, 0));
-      return {
-        restaurant,
-        orders: mine.length,
-        gmv: round2(mine.reduce((s, o) => s + o.totals.grandTotal, 0)),
-        commissionEarned: round2(gross * restaurant.commissionRate),
-        rating: restaurant.rating,
-        open: restaurant.approvalStatus === "approved" && !restaurant.temporarilyClosed,
-        // Başvuruyla gelenlerde form bilgisi; tohumdan gelenlerde yok.
-        application: applicationForRestaurant(restaurant.id),
-      };
-    })
-    .sort((a, b) => {
-      // Onay bekleyenler listenin başında dursun
-      const rank = (r: Restaurant) =>
-        r.approvalStatus === "pending" ? 0 : r.approvalStatus === "suspended" ? 1 : 2;
-      return rank(a.restaurant) - rank(b.restaurant) || b.gmv - a.gmv;
-    });
+  const rank = (status: Restaurant["approvalStatus"]) =>
+    status === "pending" ? 0 : status === "suspended" ? 1 : 2;
+
+  return rows
+    .map((row) => ({
+      restaurant: { ...toRestaurantBase(row), paymentMethods: row.paymentMethods as PaymentMethodId[], menu: [] },
+      orders: row.deliveredOrders,
+      gmv: round2(row.gmv),
+      commissionEarned: round2(row.commissionEarned),
+      rating: row.rating,
+      open: row.approvalStatus === "approved" && !row.temporarilyClosed,
+      application: applications.get(row.id),
+    }))
+    .sort((a, b) => rank(a.restaurant.approvalStatus) - rank(b.restaurant.approvalStatus) || b.gmv - a.gmv);
 }
 
-export function setRestaurantApproval(
+export async function setRestaurantApproval(
   admin: AdminAccount,
   restaurantId: string,
   status: Restaurant["approvalStatus"],
   reason?: string
-): Restaurant {
-  const restaurant = findRestaurant(restaurantId);
-  if (!restaurant) {
-    throw new DomainError("restaurant_not_found", "Restoran bulunamadı.", 404);
-  }
-  restaurant.approvalStatus = status;
-  if (status === "suspended") restaurant.temporarilyClosed = true;
-
-  // Başvuruyla gelen restoranlarda form kaydı da güncellenir ve
-  // onaylanan işletmeye panel girişi açılır.
-  syncApplicationDecision(restaurantId, status, reason);
-  commit();
+): Promise<{ vendorMemberId: string | null }> {
+  const result = await sql.begin(async (tx) => {
+    const [row] = await tx<{ name: string }[]>`
+      update public.restaurants
+         set approval_status = ${status},
+             temporarily_closed = case when ${status} = 'suspended' then true else temporarily_closed end
+       where id = ${restaurantId}
+      returning name
+    `;
+    if (!row) throw new DomainError("restaurant_not_found", "Restoran bulunamadı.", 404);
+    const decision = await syncApplicationDecision(tx, restaurantId, status, reason);
+    return { name: row.name, ...decision };
+  });
 
   const labels = {
     approved: "Restoran onaylandı",
     suspended: "Restoran askıya alındı",
     pending: "Restoran onay beklemeye alındı",
   } as const;
-  recordAudit(admin.name, labels[status], restaurant.name, reason);
-  return restaurant;
+  await recordAudit(admin.name, labels[status], result.name, reason);
+  return { vendorMemberId: result.vendorMemberId };
 }
 
-export function setCommissionRate(
-  admin: AdminAccount,
-  restaurantId: string,
-  rate: number
-): Restaurant {
-  const restaurant = findRestaurant(restaurantId);
-  if (!restaurant) {
-    throw new DomainError("restaurant_not_found", "Restoran bulunamadı.", 404);
-  }
+export async function setCommissionRate(admin: AdminAccount, restaurantId: string, rate: number): Promise<void> {
   const value = Number(rate);
   if (!Number.isFinite(value) || value < 0 || value > 0.4) {
-    throw new DomainError(
-      "invalid_rate",
-      "Komisyon oranı %0 ile %40 arasında olmalı."
-    );
+    throw new DomainError("invalid_rate", "Komisyon oranı %0 ile %40 arasında olmalı.");
   }
-  const previous = restaurant.commissionRate;
-  restaurant.commissionRate = Math.round(value * 1000) / 1000;
-  commit();
-
-  recordAudit(
+  const current = await findRestaurantRow(restaurantId);
+  if (!current) throw new DomainError("restaurant_not_found", "Restoran bulunamadı.", 404);
+  const next = Math.round(value * 1000) / 1000;
+  await sql`update public.restaurants set commission_rate = ${next} where id = ${restaurantId}`;
+  await recordAudit(
     admin.name,
     "Komisyon oranı değişti",
-    restaurant.name,
-    `%${Math.round(previous * 100)} → %${Math.round(restaurant.commissionRate * 100)}`
+    current.name,
+    `%${Math.round(current.commissionRate * 100)} → %${Math.round(next * 100)}`
   );
-  return restaurant;
+}
+
+/** Öne çıkanlar: sıra numarası verilen restoran anasayfanın vitrininde görünür. */
+export async function setFeatured(admin: AdminAccount, restaurantId: string, rank: number | null): Promise<void> {
+  const value = rank === null ? null : Math.round(Number(rank));
+  if (value !== null && (!Number.isFinite(value) || value < 1 || value > 99)) {
+    throw new DomainError("invalid_rank", "Sıra 1 ile 99 arasında olmalı.");
+  }
+  const [row] = await sql<{ name: string; approvalStatus: string }[]>`
+    update public.restaurants set featured_rank = ${value} where id = ${restaurantId}
+    returning name, approval_status
+  `;
+  if (!row) throw new DomainError("restaurant_not_found", "Restoran bulunamadı.", 404);
+  await recordAudit(
+    admin.name,
+    value === null ? "Öne çıkanlardan çıkarıldı" : "Öne çıkanlara eklendi",
+    row.name,
+    value === null ? undefined : `Sıra ${value}`
+  );
 }
 
 /* ================================================================== */
@@ -370,68 +439,76 @@ export function setCommissionRate(
 /* ================================================================== */
 
 export interface AdminCourierRow {
-  courier: Omit<Courier, "pin">;
+  courier: Courier;
   deliveries: number;
   earnings: number;
   busy: boolean;
 }
 
-export function adminCouriers(): AdminCourierRow[] {
-  const earnings = db().earnings;
-  const activeIds = new Set(
-    db()
-      .orders.filter(
-        (o) =>
-          o.courier &&
-          o.courierStage &&
-          ["assigned", "at_restaurant", "picked_up"].includes(o.courierStage)
-      )
-      .map((o) => o.courier!.id)
-  );
-
-  return db()
-    .couriers.map((courier) => {
-      const { pin: _pin, ...rest } = courier;
-      const mine = earnings.filter((e) => e.courierId === courier.id);
-      return {
-        courier: rest,
-        deliveries: mine.length,
-        earnings: round2(mine.reduce((s, e) => s + e.fee + e.tip, 0)),
-        busy: activeIds.has(courier.id),
-      };
-    })
-    .sort((a, b) => {
-      const rank = (c: Omit<Courier, "pin">) =>
-        c.status === "pending" ? 0 : c.status === "suspended" ? 1 : 2;
-      return rank(a.courier) - rank(b.courier) || b.deliveries - a.deliveries;
-    });
+export async function adminCouriers(): Promise<AdminCourierRow[]> {
+  const rows = await sql<(CourierRow & { deliveries: number; earnings: number; busy: boolean })[]>`
+    select c.*,
+           coalesce(e.deliveries, 0)::int as deliveries,
+           coalesce(e.earnings, 0) as earnings,
+           exists (
+             select 1 from public.orders o
+              where o.courier_id = c.id
+                and o.courier_stage in ('assigned', 'at_restaurant', 'picked_up')
+                and o.status not in ('delivered', 'cancelled')
+           ) as busy
+      from public.couriers c
+      left join (
+        select courier_id, count(*) as deliveries, sum(fee + tip) as earnings
+          from public.courier_earnings group by courier_id
+      ) e on e.courier_id = c.id
+  `;
+  const rank = (status: Courier["status"]) => (status === "pending" ? 0 : status === "suspended" ? 1 : 2);
+  return rows
+    .map((row) => ({ courier: toCourier(row), deliveries: row.deliveries, earnings: round2(row.earnings), busy: row.busy }))
+    .sort((a, b) => rank(a.courier.status) - rank(b.courier.status) || b.deliveries - a.deliveries);
 }
 
-export function setCourierStatus(
+export async function setCourierStatus(
   admin: AdminAccount,
   courierId: string,
   status: Courier["status"],
   reason?: string
-): Courier {
-  const courier = findCourier(courierId);
-  if (!courier) {
-    throw new DomainError("courier_not_found", "Kurye bulunamadı.", 404);
-  }
-  if (status !== "active" && courier.online) {
-    // Askıya alınan kurye derhal mesaiden düşer
-    courier.online = false;
-    courier.shiftStartedAt = undefined;
-  }
-  courier.status = status;
-  commit();
+): Promise<void> {
+  const name = await sql.begin(async (tx) => {
+    const [row] = await tx<{ name: string }[]>`
+      update public.couriers
+         set status = ${status},
+             online = case when ${status} = 'active' then online else false end,
+             shift_started_at = case when ${status} = 'active' then shift_started_at else null end
+       where id = ${courierId}
+      returning name
+    `;
+    if (!row) throw new DomainError("courier_not_found", "Kurye bulunamadı.", 404);
+
+    if (status !== "active") {
+      // Askıya alınan kurye derhal mesaiden düşer, bekleyen teklifleri kapanır
+      const expired = await tx<{ orderId: string }[]>`
+        update public.delivery_offers set status = 'expired', responded_at = now()
+         where courier_id = ${courierId} and status = 'pending'
+        returning order_id
+      `;
+      if (expired.length) {
+        await tx`
+          update public.orders set courier_stage = 'unassigned'
+           where id = any(${expired.map((e) => e.orderId)}::text[])
+             and courier_stage = 'offered' and courier_id is null
+        `;
+      }
+    }
+    return row.name;
+  });
 
   const labels = {
     active: "Kurye aktifleştirildi",
     suspended: "Kurye askıya alındı",
     pending: "Kurye onay beklemeye alındı",
   } as const;
-  recordAudit(admin.name, labels[status], courier.name, reason);
-  return courier;
+  await recordAudit(admin.name, labels[status], name, reason);
 }
 
 /* ================================================================== */
@@ -445,102 +522,136 @@ export interface AdminUserRow {
   lastOrderAt?: string;
 }
 
-export function adminUsers(query = ""): AdminUserRow[] {
-  const orders = db().orders;
-  const q = query.trim().toLocaleLowerCase("tr");
-
-  return db()
-    .users.filter((user) => {
-      if (!q) return true;
-      return (
-        user.name.toLocaleLowerCase("tr").includes(q) ||
-        (user.email ?? "").toLocaleLowerCase("tr").includes(q) ||
-        (user.phone ?? "").includes(q)
-      );
-    })
-    .map((user) => {
-      const mine = orders.filter(
-        (o) => o.userId === user.id && o.status === "delivered"
-      );
-      return {
-        user,
-        orders: mine.length,
-        spent: round2(mine.reduce((s, o) => s + o.totals.grandTotal, 0)),
-        lastOrderAt: mine[0]?.createdAt,
-      };
-    })
-    .sort((a, b) => {
-      if (Boolean(a.user.blocked) !== Boolean(b.user.blocked)) {
-        return a.user.blocked ? -1 : 1;
-      }
-      return b.spent - a.spent;
-    });
+export async function adminUsers(query = ""): Promise<AdminUserRow[]> {
+  const q = query.trim();
+  const like = `%${q.replace(/[%_]/g, "")}%`;
+  const rows = await sql<(ProfileRow & { orders: number; spent: number; lastOrderAt: Date | null })[]>`
+    select p.*,
+           coalesce(s.orders, 0)::int as orders,
+           coalesce(s.spent, 0) as spent,
+           s.last_order_at
+      from public.profiles p
+      left join (
+        select user_id, count(*) as orders, sum(grand_total) as spent, max(created_at) as last_order_at
+          from public.orders where status = 'delivered' group by user_id
+      ) s on s.user_id = p.id
+     where ${q === ""} or p.name ilike ${like} or coalesce(p.email, '') ilike ${like}
+        or coalesce(p.phone, '') like ${like}
+     order by p.blocked desc, coalesce(s.spent, 0) desc, p.created_at desc
+     limit 200
+  `;
+  return rows.map((row) => ({
+    user: toUser(row, []),
+    orders: row.orders,
+    spent: round2(row.spent),
+    lastOrderAt: row.lastOrderAt?.toISOString(),
+  }));
 }
 
-export function setUserBlocked(
+export async function setUserBlocked(
   admin: AdminAccount,
   userId: string,
   blocked: boolean,
   reason?: string
-): User {
-  const user = findUserById(userId);
-  if (!user) {
-    throw new DomainError("user_not_found", "Kullanıcı bulunamadı.", 404);
-  }
-  user.blocked = blocked;
-  user.blockReason = blocked ? reason?.trim() || "Platform kuralları ihlali" : undefined;
-  user.blockedAt = blocked ? new Date().toISOString() : undefined;
-  commit();
-
-  recordAudit(
+): Promise<void> {
+  const blockReason = blocked ? reason?.trim().slice(0, 200) || "Platform kuralları ihlali" : null;
+  const [row] = await sql<{ name: string; authUserId: string | null }[]>`
+    update public.profiles
+       set blocked = ${blocked}, block_reason = ${blockReason},
+           blocked_at = ${blocked ? new Date() : null}
+     where id = ${userId}
+    returning name, auth_user_id
+  `;
+  if (!row) throw new DomainError("user_not_found", "Kullanıcı bulunamadı.", 404);
+  await recordAudit(
     admin.name,
     blocked ? "Kullanıcı kara listeye alındı" : "Kara listeden çıkarıldı",
-    user.name,
-    user.blockReason
+    row.name,
+    blockReason ?? undefined
   );
-  return user;
 }
 
-/** Manuel bakiye yükleme (jest, tazminat, düzeltme). */
-export function creditWallet(
+/** Manuel bakiye yükleme ya da düşümü (jest, tazminat, düzeltme). */
+export async function creditWallet(
   admin: AdminAccount,
   userId: string,
   amount: number,
   reason: string
-): User {
-  const user = findUserById(userId);
-  if (!user) {
-    throw new DomainError("user_not_found", "Kullanıcı bulunamadı.", 404);
-  }
+): Promise<void> {
   const value = round2(Number(amount));
   if (!Number.isFinite(value) || value === 0 || Math.abs(value) > 10000) {
-    throw new DomainError(
-      "invalid_amount",
-      "Tutar sıfırdan farklı ve en fazla 10.000 ₺ olmalı."
-    );
+    throw new DomainError("invalid_amount", "Tutar sıfırdan farklı ve en fazla 10.000 ₺ olmalı.");
   }
-  if (user.walletBalance + value < 0) {
-    throw new DomainError(
-      "negative_balance",
-      "Bakiye eksiye düşemez."
-    );
-  }
+  const cleanReason = reason.trim().slice(0, 200) || "gerekçe yok";
 
-  user.walletBalance = round2(user.walletBalance + value);
-  commit();
+  const name = await sql.begin(async (tx) => {
+    const [row] = await tx<{ name: string }[]>`select name from public.profiles where id = ${userId}`;
+    if (!row) throw new DomainError("user_not_found", "Kullanıcı bulunamadı.", 404);
+    try {
+      await applyWallet(
+        tx,
+        userId,
+        value,
+        value > 0 ? "admin_credit" : "admin_debit",
+        value > 0 ? `Platform bakiye yüklemesi · ${cleanReason}` : `Platform bakiye düzeltmesi · ${cleanReason}`
+      );
+    } catch (err) {
+      if (err instanceof DomainError && err.code === "insufficient_wallet") {
+        throw new DomainError("negative_balance", "Bakiye eksiye düşemez.");
+      }
+      throw err;
+    }
+    return row.name;
+  });
 
-  recordAudit(
+  await recordAudit(
     admin.name,
     value > 0 ? "Manuel bakiye yükleme" : "Manuel bakiye düşümü",
-    user.name,
-    `${value > 0 ? "+" : ""}${value} ₺ · ${reason || "gerekçe yok"}`
+    name,
+    `${value > 0 ? "+" : ""}${value} ₺ · ${cleanReason}`
   );
-  return user;
 }
 
 /* ================================================================== */
 /* Pazarlama                                                          */
 /* ================================================================== */
+
+export interface MarketingSnapshot {
+  coupons: Coupon[];
+  banners: Banner[];
+  campaigns: PushCampaign[];
+  districts: string[];
+  restaurants: { id: string; name: string; emoji: string; featuredRank: number | null; approvalStatus: string }[];
+}
+
+export async function marketingSnapshot(): Promise<MarketingSnapshot> {
+  const [coupons, banners, campaigns, districts, restaurants] = await Promise.all([
+    sql<CouponRow[]>`select * from public.coupons order by created_at desc`,
+    sql<BannerRow[]>`select * from public.banners order by position, id`,
+    sql<
+      { id: string; title: string; body: string; segment: PushCampaign["segment"]; districts: string[]; recipientCount: number; sentAt: Date }[]
+    >`select id, title, body, segment, districts, recipient_count, sent_at from public.push_campaigns order by sent_at desc limit 20`,
+    sql<{ district: string }[]>`select distinct district from public.addresses order by district`,
+    sql<{ id: string; name: string; emoji: string; featuredRank: number | null; approvalStatus: string }[]>`
+      select id, name, emoji, featured_rank, approval_status from public.restaurants order by name
+    `,
+  ]);
+  return {
+    coupons: coupons.map(toCoupon),
+    banners: banners.map(toBanner),
+    campaigns: campaigns.map((c) => ({
+      id: c.id,
+      title: c.title,
+      body: c.body,
+      segment: c.segment,
+      districts: c.districts,
+      recipientCount: c.recipientCount,
+      sentAt: c.sentAt.toISOString(),
+    })),
+    districts: districts.map((d) => d.district),
+    restaurants,
+  };
+}
 
 export interface CouponInput {
   code: string;
@@ -556,25 +667,19 @@ export interface CouponInput {
   active?: boolean;
 }
 
-export function upsertCoupon(
-  admin: AdminAccount,
-  input: CouponInput,
-  originalCode?: string
-): Coupon {
+export async function upsertCoupon(admin: AdminAccount, input: CouponInput, originalCode?: string): Promise<void> {
   const code = (input.code ?? "").trim().toUpperCase();
   if (!/^[A-Z0-9]{3,20}$/.test(code)) {
-    throw new DomainError(
-      "invalid_code",
-      "Kod 3-20 karakter, yalnızca harf ve rakam olmalı."
-    );
+    throw new DomainError("invalid_code", "Kod 3-20 karakter, yalnızca harf ve rakam olmalı.");
   }
   if ((input.title ?? "").trim().length < 3) {
     throw new DomainError("invalid_title", "Başlık en az 3 karakter olmalı.");
   }
-  const value = Number(input.value);
-  if (!Number.isFinite(value) || value < 0) {
-    throw new DomainError("invalid_value", "Geçerli bir indirim değeri gir.");
+  if (!["percent", "amount", "free_delivery"].includes(input.type)) {
+    throw new DomainError("invalid_type", "Geçersiz kampanya türü.");
   }
+  const value = Number(input.value);
+  if (!Number.isFinite(value) || value < 0) throw new DomainError("invalid_value", "Geçerli bir indirim değeri gir.");
   if (input.type === "percent" && value > 100) {
     throw new DomainError("invalid_value", "Yüzde indirimi 100'ü aşamaz.");
   }
@@ -582,81 +687,58 @@ export function upsertCoupon(
     throw new DomainError("invalid_date", "Geçerli bir bitiş tarihi seç.");
   }
 
-  const store = db();
-  const existing = store.coupons.find(
-    (c) => c.code.toUpperCase() === (originalCode ?? code).toUpperCase()
-  );
-
-  if (!existing && store.coupons.some((c) => c.code.toUpperCase() === code)) {
-    throw new DomainError("code_taken", "Bu kod zaten kullanımda.");
-  }
-
-  const payload: Coupon = {
+  const original = (originalCode ?? code).trim().toUpperCase();
+  const payload = {
     code,
-    title: input.title.trim(),
-    description: (input.description ?? "").trim(),
     type: input.type,
     value: round2(value),
+    title: input.title.trim().slice(0, 80),
+    description: (input.description ?? "").trim().slice(0, 300),
     minSubtotal: round2(Number(input.minSubtotal) || 0),
     maxDiscount:
-      input.maxDiscount === null || input.maxDiscount === undefined
-        ? undefined
+      input.maxDiscount === null || input.maxDiscount === undefined || input.maxDiscount === ("" as never)
+        ? null
         : round2(Number(input.maxDiscount)),
-    restaurantIds:
-      input.restaurantIds && input.restaurantIds.length
-        ? input.restaurantIds
-        : null,
+    restaurantIds: input.restaurantIds && input.restaurantIds.length ? input.restaurantIds : null,
     firstOrderOnly: Boolean(input.firstOrderOnly),
-    expiresAt: new Date(input.expiresAt).toISOString(),
+    expiresAt: new Date(input.expiresAt),
     active: input.active !== false,
-    createdAt: existing?.createdAt ?? new Date().toISOString(),
   };
 
-  if (existing) {
-    Object.assign(existing, payload);
-  } else {
-    store.coupons.push(payload);
-  }
-  commit();
+  const existed = await sql.begin(async (tx) => {
+    const [existing] = await tx<{ code: string }[]>`select code from public.coupons where code = ${original} for update`;
+    if (!existing) {
+      const [taken] = await tx<{ code: string }[]>`select code from public.coupons where code = ${code}`;
+      if (taken) throw new DomainError("code_taken", "Bu kod zaten kullanımda.");
+      await tx`insert into public.coupons ${tx(payload)}`;
+      return false;
+    }
+    if (code !== original) {
+      const [taken] = await tx<{ code: string }[]>`select code from public.coupons where code = ${code}`;
+      if (taken) throw new DomainError("code_taken", "Bu kod zaten kullanımda.");
+    }
+    await tx`update public.coupons set ${tx(payload)} where code = ${original}`;
+    return true;
+  });
 
-  recordAudit(
-    admin.name,
-    existing ? "Kampanya güncellendi" : "Kampanya oluşturuldu",
-    code,
-    payload.title
-  );
-  return payload;
+  await recordAudit(admin.name, existed ? "Kampanya güncellendi" : "Kampanya oluşturuldu", code, payload.title);
 }
 
-export function deleteCoupon(admin: AdminAccount, code: string): Coupon[] {
-  const store = db();
-  const target = store.coupons.find(
-    (c) => c.code.toUpperCase() === code.trim().toUpperCase()
-  );
-  if (!target) {
-    throw new DomainError("coupon_not_found", "Kampanya bulunamadı.", 404);
-  }
-  store.coupons = store.coupons.filter((c) => c !== target);
-  commit();
-  recordAudit(admin.name, "Kampanya silindi", target.code, target.title);
-  return store.coupons;
+export async function deleteCoupon(admin: AdminAccount, code: string): Promise<void> {
+  const [row] = await sql<{ code: string; title: string }[]>`
+    delete from public.coupons where code = ${code.trim().toUpperCase()} returning code, title
+  `;
+  if (!row) throw new DomainError("coupon_not_found", "Kampanya bulunamadı.", 404);
+  await recordAudit(admin.name, "Kampanya silindi", row.code, row.title);
 }
 
-export function toggleCoupon(admin: AdminAccount, code: string): Coupon {
-  const coupon = db().coupons.find(
-    (c) => c.code.toUpperCase() === code.trim().toUpperCase()
-  );
-  if (!coupon) {
-    throw new DomainError("coupon_not_found", "Kampanya bulunamadı.", 404);
-  }
-  coupon.active = !coupon.active;
-  commit();
-  recordAudit(
-    admin.name,
-    coupon.active ? "Kampanya yayına alındı" : "Kampanya yayından kaldırıldı",
-    coupon.code
-  );
-  return coupon;
+export async function toggleCoupon(admin: AdminAccount, code: string): Promise<void> {
+  const [row] = await sql<{ code: string; active: boolean }[]>`
+    update public.coupons set active = not active where code = ${code.trim().toUpperCase()}
+    returning code, active
+  `;
+  if (!row) throw new DomainError("coupon_not_found", "Kampanya bulunamadı.", 404);
+  await recordAudit(admin.name, row.active ? "Kampanya yayına alındı" : "Kampanya yayından kaldırıldı", row.code);
 }
 
 export interface BannerInput {
@@ -670,75 +752,68 @@ export interface BannerInput {
   active?: boolean;
 }
 
-export function upsertBanner(admin: AdminAccount, input: BannerInput): Banner {
+const COLOR = /^#[0-9a-fA-F]{6}$/;
+
+export async function upsertBanner(admin: AdminAccount, input: BannerInput): Promise<void> {
   if ((input.title ?? "").trim().length < 3) {
     throw new DomainError("invalid_title", "Başlık en az 3 karakter olmalı.");
   }
   const href = (input.href ?? "/").trim();
-  if (!href.startsWith("/")) {
-    throw new DomainError(
-      "invalid_href",
-      "Bağlantı site içi bir yol olmalı (ör. /?kategori=burger)."
-    );
+  if (!href.startsWith("/") || href.startsWith("//")) {
+    throw new DomainError("invalid_href", "Bağlantı site içi bir yol olmalı (ör. /?kategori=burger).");
+  }
+  const gradient = Array.isArray(input.gradient) ? input.gradient : [];
+  if (gradient.length !== 2 || !gradient.every((c) => COLOR.test(c))) {
+    throw new DomainError("invalid_gradient", "İki renk kodu seç (#RRGGBB).");
   }
 
-  const store = db();
-  const existing = input.id
-    ? store.banners.find((b) => b.id === input.id)
-    : undefined;
-
-  const payload: Banner = {
-    id: existing?.id ?? createId("bn"),
-    title: input.title.trim(),
-    subtitle: (input.subtitle ?? "").trim(),
-    code: input.code?.trim().toUpperCase() || undefined,
+  const payload = {
+    title: input.title.trim().slice(0, 80),
+    subtitle: (input.subtitle ?? "").trim().slice(0, 140),
+    code: input.code?.trim().toUpperCase() || null,
     emoji: input.emoji?.trim() || "🎉",
-    gradient: input.gradient,
+    gradient,
     href,
     active: input.active !== false,
   };
 
-  if (existing) Object.assign(existing, payload);
-  else store.banners.push(payload);
-  commit();
-
-  recordAudit(
-    admin.name,
-    existing ? "Afiş güncellendi" : "Afiş eklendi",
-    payload.title
-  );
-  return payload;
+  let existed = false;
+  if (input.id) {
+    const updated = await sql`update public.banners set ${sql(payload)} where id = ${input.id} returning id`;
+    existed = updated.length > 0;
+  }
+  if (!existed) {
+    await sql`
+      insert into public.banners (id, title, subtitle, code, emoji, gradient, href, active, position)
+      values (
+        ${createId("bn")}, ${payload.title}, ${payload.subtitle}, ${payload.code}, ${payload.emoji},
+        ${payload.gradient}, ${payload.href}, ${payload.active},
+        (select coalesce(max(position), -1) + 1 from public.banners)
+      )
+    `;
+  }
+  await recordAudit(admin.name, existed ? "Afiş güncellendi" : "Afiş eklendi", payload.title);
 }
 
-export function deleteBanner(admin: AdminAccount, id: string): Banner[] {
-  const store = db();
-  const target = store.banners.find((b) => b.id === id);
-  if (!target) {
-    throw new DomainError("banner_not_found", "Afiş bulunamadı.", 404);
-  }
-  store.banners = store.banners.filter((b) => b.id !== id);
-  commit();
-  recordAudit(admin.name, "Afiş silindi", target.title);
-  return store.banners;
+export async function deleteBanner(admin: AdminAccount, id: string): Promise<void> {
+  const [row] = await sql<{ title: string }[]>`delete from public.banners where id = ${id} returning title`;
+  if (!row) throw new DomainError("banner_not_found", "Afiş bulunamadı.", 404);
+  await recordAudit(admin.name, "Afiş silindi", row.title);
 }
 
-export function moveBanner(
-  admin: AdminAccount,
-  id: string,
-  direction: "up" | "down"
-): Banner[] {
-  const store = db();
-  const index = store.banners.findIndex((b) => b.id === id);
-  if (index < 0) {
-    throw new DomainError("banner_not_found", "Afiş bulunamadı.", 404);
-  }
-  const target = direction === "up" ? index - 1 : index + 1;
-  if (target < 0 || target >= store.banners.length) return store.banners;
-
-  const [moved] = store.banners.splice(index, 1);
-  store.banners.splice(target, 0, moved);
-  commit();
-  return store.banners;
+export async function moveBanner(admin: AdminAccount, id: string, direction: "up" | "down"): Promise<void> {
+  await sql.begin(async (tx) => {
+    const banners = await tx<{ id: string }[]>`select id from public.banners order by position, id for update`;
+    const index = banners.findIndex((b) => b.id === id);
+    if (index < 0) throw new DomainError("banner_not_found", "Afiş bulunamadı.", 404);
+    const target = direction === "up" ? index - 1 : index + 1;
+    if (target < 0 || target >= banners.length) return;
+    const order = banners.map((b) => b.id);
+    [order[index], order[target]] = [order[target], order[index]];
+    for (const [position, bannerId] of order.entries()) {
+      await tx`update public.banners set position = ${position} where id = ${bannerId}`;
+    }
+  });
 }
 
 export interface PushInput {
@@ -746,6 +821,7 @@ export interface PushInput {
   body: string;
   segment: PushCampaign["segment"];
   districts?: string[];
+  href?: string;
 }
 
 const SEGMENT_LABEL: Record<PushCampaign["segment"], string> = {
@@ -755,111 +831,115 @@ const SEGMENT_LABEL: Record<PushCampaign["segment"], string> = {
   new: "Henüz sipariş vermemiş olanlar",
 };
 
-/** Segment ve bölgeye göre hedef kitleyi hesaplar. */
-export function pushAudience(
-  segment: PushCampaign["segment"],
-  districts: string[] = []
-): User[] {
-  const store = db();
-  const monthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+const SEGMENTS: PushCampaign["segment"][] = ["all", "active", "lapsed", "new"];
 
-  return store.users.filter((user) => {
-    if (user.blocked) return false;
-
-    const orders = store.orders.filter((o) => o.userId === user.id);
-    const recent = orders.some(
-      (o) => new Date(o.createdAt).getTime() >= monthAgo
-    );
-
-    if (segment === "active" && !recent) return false;
-    if (segment === "lapsed" && (recent || orders.length === 0)) return false;
-    if (segment === "new" && orders.length > 0) return false;
-
-    if (districts.length) {
-      const addresses = store.addresses.filter((a) => a.userId === user.id);
-      if (!addresses.some((a) => districts.includes(a.district))) return false;
-    }
-    return true;
-  });
+/** Segment ve bölgeye göre hedef kitle (kara listedekiler hariç). */
+export async function pushAudience(segment: PushCampaign["segment"], districts: string[] = []): Promise<string[]> {
+  if (!SEGMENTS.includes(segment)) throw new DomainError("invalid_segment", "Geçersiz hedef kitle.");
+  const list = districts.filter(Boolean);
+  const rows = await sql<{ id: string }[]>`
+    select p.id from public.profiles p
+     where not p.blocked
+       and (
+         ${segment} = 'all'
+         or (${segment} = 'active' and exists (
+               select 1 from public.orders o where o.user_id = p.id and o.created_at >= now() - interval '30 days'))
+         or (${segment} = 'lapsed' and exists (select 1 from public.orders o where o.user_id = p.id)
+             and not exists (
+               select 1 from public.orders o where o.user_id = p.id and o.created_at >= now() - interval '30 days'))
+         or (${segment} = 'new' and not exists (select 1 from public.orders o where o.user_id = p.id))
+       )
+       and (${list.length === 0} or exists (
+             select 1 from public.addresses a where a.user_id = p.id and a.district = any(${list}::text[])))
+  `;
+  return rows.map((r) => r.id);
 }
 
-export function sendPush(admin: AdminAccount, input: PushInput): PushCampaign {
-  if ((input.title ?? "").trim().length < 3) {
-    throw new DomainError("invalid_title", "Başlık en az 3 karakter olmalı.");
-  }
-  if ((input.body ?? "").trim().length < 5) {
-    throw new DomainError("invalid_body", "Mesaj en az 5 karakter olmalı.");
+/**
+ * Kampanya gönderimi: hedef kitledeki her müşterinin uygulama içi bildirim
+ * kutusuna düşer (push izni vermemiş olsa bile görür). Tarayıcı bildirimi
+ * aboneliği olanlara ayrıca push gönderilir.
+ */
+export async function sendPush(admin: AdminAccount, input: PushInput): Promise<PushCampaign> {
+  const title = (input.title ?? "").trim();
+  const body = (input.body ?? "").trim();
+  if (title.length < 3) throw new DomainError("invalid_title", "Başlık en az 3 karakter olmalı.");
+  if (body.length < 5) throw new DomainError("invalid_body", "Mesaj en az 5 karakter olmalı.");
+  const href = input.href?.trim() || null;
+  if (href && (!href.startsWith("/") || href.startsWith("//"))) {
+    throw new DomainError("invalid_href", "Bağlantı site içi bir yol olmalı.");
   }
 
   const districts = (input.districts ?? []).filter(Boolean);
-  const audience = pushAudience(input.segment, districts);
+  const audience = await pushAudience(input.segment, districts);
+  const id = createId("psh");
 
-  const campaign: PushCampaign = {
-    id: createId("psh"),
-    title: input.title.trim(),
-    body: input.body.trim().slice(0, 240),
+  await sql.begin(async (tx) => {
+    await tx`
+      insert into public.push_campaigns (id, title, body, href, segment, districts, recipient_count, sent_by)
+      values (${id}, ${title.slice(0, 80)}, ${body.slice(0, 240)}, ${href}, ${input.segment},
+              ${districts}, ${audience.length}, ${admin.name})
+    `;
+    if (audience.length) {
+      await tx`
+        insert into public.notifications (id, user_id, title, body, href, campaign_id)
+        select 'ntf_' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 14), u, ${title.slice(0, 80)},
+               ${body.slice(0, 240)}, ${href}, ${id}
+          from unnest(${audience}::text[]) as u
+      `;
+    }
+  });
+
+  await recordAudit(
+    admin.name,
+    "Push bildirimi gönderildi",
+    title,
+    `${SEGMENT_LABEL[input.segment]} · ${audience.length} kişi`
+  );
+
+  return {
+    id,
+    title,
+    body,
     segment: input.segment,
     districts,
     recipientCount: audience.length,
     sentAt: new Date().toISOString(),
   };
-
-  db().pushCampaigns.unshift(campaign);
-  commit();
-
-  recordAudit(
-    admin.name,
-    "Push bildirimi gönderildi",
-    campaign.title,
-    `${SEGMENT_LABEL[campaign.segment]} · ${campaign.recipientCount} kişi`
-  );
-  return campaign;
-}
-
-/** Müşteri adreslerinden türeyen bölge listesi. */
-export function knownDistricts(): string[] {
-  return [...new Set(db().addresses.map((a) => a.district))].sort();
 }
 
 /* ================================================================== */
 /* Finansal mutabakat                                                 */
 /* ================================================================== */
 
-export function setPayoutStatus(
-  admin: AdminAccount,
-  payoutId: string,
-  action: "approve" | "pay"
-): Payout {
-  const payout = db().payouts.find((p) => p.id === payoutId);
-  if (!payout) {
-    throw new DomainError("payout_not_found", "Hakediş kaydı bulunamadı.", 404);
+export async function setPayoutStatus(admin: AdminAccount, payoutId: string, action: "approve" | "pay"): Promise<void> {
+  const [row] =
+    action === "approve"
+      ? await sql<{ targetName: string; periodLabel: string; net: number }[]>`
+          update public.payouts set status = 'approved', approved_at = now(), approved_by = ${admin.name}
+           where id = ${payoutId} and status = 'pending'
+          returning target_name, period_label, net
+        `
+      : await sql<{ targetName: string; periodLabel: string; net: number }[]>`
+          update public.payouts set status = 'paid', paid_at = now()
+           where id = ${payoutId} and status = 'approved'
+          returning target_name, period_label, net
+        `;
+
+  if (!row) {
+    const [existing] = await sql<{ status: string }[]>`select status from public.payouts where id = ${payoutId}`;
+    if (!existing) throw new DomainError("payout_not_found", "Hakediş kaydı bulunamadı.", 404);
+    throw action === "approve"
+      ? new DomainError("already_approved", "Bu hakediş zaten onaylanmış.")
+      : new DomainError("not_approved", "Ödeme için önce hakedişi onaylaman gerekiyor.");
   }
 
-  if (action === "approve") {
-    if (payout.status !== "pending") {
-      throw new DomainError("already_approved", "Bu hakediş zaten onaylanmış.");
-    }
-    payout.status = "approved";
-    payout.approvedAt = new Date().toISOString();
-  } else {
-    if (payout.status !== "approved") {
-      throw new DomainError(
-        "not_approved",
-        "Ödeme için önce hakedişi onaylaman gerekiyor."
-      );
-    }
-    payout.status = "paid";
-    payout.paidAt = new Date().toISOString();
-  }
-
-  commit();
-  recordAudit(
+  await recordAudit(
     admin.name,
     action === "approve" ? "Hakediş onaylandı" : "Hakediş ödendi",
-    `${payout.targetName} · ${payout.periodLabel}`,
-    `${payout.net} ₺`
+    `${row.targetName} · ${row.periodLabel}`,
+    `${row.net} ₺`
   );
-  return payout;
 }
 
 export interface GatewayRow {
@@ -867,11 +947,13 @@ export interface GatewayRow {
   label: string;
   orders: number;
   volume: number;
-  /** Ödeme geçidinin kestiği komisyon (kapıda ödemede yok) */
+  /** Ödeme geçidinin kestiği komisyon (kapıda ödemede ve cüzdanda yok) */
   gatewayFee: number;
-  /** Simüle edilen başarı oranı */
+  /** Başarılı / (başarılı + başarısız) işlem oranı */
   successRate: number;
-  settlement: "T+1" | "T+7" | "Kurye tahsilatı";
+  /** İade edilen tutar */
+  refunded: number;
+  settlement: "T+1" | "T+7" | "Kurye tahsilatı" | "Anında";
 }
 
 /** Online ödemelerde geçidin kestiği oran + işlem başı sabit ücret. */
@@ -887,6 +969,8 @@ export interface FinanceSummary {
   discounts: number;
   courierCost: number;
   gatewayCost: number;
+  /** Platformun karşıladığı manuel iadeler (teslim edilmiş siparişlerde) */
+  refunds: number;
   netRevenue: number;
   orders: number;
   cancelled: number;
@@ -896,154 +980,143 @@ export interface FinanceSummary {
 export interface AdminFinance {
   summary: FinanceSummary;
   /** Son 14 günün GMV ve net gelir kırılımı */
-  buckets: {
-    key: string;
-    label: string;
-    orders: number;
-    gmv: number;
-    netRevenue: number;
-  }[];
+  buckets: { key: string; label: string; orders: number; gmv: number; netRevenue: number }[];
   gateway: GatewayRow[];
   payouts: Payout[];
   payoutTotals: { pending: number; approved: number; paid: number };
 }
 
-export function adminFinance(): AdminFinance {
-  const store = db();
-  const delivered = store.orders.filter((o) => o.status === "delivered");
-  const cancelled = store.orders.filter((o) => o.status === "cancelled");
+export async function adminFinance(): Promise<AdminFinance> {
+  const [totals] = await sql<
+    {
+      orders: number;
+      cancelled: number;
+      gmv: number;
+      productValue: number;
+      commission: number;
+      serviceFees: number;
+      deliveryFees: number;
+      discounts: number;
+      refunds: number;
+      courierCost: number;
+    }[]
+  >`
+    select count(*) filter (where status = 'delivered')::int as orders,
+           count(*) filter (where status = 'cancelled')::int as cancelled,
+           coalesce(sum(grand_total) filter (where status = 'delivered'), 0) as gmv,
+           coalesce(sum(subtotal) filter (where status = 'delivered'), 0) as product_value,
+           coalesce(sum(round(subtotal * commission_rate, 2)) filter (where status = 'delivered'), 0) as commission,
+           coalesce(sum(service_fee) filter (where status = 'delivered'), 0) as service_fees,
+           coalesce(sum(delivery_fee) filter (where status = 'delivered' and courier_mode = 'platform'), 0) as delivery_fees,
+           coalesce(sum(discount) filter (where status = 'delivered'), 0) as discounts,
+           coalesce(sum(refunded_total) filter (where status = 'delivered'), 0) as refunds,
+           (select coalesce(sum(fee), 0) from public.courier_earnings) as courier_cost
+      from public.orders
+  `;
 
-  const commission = round2(
-    delivered.reduce((sum, order) => {
-      const restaurant = findRestaurant(order.restaurantId);
-      const rate = restaurant?.commissionRate ?? 0.12;
-      return sum + order.totals.subtotal * rate;
-    }, 0)
-  );
+  const gatewayRows = await sql<
+    { method: PaymentMethodId; orders: number; volume: number; failed: number; succeeded: number; refunded: number }[]
+  >`
+    select method,
+           count(*) filter (where status <> 'failed' and status <> 'voided')::int as orders,
+           coalesce(sum(amount) filter (where status in ('captured', 'refunded', 'partially_refunded', 'collected')), 0) as volume,
+           count(*) filter (where status = 'failed')::int as failed,
+           count(*) filter (where status in ('captured', 'refunded', 'partially_refunded', 'collected'))::int as succeeded,
+           coalesce(sum(refunded_amount), 0) as refunded
+      from public.payments
+     where purpose = 'order' or method = 'online_card'
+     group by method
+  `;
+  const byMethod = new Map(gatewayRows.map((g) => [g.method, g]));
 
-  const gmv = round2(delivered.reduce((s, o) => s + o.totals.grandTotal, 0));
-  const productValue = round2(
-    delivered.reduce((s, o) => s + o.totals.subtotal, 0)
-  );
-  const serviceFees = round2(
-    delivered.reduce((s, o) => s + o.totals.serviceFee, 0)
-  );
-  const deliveryFees = round2(
-    delivered.reduce((s, o) => s + o.totals.deliveryFee, 0)
-  );
-  const discounts = round2(delivered.reduce((s, o) => s + o.totals.discount, 0));
-  const courierCost = round2(
-    store.earnings
-      .filter((e) => delivered.some((o) => o.id === e.orderId))
-      .reduce((s, e) => s + e.fee, 0)
-  );
-
-  /* Ödeme geçidi kırılımı */
-  const gateway: GatewayRow[] = (
-    Object.keys(PAYMENT_METHODS) as PaymentMethodId[]
-  )
+  const gateway: GatewayRow[] = (Object.keys(PAYMENT_METHODS) as PaymentMethodId[])
     .map((method) => {
-      const mine = delivered.filter((o) => o.paymentMethod === method);
-      const volume = round2(mine.reduce((s, o) => s + o.totals.grandTotal, 0));
+      const row = byMethod.get(method);
       const onDelivery = PAYMENT_METHODS[method].onDelivery;
-      const isWallet = method === "wallet";
-
+      const throughGateway = method === "online_card" || method === "meal_card";
+      const volume = round2(row?.volume ?? 0);
+      const attempts = (row?.succeeded ?? 0) + (row?.failed ?? 0);
       return {
         method,
         label: PAYMENT_METHODS[method].name,
-        orders: mine.length,
+        orders: row?.orders ?? 0,
         volume,
-        gatewayFee:
-          onDelivery || isWallet
-            ? 0
-            : round2(volume * GATEWAY_RATE + mine.length * GATEWAY_FIXED),
-        successRate: mine.length ? 100 : 100,
-        settlement: onDelivery
-          ? "Kurye tahsilatı"
-          : method === "meal_card"
-            ? "T+7"
-            : "T+1",
+        gatewayFee: throughGateway ? round2(volume * GATEWAY_RATE + (row?.succeeded ?? 0) * GATEWAY_FIXED) : 0,
+        successRate: attempts ? Math.round(((row?.succeeded ?? 0) / attempts) * 1000) / 10 : 100,
+        refunded: round2(row?.refunded ?? 0),
+        settlement: onDelivery ? "Kurye tahsilatı" : method === "meal_card" ? "T+7" : method === "wallet" ? "Anında" : "T+1",
       } satisfies GatewayRow;
     })
     .filter((row) => row.orders > 0 || row.method === "online_card");
 
   const gatewayCost = round2(gateway.reduce((s, r) => s + r.gatewayFee, 0));
 
-  const netRevenue = round2(
-    commission + serviceFees + deliveryFees - courierCost - discounts - gatewayCost
-  );
+  const commission = round2(totals.commission);
+  const serviceFees = round2(totals.serviceFees);
+  const deliveryFees = round2(totals.deliveryFees);
+  const discounts = round2(totals.discounts);
+  const courierCost = round2(totals.courierCost);
+  const refunds = round2(totals.refunds);
+  const netRevenue = round2(commission + serviceFees + deliveryFees - courierCost - discounts - gatewayCost - refunds);
 
-  /* Son 14 gün */
+  /* Son 14 gün (İstanbul takvimiyle) */
+  const daily = await sql<
+    { key: string; orders: number; gmv: number; commission: number; service: number; delivery: number; discount: number; refunds: number; courier: number }[]
+  >`
+    select to_char(coalesce(o.delivered_at, o.created_at) at time zone 'Europe/Istanbul', 'YYYY-MM-DD') as key,
+           count(*)::int as orders,
+           sum(o.grand_total) as gmv,
+           sum(round(o.subtotal * o.commission_rate, 2)) as commission,
+           sum(o.service_fee) as service,
+           sum(case when o.courier_mode = 'platform' then o.delivery_fee else 0 end) as delivery,
+           sum(o.discount) as discount,
+           sum(o.refunded_total) as refunds,
+           coalesce(sum(e.fee), 0) as courier
+      from public.orders o
+      left join public.courier_earnings e on e.order_id = o.id
+     where o.status = 'delivered' and coalesce(o.delivered_at, o.created_at) >= now() - interval '15 days'
+     group by 1
+  `;
+  const dailyByKey = new Map(daily.map((d) => [d.key, d]));
   const buckets: AdminFinance["buckets"] = [];
-  const now = new Date();
   for (let i = 13; i >= 0; i--) {
-    const date = new Date(now);
-    date.setDate(date.getDate() - i);
-    const key = date.toISOString().slice(0, 10);
-    const mine = delivered.filter(
-      (o) => o.createdAt.slice(0, 10) === key
-    );
-    const dayGmv = round2(mine.reduce((s, o) => s + o.totals.grandTotal, 0));
-    const dayCommission = round2(
-      mine.reduce((sum, order) => {
-        const restaurant = findRestaurant(order.restaurantId);
-        return sum + order.totals.subtotal * (restaurant?.commissionRate ?? 0.12);
-      }, 0)
-    );
-    const dayService = round2(mine.reduce((s, o) => s + o.totals.serviceFee, 0));
-    const dayDelivery = round2(
-      mine.reduce((s, o) => s + o.totals.deliveryFee, 0)
-    );
-    const dayDiscount = round2(mine.reduce((s, o) => s + o.totals.discount, 0));
-    const dayCourier = round2(
-      store.earnings
-        .filter((e) => mine.some((o) => o.id === e.orderId))
-        .reduce((s, e) => s + e.fee, 0)
-    );
-
+    const key = dayKey(new Date(Date.now() - i * 86_400_000));
+    const d = dailyByKey.get(key);
     buckets.push({
       key,
-      label: new Intl.DateTimeFormat("tr-TR", {
-        day: "numeric",
-        month: "short",
-      }).format(date),
-      orders: mine.length,
-      gmv: dayGmv,
-      netRevenue: round2(
-        dayCommission + dayService + dayDelivery - dayCourier - dayDiscount
-      ),
+      label: formatDayKey(key),
+      orders: d?.orders ?? 0,
+      gmv: round2(d?.gmv ?? 0),
+      netRevenue: d
+        ? round2(d.commission + d.service + d.delivery - d.courier - d.discount - d.refunds)
+        : 0,
     });
   }
 
-  const payouts = syncPayouts();
+  const payouts = await listPayouts();
   const total = (status: Payout["status"]) =>
-    round2(
-      payouts.filter((p) => p.status === status).reduce((s, p) => s + p.net, 0)
-    );
+    round2(payouts.filter((p) => p.status === status).reduce((s, p) => s + p.net, 0));
 
   return {
     summary: {
-      gmv,
-      productValue,
+      gmv: round2(totals.gmv),
+      productValue: round2(totals.productValue),
       commission,
       serviceFees,
       deliveryFees,
       discounts,
       courierCost,
       gatewayCost,
+      refunds,
       netRevenue,
-      orders: delivered.length,
-      cancelled: cancelled.length,
-      avgOrderValue: delivered.length ? round2(gmv / delivered.length) : 0,
+      orders: totals.orders,
+      cancelled: totals.cancelled,
+      avgOrderValue: totals.orders ? round2(totals.gmv / totals.orders) : 0,
     },
     buckets,
     gateway,
     payouts,
-    payoutTotals: {
-      pending: total("pending"),
-      approved: total("approved"),
-      paid: total("paid"),
-    },
+    payoutTotals: { pending: total("pending"), approved: total("approved"), paid: total("paid") },
   };
 }
 

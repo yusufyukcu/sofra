@@ -33,8 +33,8 @@ export async function POST(
       );
     }
 
-    const order = advanceStage(courier, id, body.action);
-    const board = courierBoard(courier);
+    const order = await advanceStage(courier, id, body.action);
+    const board = await courierBoard(courier);
     return ok({ order, ...board, courier: publicCourier(board.courier) });
   });
 }

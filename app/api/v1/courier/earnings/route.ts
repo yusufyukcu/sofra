@@ -6,6 +6,6 @@ import { earningsReport } from "@/lib/services/courier";
 export async function GET(request: Request) {
   return handle(async () => {
     const courier = await requireCourier(request);
-    return ok({ report: earningsReport(courier) });
+    return ok({ report: await earningsReport(courier) });
   });
 }

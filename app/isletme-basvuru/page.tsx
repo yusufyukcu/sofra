@@ -7,7 +7,8 @@ import {
   LayoutDashboard,
   TrendingUp,
 } from "lucide-react";
-import { publishedRestaurants } from "@/lib/db/store";
+import { connection } from "next/server";
+import { publishedRestaurantCount } from "@/lib/db/queries";
 import { Button } from "@/components/ui/primitives";
 import { ApplicationForm } from "@/components/partner/application-form";
 
@@ -102,8 +103,9 @@ const FAQ = [
   },
 ];
 
-export default function PartnerPage() {
-  const restaurantCount = publishedRestaurants().length;
+export default async function PartnerPage() {
+  await connection();
+  const restaurantCount = await publishedRestaurantCount();
 
   return (
     <div className="pb-16">

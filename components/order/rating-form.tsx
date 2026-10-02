@@ -64,6 +64,9 @@ export function RatingForm({ orderId }: { orderId: string }) {
 
   const [saving, setSaving] = useState(false);
 
+  // Demo simülasyonunda gerçek kurye yok: kurye puanı ve bahşiş sorulmaz
+  const realCourier = Boolean(order?.courier && !order.simulated);
+
   useEffect(() => {
     api
       .get<{ order: Order }>(`/orders/${orderId}`)
@@ -83,19 +86,17 @@ export function RatingForm({ orderId }: { orderId: string }) {
       const composeComment = (comment: string, tags: string[]) =>
         [tags.join(", "), comment.trim()].filter(Boolean).join(". ") || undefined;
 
-      await api.post(`/orders/${orderId}/rating`, {
+      const result = await api.post<{ walletBalance: number }>(`/orders/${orderId}/rating`, {
         restaurantScore,
         restaurantComment: composeComment(restaurantComment, restaurantTags),
-        courierScore: order.courier ? courierScore : undefined,
-        courierComment: order.courier
+        courierScore: realCourier ? courierScore : undefined,
+        courierComment: realCourier
           ? composeComment(courierComment, courierTags)
           : undefined,
-        courierTip: order.courier && tip > 0 ? tip : undefined,
+        courierTip: realCourier && tip > 0 ? tip : undefined,
       });
 
-      if (tip > 0 && user) {
-        setUser({ ...user, walletBalance: user.walletBalance - tip });
-      }
+      if (user) setUser({ ...user, walletBalance: result.walletBalance });
 
       toast.success(
         tip > 0
@@ -231,7 +232,7 @@ export function RatingForm({ orderId }: { orderId: string }) {
       </section>
 
       {/* Kurye */}
-      {order.courier && (
+      {realCourier && order.courier && (
         <section className="card mt-4 p-5">
           <div className="flex items-center gap-3">
             <span className="flex size-11 items-center justify-center rounded-full bg-surface-2 text-xl">

@@ -7,6 +7,6 @@ export async function GET(request: Request) {
   return handle(async () => {
     const admin = await currentAdmin(request);
     if (!admin) return fail("admin_unauthorized", "Giris yapilmamis.", 401);
-    return ok({ admin: publicAdmin(admin), kpi: adminOverview().kpi });
+    return ok({ admin: publicAdmin(admin), kpi: (await adminOverview()).kpi });
   });
 }

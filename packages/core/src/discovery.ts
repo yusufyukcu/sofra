@@ -8,6 +8,7 @@ import type {
 import {
   distanceKm,
   etaForDistance,
+  isInDeliveryZone,
   isOnBreak,
   isWithinWorkingHours,
 } from "./utils";
@@ -75,7 +76,7 @@ export function decorate(
     return {
       ...rest,
       distanceKm: Math.round(km * 10) / 10,
-      deliverable: km <= r.deliveryRadiusKm,
+      deliverable: isInDeliveryZone(r, point),
       open,
       isFavorite: favoriteIds.includes(r.id),
       etaText: `${eta.min}-${eta.max} dk`,

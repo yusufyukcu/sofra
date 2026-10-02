@@ -11,13 +11,10 @@ import {
 
 /**
  * POST /api/v1/vendor/menu/products
- * Body: { action, ... }
+ * Body: { action: "upsert" | "delete" | "stock" | "option-stock", ... }
  *
- *   upsert       → ürün ekle/güncelle (varyant ağacıyla birlikte); yanıtta
- *                  `productId` döner — fotoğraf bu kimlikle onaya gönderilir
- *   delete       → ürünü menüden kaldır
- *   stock        → anlık stok kapat/aç
- *   option-stock → tek bir malzeme/ekstrayı stoktan düş
+ * `stock` ürünü anlık tükendi/satışta yapar; `option-stock` tek bir
+ * malzemeyi (ör. "Trüf patates") stoktan düşer.
  */
 export async function POST(request: Request) {
   return handle(async () => {
@@ -32,38 +29,32 @@ export async function POST(request: Request) {
       }
     >(request);
 
-    let updated;
-    let productId: string | undefined;
     switch (body.action) {
-      case "upsert":
-        ({ restaurant: updated, productId } = upsertProduct(restaurant.id, body));
-        break;
+      case "upsert": {
+        const { menu, productId } = await upsertProduct(restaurant.id, body);
+        return ok({ menu, productId });
+      }
       case "delete":
-        updated = deleteProduct(restaurant.id, body.productId ?? "");
-        break;
+        return ok({ menu: await deleteProduct(restaurant.id, body.productId ?? "") });
       case "stock":
-        updated = setProductStock(
-          restaurant.id,
-          body.productId ?? "",
-          Boolean(body.soldOut)
-        );
-        break;
+        return ok({
+          menu: await setProductStock(restaurant.id, body.productId ?? "", Boolean(body.soldOut)),
+        });
       case "option-stock":
-        updated = setOptionStock(
-          restaurant.id,
-          body.productId ?? "",
-          body.groupId ?? "",
-          body.optionId ?? "",
-          Boolean(body.soldOut)
-        );
-        break;
+        return ok({
+          menu: await setOptionStock(
+            restaurant.id,
+            body.productId ?? "",
+            body.groupId ?? "",
+            body.optionId ?? "",
+            Boolean(body.soldOut)
+          ),
+        });
       default:
         throw new DomainError(
           "unknown_action",
           "Geçersiz işlem. Beklenen: upsert, delete, stock, option-stock."
         );
     }
-
-    return ok({ menu: updated.menu, productId });
   });
 }

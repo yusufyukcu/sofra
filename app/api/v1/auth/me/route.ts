@@ -1,6 +1,6 @@
 import { fail, handle, ok, readJson } from "@/lib/api/respond";
 import { currentUser, requireUser } from "@/lib/auth/session";
-import { cardsOf } from "@/lib/db/store";
+import { cardsOf } from "@/lib/db/queries";
 import { listAddresses } from "@/lib/services/account";
 import { updateProfile } from "@/lib/services/auth";
 import { activeOrders } from "@/lib/services/orders";
@@ -15,12 +15,12 @@ export async function GET(request: Request) {
     const user = await currentUser(request);
     if (!user) return fail("unauthorized", "Giriş yapılmamış.", 401);
 
-    return ok({
-      user,
-      addresses: listAddresses(user),
-      cards: cardsOf(user.id),
-      activeOrders: activeOrders(user),
-    });
+    const [addresses, cards, orders] = await Promise.all([
+      listAddresses(user),
+      cardsOf(user.id),
+      activeOrders(user),
+    ]);
+    return ok({ user, addresses, cards, activeOrders: orders });
   });
 }
 
@@ -35,6 +35,6 @@ export async function PATCH(request: Request) {
       avatarEmoji?: string;
     }>(request);
 
-    return ok({ user: updateProfile(user, body) });
+    return ok({ user: await updateProfile(user, body) });
   });
 }

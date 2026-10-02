@@ -1,17 +1,20 @@
-import { ORDER_STATUS_META, CANCELLABLE_STATUSES } from "../constants";
-import { commit, db } from "../db/store";
-import { remainingMinutes } from "../db/simulator";
+import "server-only";
+import { CANCELLABLE_STATUSES, ORDER_STATUS_META, PAYMENT_METHODS } from "../constants";
+import { sql, type Db } from "../db/client";
+import { findOrder, ordersOfUser } from "../db/queries";
+import { remainingMinutes } from "../orders/progress";
 import type { Order, SupportMessage, SupportSession, User } from "../types";
 import { createId, formatPrice, formatTime } from "../utils";
-import { activeOrders, cancelOrder, listOrders } from "./orders";
+import { DomainError } from "../errors";
+import { cancelOrder } from "./orders";
 
 /**
- * Kural tabanlı destek botu.
+ * Destek: kural tabanlı asistan + temsilci kuyruğu.
  *
- * Sık sorulan sipariş sorularını (nerede, iptal, eksik ürün, iade) niyet
- * eşleştirmesiyle karşılar; çözemediğinde canlı temsilciye devreder.
- * Gerçek sistemde bu katman bir LLM veya üçüncü parti canlı destek
- * entegrasyonuyla değiştirilebilir — API sözleşmesi aynı kalır.
+ * Asistan sık soruları (sipariş nerede, iptal) gerçek veriyle yanıtlar.
+ * Çözemediği konuları — eksik/yanlış ürün, fatura, ödeme iadesi, temsilci
+ * talebi — yönetici panelindeki destek kuyruğuna aktarır; oradan bir
+ * temsilci yanıt verir. Asistan sistemin yapmadığı bir şeyi vaat etmez.
  */
 
 type Intent =
@@ -27,6 +30,8 @@ type Intent =
   | "thanks"
   | "unknown";
 
+type SessionStatus = NonNullable<SupportSession["status"]>;
+
 const QUICK_REPLIES = {
   root: [
     { id: "where_is_order", label: "Siparişim nerede?" },
@@ -37,48 +42,124 @@ const QUICK_REPLIES = {
   ],
 } as const;
 
-function message(
-  role: SupportMessage["role"],
-  text: string,
-  quickReplies?: { id: string; label: string }[]
-): SupportMessage {
+const EXTRA_LABELS: Record<string, string> = {
+  confirm_cancel: "Evet, iptal et",
+  root: "Başka bir konu",
+  agent: "Temsilciye bağlan",
+};
+
+interface Draft {
+  role: SupportMessage["role"];
+  text: string;
+  quickReplies?: { id: string; label: string }[];
+}
+
+const bot = (text: string, quickReplies?: { id: string; label: string }[]): Draft => ({
+  role: "bot",
+  text,
+  quickReplies,
+});
+
+/* ------------------------------------------------------------------ */
+/* Kalıcılık                                                           */
+/* ------------------------------------------------------------------ */
+
+interface SessionRow {
+  id: string;
+  userId: string;
+  orderId: string | null;
+  status: SessionStatus;
+  topic: string | null;
+}
+
+async function loadSession(id: string, db: Db = sql): Promise<SupportSession> {
+  const [session] = await db<SessionRow[]>`select * from public.support_sessions where id = ${id}`;
+  const messages = await db<
+    { id: string; role: SupportMessage["role"] | "system"; text: string; quickReplies: SupportMessage["quickReplies"] | null; at: Date; authorName: string | null }[]
+  >`select * from public.support_messages where session_id = ${id} order by at, id`;
+
   return {
-    id: createId("msg"),
-    role,
-    text,
-    at: new Date().toISOString(),
-    quickReplies,
+    id: session.id,
+    userId: session.userId,
+    orderId: session.orderId ?? undefined,
+    status: session.status,
+    escalated: session.status === "waiting_agent" || session.status === "with_agent",
+    messages: messages.map((m) => ({
+      id: m.id,
+      // Arayüz sistem mesajlarını asistan balonuyla gösterir
+      role: m.role === "system" ? "bot" : m.role,
+      text: m.authorName && m.role === "agent" ? `${m.text}` : m.text,
+      at: m.at.toISOString(),
+      quickReplies: m.quickReplies ?? undefined,
+    })),
   };
 }
 
-export function greetingMessage(user: User): SupportMessage {
-  return message(
-    "bot",
+async function addMessages(db: Db, sessionId: string, drafts: Draft[]): Promise<void> {
+  let at = Date.now();
+  for (const draft of drafts) {
+    await db`
+      insert into public.support_messages (id, session_id, role, text, quick_replies, at)
+      values (${createId("msg")}, ${sessionId}, ${draft.role}, ${draft.text},
+              ${draft.quickReplies ? db.json(draft.quickReplies) : null}, ${new Date(at)})
+    `;
+    at += 1; // aynı istekte eklenen mesajların sırası korunsun
+  }
+  await db`update public.support_sessions set updated_at = now() where id = ${sessionId}`;
+}
+
+async function setStatus(db: Db, sessionId: string, status: SessionStatus, topic?: string) {
+  await db`
+    update public.support_sessions
+       set status = ${status}, topic = coalesce(${topic ?? null}, topic),
+           closed_at = ${status === "closed" ? new Date() : null}
+     where id = ${sessionId}
+  `;
+}
+
+function greeting(user: User): Draft {
+  return bot(
     `Merhaba ${user.name.split(" ")[0]} 👋 Ben Sofra Asistanı. Sana nasıl yardımcı olabilirim?`,
     [...QUICK_REPLIES.root]
   );
 }
 
-export function getOrCreateSession(
+export async function getOrCreateSession(
   user: User,
   sessionId?: string,
   orderId?: string
-): SupportSession {
-  const existing = sessionId
-    ? db().support.find((s) => s.id === sessionId && s.userId === user.id)
-    : undefined;
-  if (existing) return existing;
+): Promise<SupportSession> {
+  if (sessionId) {
+    const [existing] = await sql<SessionRow[]>`
+      select * from public.support_sessions where id = ${sessionId} and user_id = ${user.id}
+    `;
+    if (existing) return loadSession(existing.id);
+  }
 
-  const session: SupportSession = {
-    id: createId("sup"),
-    userId: user.id,
-    orderId,
-    messages: [greetingMessage(user)],
-    escalated: false,
-  };
-  db().support.push(session);
-  commit();
-  return session;
+  // Açık bir oturum varsa onu sürdür (aynı siparişle ilgiliyse)
+  const [open] = await sql<SessionRow[]>`
+    select * from public.support_sessions
+     where user_id = ${user.id} and status <> 'closed'
+       and (${orderId ?? null}::text is null or order_id = ${orderId ?? null}::text)
+     order by updated_at desc limit 1
+  `;
+  if (open) return loadSession(open.id);
+
+  let validOrderId: string | null = null;
+  if (orderId) {
+    const order = await findOrder(orderId);
+    if (order && order.userId === user.id) validOrderId = order.id;
+  }
+
+  const id = createId("sup");
+  await sql.begin(async (tx) => {
+    await tx`
+      insert into public.support_sessions (id, user_id, order_id, status)
+      values (${id}, ${user.id}, ${validOrderId}, 'bot')
+    `;
+    await addMessages(tx, id, [greeting(user)]);
+  });
+  return loadSession(id);
 }
 
 /* ------------------------------------------------------------------ */
@@ -116,9 +197,7 @@ function describeOrder(order: Order): string {
     `Durum: ${meta.label} — ${meta.description}`,
   ];
   if (order.status === "on_the_way" && order.courier) {
-    lines.push(
-      `Kuryen ${order.courier.name}, tahmini varış ${remainingMinutes(order)} dakika.`
-    );
+    lines.push(`Kuryen ${order.courier.name}, tahmini varış ${remainingMinutes(order)} dakika.`);
   } else if (order.status !== "delivered" && order.status !== "cancelled") {
     lines.push(
       `Tahmini teslim saati ${formatTime(order.etaAt)} (yaklaşık ${remainingMinutes(order)} dk).`
@@ -129,191 +208,155 @@ function describeOrder(order: Order): string {
   return lines.join("\n");
 }
 
-function pickOrder(user: User, session: SupportSession): Order | undefined {
+async function pickOrder(user: User, session: SupportSession): Promise<Order | undefined> {
   if (session.orderId) {
-    const byId = listOrders(user).find((o) => o.id === session.orderId);
-    if (byId) return byId;
+    const order = await findOrder(session.orderId);
+    if (order && order.userId === user.id) return order;
   }
-  const active = activeOrders(user);
-  if (active.length) return active[0];
-  return listOrders(user)[0];
+  const orders = await ordersOfUser(user.id, sql, 10);
+  return orders.find((o) => o.status !== "delivered" && o.status !== "cancelled") ?? orders[0];
 }
 
-function respond(
-  user: User,
-  session: SupportSession,
-  intent: Intent,
-  rawText: string
-): SupportMessage[] {
-  const order = pickOrder(user, session);
-  const back = [...QUICK_REPLIES.root];
+interface Outcome {
+  drafts: Draft[];
+  /** Konuşma temsilci kuyruğuna aktarılıyorsa konu başlığı */
+  escalate?: string;
+}
 
-  if (session.escalated) {
-    return [
-      message(
-        "agent",
-        "Mesajın temsilciye iletildi. Yoğunluğa göre ortalama yanıt süremiz 2-3 dakika. 🙏"
-      ),
-    ];
-  }
+const AGENT_HANDOFF =
+  "Talebini müşteri temsilcisi kuyruğuna aktardım. Bir temsilci bu sohbete buradan yanıt verecek.";
+
+async function respond(user: User, session: SupportSession, intent: Intent, rawText: string): Promise<Outcome> {
+  const order = await pickOrder(user, session);
+  const back = [...QUICK_REPLIES.root];
 
   switch (intent) {
     case "greeting":
-      return [greetingMessage(user)];
+      return { drafts: [greeting(user)] };
 
     case "where_is_order":
     case "late_order": {
       if (!order) {
-        return [
-          message(
-            "bot",
-            "Görünüşe göre aktif bir siparişin yok. Yeni bir sipariş vermek için anasayfaya dönebilirsin.",
-            back
-          ),
-        ];
+        return {
+          drafts: [bot("Görünüşe göre aktif bir siparişin yok. Yeni bir sipariş vermek için anasayfaya dönebilirsin.", back)],
+        };
       }
-      const out = [message("bot", describeOrder(order))];
-      if (intent === "late_order" && order.status !== "delivered") {
-        out.push(
-          message(
-            "bot",
-            "Gecikme için özür dileriz. Sipariş tahmini süreyi 10 dakikadan fazla aşarsa cüzdanına otomatik 50 ₺ jest kodu tanımlanır.",
-            [
-              { id: "agent", label: "Yine de temsilciye bağlan" },
-              { id: "root", label: "Başka bir konu" },
-            ]
-          )
+      const drafts = [bot(describeOrder(order))];
+      if (intent === "late_order" && order.status !== "delivered" && order.status !== "cancelled") {
+        drafts.push(
+          bot("Gecikme için özür dileriz. İstersen bir temsilci siparişini restoran ve kuryeyle birlikte kontrol etsin.", [
+            { id: "agent", label: "Temsilciye bağlan" },
+            { id: "root", label: "Başka bir konu" },
+          ])
         );
       } else {
-        out.push(
-          message("bot", "Başka bir konuda yardımcı olabilir miyim?", back)
-        );
+        drafts.push(bot("Başka bir konuda yardımcı olabilir miyim?", back));
       }
-      return out;
+      return { drafts };
     }
 
     case "cancel_order": {
       if (!order || order.status === "delivered" || order.status === "cancelled") {
-        return [
-          message(
-            "bot",
-            "İptal edilebilecek aktif bir siparişin bulunmuyor.",
-            back
-          ),
-        ];
+        return { drafts: [bot("İptal edilebilecek aktif bir siparişin bulunmuyor.", back)] };
       }
       if (!CANCELLABLE_STATUSES.includes(order.status)) {
-        return [
-          message(
-            "bot",
-            `${order.code} numaralı siparişin kuryede olduğu için uygulamadan iptal edilemiyor. Temsilcimiz restoranla görüşerek çözüm üretebilir.`,
+        return {
+          drafts: [
+            bot(
+              `${order.code} numaralı siparişin kuryede olduğu için uygulamadan iptal edilemiyor. Temsilcimiz restoranla görüşerek çözüm üretebilir.`,
+              [
+                { id: "agent", label: "Temsilciye bağlan" },
+                { id: "root", label: "Başka bir konu" },
+              ]
+            ),
+          ],
+        };
+      }
+      return {
+        drafts: [
+          bot(
+            `${order.code} numaralı siparişin (${formatPrice(order.totals.grandTotal)}) iptal edilecek. Onaylıyor musun?`,
             [
-              { id: "agent", label: "Temsilciye bağlan" },
-              { id: "root", label: "Başka bir konu" },
+              { id: "confirm_cancel", label: "Evet, iptal et" },
+              { id: "root", label: "Vazgeçtim" },
             ]
           ),
-        ];
-      }
-      return [
-        message(
-          "bot",
-          `${order.code} numaralı siparişin (${formatPrice(order.totals.grandTotal)}) iptal edilecek. Onaylıyor musun?`,
-          [
-            { id: "confirm_cancel", label: "Evet, iptal et" },
-            { id: "root", label: "Vazgeçtim" },
-          ]
-        ),
-      ];
+        ],
+      };
     }
 
     case "missing_item":
-      return [
-        message(
-          "bot",
-          order
-            ? `${order.code} numaralı sipariş için eksik/yanlış ürün kaydı oluşturdum. Restoranla görüşülüp 30 dakika içinde dönüş yapılacak; onaylanırsa tutar cüzdanına iade edilir.`
-            : "Hangi siparişle ilgili olduğunu bulamadım. Siparişlerim sayfasından ilgili siparişi seçerek tekrar deneyebilirsin.",
-          [
-            { id: "agent", label: "Temsilciye bağlan" },
-            { id: "root", label: "Başka bir konu" },
-          ]
-        ),
-      ];
+      if (!order) {
+        return {
+          drafts: [bot("Hangi siparişle ilgili olduğunu bulamadım. Siparişlerim sayfasından ilgili siparişi açıp oradan destek başlatabilirsin.", back)],
+        };
+      }
+      return {
+        drafts: [
+          bot(
+            `${order.code} numaralı sipariş için eksik/yanlış ürün bildirimini aldım. ${AGENT_HANDOFF} Onaylanırsa ilgili tutar cüzdanına iade edilir.`
+          ),
+        ],
+        escalate: "missing_item",
+      };
 
-    case "payment_issue":
-      return [
-        message(
-          "bot",
-          [
-            `Cüzdan bakiyen: **${formatPrice(user.walletBalance)}**.`,
-            "Online ödemelerde iptal ettiğin siparişlerin tutarı anında cüzdanına yansır.",
-            "Kredi kartına iade talep edersen banka sürecine bağlı olarak 1-7 iş günü sürer.",
-          ].join("\n"),
-          [
-            { id: "agent", label: "Kartıma iade istiyorum" },
+    case "payment_issue": {
+      const lines = [`Cüzdan bakiyen: **${formatPrice(user.walletBalance)}**.`];
+      lines.push("Online ödenen bir siparişi iptal ettiğinde tutar anında cüzdanına yansır.");
+      lines.push("Kapıda ödemeli siparişlerde iptal hâlinde tahsilat yapılmaz.");
+      return {
+        drafts: [
+          bot(lines.join("\n"), [
+            { id: "agent", label: "İade için temsilci" },
             { id: "root", label: "Başka bir konu" },
-          ]
-        ),
-      ];
+          ]),
+        ],
+      };
+    }
 
     case "invoice":
-      return [
-        message(
-          "bot",
-          order
-            ? `${order.code} numaralı siparişin e-faturası ${user.email ?? "kayıtlı e-posta adresine"} gönderildi.`
-            : "Fatura talebin için sipariş numarasını paylaşabilir misin?",
-          back
-        ),
-      ];
+      return {
+        drafts: [
+          bot(
+            order
+              ? `${order.code} numaralı siparişin faturası için talebini aldım. ${AGENT_HANDOFF}`
+              : `Fatura talebini aldım. ${AGENT_HANDOFF}`
+          ),
+        ],
+        escalate: "invoice",
+      };
 
     case "courier_call":
-      if (order?.courier) {
-        return [
-          message(
-            "bot",
-            `Kuryen ${order.courier.name}. Gizliliğin için maskeli hattımız üzerinden arayabilirsin: **${order.courier.maskedPhone}**. Bu numara teslimattan 1 saat sonra devre dışı kalır.`,
-            back
-          ),
-        ];
+      if (order?.courier && order.status !== "delivered" && order.status !== "cancelled") {
+        return {
+          drafts: [
+            bot(
+              `Kuryen ${order.courier.name}. Takip ekranındaki "Ara" düğmesiyle maskeli hat üzerinden arayabilirsin; iki taraf da birbirinin numarasını görmez.`,
+              back
+            ),
+          ],
+        };
       }
-      return [
-        message(
-          "bot",
-          "Siparişine henüz kurye atanmadı. Kurye atandığında takip ekranından arayabilirsin.",
-          back
-        ),
-      ];
+      return {
+        drafts: [bot("Siparişine henüz kurye atanmadı. Kurye atandığında takip ekranından arayabilirsin.", back)],
+      };
 
     case "agent":
-      session.escalated = true;
-      return [
-        message(
-          "bot",
-          "Seni bir müşteri temsilcisine aktarıyorum, hattan ayrılma. ⏳"
-        ),
-        message(
-          "agent",
-          `Merhaba, ben Sofra destek ekibinden Nazlı. ${
-            order ? `${order.code} numaralı siparişini` : "Konunu"
-          } inceliyorum, hemen dönüş yapacağım.`
-        ),
-      ];
+      return { drafts: [bot(AGENT_HANDOFF)], escalate: "agent" };
 
     case "thanks":
-      return [
-        message("bot", "Rica ederim, afiyet olsun! 🧡", back),
-      ];
+      return { drafts: [bot("Rica ederim, afiyet olsun! 🧡", back)] };
 
     case "unknown":
     default:
-      return [
-        message(
-          "bot",
-          `"${rawText.slice(0, 80)}" ile ilgili emin olamadım. Aşağıdaki başlıklardan birini seçebilir ya da sorunu biraz daha açabilirsin.`,
-          [...back, { id: "agent", label: "Temsilciye bağlan" }]
-        ),
-      ];
+      return {
+        drafts: [
+          bot(
+            `"${rawText.slice(0, 80)}" ile ilgili emin olamadım. Aşağıdaki başlıklardan birini seçebilir ya da sorunu biraz daha açabilirsin.`,
+            [...back, { id: "agent", label: "Temsilciye bağlan" }]
+          ),
+        ],
+      };
   }
 }
 
@@ -328,65 +371,57 @@ export interface ChatInput {
   orderId?: string;
 }
 
-export function chat(user: User, input: ChatInput): SupportSession {
-  const session = getOrCreateSession(user, input.sessionId, input.orderId);
-  if (input.orderId) session.orderId = input.orderId;
-
+export async function chat(user: User, input: ChatInput): Promise<SupportSession> {
+  const session = await getOrCreateSession(user, input.sessionId, input.orderId);
   const quick = input.quickReplyId;
-  const text = (input.text ?? "").trim();
+  const text = (input.text ?? "").trim().slice(0, 500);
 
-  // Kullanıcı mesajını kaydet
-  if (quick) {
-    const label =
-      [...QUICK_REPLIES.root, { id: "confirm_cancel", label: "Evet, iptal et" },
-        { id: "root", label: "Başka bir konu" },
-        { id: "agent", label: "Temsilciye bağlan" }].find((q) => q.id === quick)
-        ?.label ?? quick;
-    session.messages.push(message("user", label));
-  } else if (text) {
-    session.messages.push(message("user", text.slice(0, 500)));
-  } else {
-    commit();
-    return session;
+  const userLabel = quick
+    ? (QUICK_REPLIES.root.find((q) => q.id === quick)?.label ?? EXTRA_LABELS[quick] ?? quick)
+    : text;
+  if (!userLabel) return session;
+
+  // Kapanmış oturuma yazılırsa asistan yeniden devreye girer
+  if (session.status === "closed") await setStatus(sql, session.id, "bot");
+
+  await addMessages(sql, session.id, [{ role: "user", text: userLabel }]);
+
+  // Temsilci kuyruğundayken mesajlar temsilciye gider, asistan araya girmez
+  if (session.status === "waiting_agent" || session.status === "with_agent") {
+    return loadSession(session.id);
   }
 
-  // Özel aksiyon: iptal onayı
   if (quick === "confirm_cancel") {
-    const order = pickOrder(user, session);
-    if (order) {
+    const order = await pickOrder(user, session);
+    let reply: Draft;
+    if (!order) {
+      reply = bot("İptal edilecek sipariş bulunamadı.", [...QUICK_REPLIES.root]);
+    } else {
       try {
-        cancelOrder(user, order.id, "Canlı destek üzerinden iptal");
-        session.messages.push(
-          message(
-            "bot",
-            `${order.code} numaralı siparişin iptal edildi. Ödeme tutarı ${formatPrice(order.totals.grandTotal)} cüzdanına iade edildi.`,
-            [...QUICK_REPLIES.root]
-          )
+        const result = await cancelOrder(user, order.id, "Canlı destek üzerinden iptal");
+        reply = bot(
+          PAYMENT_METHODS[order.paymentMethod].onDelivery
+            ? `${order.code} numaralı siparişin iptal edildi. Kapıda ödeme seçtiğin için tahsilat yapılmayacak.`
+            : `${order.code} numaralı siparişin iptal edildi. ${formatPrice(result.refunded)} cüzdanına iade edildi.`,
+          [...QUICK_REPLIES.root]
         );
       } catch (err) {
-        session.messages.push(
-          message(
-            "bot",
-            err instanceof Error
-              ? err.message
-              : "İptal işlemi tamamlanamadı, temsilciye bağlanmanı öneririm.",
-            [{ id: "agent", label: "Temsilciye bağlan" }]
-          )
+        reply = bot(
+          err instanceof DomainError ? err.message : "İptal işlemi tamamlanamadı, temsilciye bağlanmanı öneririm.",
+          [{ id: "agent", label: "Temsilciye bağlan" }]
         );
       }
     }
-    commit();
-    return session;
+    await addMessages(sql, session.id, [reply]);
+    return loadSession(session.id);
   }
 
-  const intent: Intent =
-    quick === "root"
-      ? "greeting"
-      : quick
-        ? (quick as Intent)
-        : detectIntent(text);
+  const intent: Intent = quick === "root" ? "greeting" : quick ? (quick as Intent) : detectIntent(text);
+  const outcome = await respond(user, session, intent, text);
 
-  respond(user, session, intent, text).forEach((m) => session.messages.push(m));
-  commit();
-  return session;
+  await sql.begin(async (tx) => {
+    await addMessages(tx, session.id, outcome.drafts);
+    if (outcome.escalate) await setStatus(tx, session.id, "waiting_agent", outcome.escalate);
+  });
+  return loadSession(session.id);
 }

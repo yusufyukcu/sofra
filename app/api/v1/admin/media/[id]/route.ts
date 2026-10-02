@@ -25,10 +25,10 @@ export async function POST(
 
     switch (body.action) {
       case "approve":
-        approveMediaRequest(admin, id);
+        await approveMediaRequest(admin, id);
         break;
       case "reject":
-        rejectMediaRequest(admin, id, body.reason ?? "");
+        await rejectMediaRequest(admin, id, body.reason ?? "");
         break;
       default:
         throw new DomainError(
@@ -37,6 +37,6 @@ export async function POST(
         );
     }
 
-    return ok({ rows: adminMediaRequests() });
+    return ok({ rows: await adminMediaRequests() });
   });
 }

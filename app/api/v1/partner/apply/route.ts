@@ -14,7 +14,7 @@ import {
 export async function POST(request: Request) {
   return handle(async () => {
     const body = await readJson<ApplicationInput>(request);
-    const application = submitApplication(body);
+    const application = await submitApplication(body);
 
     return ok(
       {
@@ -40,6 +40,6 @@ export async function GET(request: Request) {
     if (!code) {
       return fail("missing_code", "Başvuru referans kodunu gir.");
     }
-    return ok(applicationStatus(code));
+    return ok(await applicationStatus(code));
   });
 }

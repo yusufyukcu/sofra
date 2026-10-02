@@ -27,20 +27,96 @@ export function formatDistance(km: number): string {
   return `${km.toFixed(1).replace(".", ",")} km`;
 }
 
+/**
+ * Platformun saat dilimi. Sunucular UTC'de çalışır (Vercel); çalışma
+ * saatleri, rapor günleri ve ekranda gösterilen saatler hep İstanbul'a
+ * göre hesaplanır — sunucuda ve tarayıcıda aynı sonucu versin diye.
+ */
+export const APP_TIME_ZONE = "Europe/Istanbul";
+
+const timeFormatter = new Intl.DateTimeFormat("tr-TR", {
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: APP_TIME_ZONE,
+});
+
+const dateTimeFormatter = new Intl.DateTimeFormat("tr-TR", {
+  day: "numeric",
+  month: "long",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: APP_TIME_ZONE,
+});
+
 export function formatTime(iso: string): string {
-  return new Intl.DateTimeFormat("tr-TR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(iso));
+  return timeFormatter.format(new Date(iso));
 }
 
 export function formatDateTime(iso: string): string {
-  return new Intl.DateTimeFormat("tr-TR", {
-    day: "numeric",
-    month: "long",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(iso));
+  return dateTimeFormatter.format(new Date(iso));
+}
+
+/* ------------------------------------------------------------------ */
+/* Saat dilimi bilinçli takvim anahtarları                             */
+/* ------------------------------------------------------------------ */
+
+const dayKeyFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: APP_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/** İstanbul takvimine göre gün: "2026-10-02" */
+export function dayKey(date: Date): string {
+  return dayKeyFormatter.format(date);
+}
+
+/** İstanbul takvimine göre haftanın pazartesisi: "2026-09-28" */
+export function weekKey(date: Date): string {
+  const [y, m, d] = dayKey(date).split("-").map(Number);
+  const utc = new Date(Date.UTC(y, m - 1, d));
+  utc.setUTCDate(utc.getUTCDate() - ((utc.getUTCDay() + 6) % 7));
+  return utc.toISOString().slice(0, 10);
+}
+
+/** İstanbul takvimine göre ay: "2026-10" */
+export function monthKey(date: Date): string {
+  return dayKey(date).slice(0, 7);
+}
+
+/** Takvim anahtarına `days` gün ekler: ("2026-09-28", 6) → "2026-10-04" */
+export function addDaysToKey(key: string, days: number): string {
+  const [y, m, d] = key.split("-").map(Number);
+  const utc = new Date(Date.UTC(y, m - 1, d + days));
+  return utc.toISOString().slice(0, 10);
+}
+
+const keyLabelFormatter = new Intl.DateTimeFormat("tr-TR", {
+  day: "numeric",
+  month: "short",
+  timeZone: "UTC",
+});
+
+/** "2026-09-28" → "28 Eyl" (anahtar takvim günüdür, saat dilimi kaydırmaz) */
+export function formatDayKey(key: string): string {
+  return keyLabelFormatter.format(new Date(`${key}T12:00:00Z`));
+}
+
+/** "2026-09-28" → "28 Eyl – 4 Eki" */
+export function formatWeekKey(key: string): string {
+  return `${formatDayKey(key)} – ${formatDayKey(addDaysToKey(key, 6))}`;
+}
+
+const monthLabelFormatter = new Intl.DateTimeFormat("tr-TR", {
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/** "2026-10" → "Ekim 2026" */
+export function formatMonthKey(key: string): string {
+  return monthLabelFormatter.format(new Date(`${key}-15T12:00:00Z`));
 }
 
 export function formatPhone(raw: string): string {
@@ -101,6 +177,33 @@ export function buildRoute(from: LatLng, to: LatLng, steps = 28): LatLng[] {
   return route;
 }
 
+/** Nokta çokgenin içinde mi (ışın atma; enlem = y, boylam = x). */
+export function pointInPolygon(point: LatLng, polygon: LatLng[]): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const a = polygon[i];
+    const b = polygon[j];
+    const crosses =
+      a.lat > point.lat !== b.lat > point.lat &&
+      point.lng < ((b.lng - a.lng) * (point.lat - a.lat)) / (b.lat - a.lat) + a.lng;
+    if (crosses) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * Adres restoranın teslimat bölgesinde mi. Restoran poligon çizdiyse o
+ * geçerlidir; çizmediyse merkezden yarıçap.
+ */
+export function isInDeliveryZone(
+  restaurant: Pick<Restaurant, "location" | "deliveryRadiusKm" | "deliveryZone">,
+  point: LatLng
+): boolean {
+  const zone = restaurant.deliveryZone;
+  if (zone && zone.length >= 3) return pointInPolygon(point, zone);
+  return distanceKm(point, restaurant.location) <= restaurant.deliveryRadiusKm;
+}
+
 /* ------------------------------------------------------------------ */
 /* Çalışma saatleri                                                    */
 /* ------------------------------------------------------------------ */
@@ -110,11 +213,26 @@ function minutesOf(hhmm: string): number {
   return h * 60 + m;
 }
 
+const clockFormatter = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: APP_TIME_ZONE,
+});
+
+/** İstanbul saatiyle gün içindeki dakika (0–1439). */
+export function minutesOfDay(now = new Date()): number {
+  const parts = clockFormatter.formatToParts(now);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+  return (hour % 24) * 60 + minute;
+}
+
 export function isWithinWorkingHours(
   hours: { open: string; close: string },
   now = new Date()
 ): boolean {
-  const current = now.getHours() * 60 + now.getMinutes();
+  const current = minutesOfDay(now);
   const open = minutesOf(hours.open);
   const close = minutesOf(hours.close);
   // Gece yarısını aşan vardiyalar (ör. 11:00 → 02:00)
@@ -128,7 +246,7 @@ export function isOnBreak(
   now = new Date()
 ): boolean {
   if (!breakHours) return false;
-  const current = now.getHours() * 60 + now.getMinutes();
+  const current = minutesOfDay(now);
   return (
     current >= minutesOf(breakHours.start) && current < minutesOf(breakHours.end)
   );

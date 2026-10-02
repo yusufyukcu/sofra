@@ -2,11 +2,11 @@ import { handle, ok, readJson } from "@/lib/api/respond";
 import { requireUser } from "@/lib/auth/session";
 import { createOrder, listOrders, type CreateOrderInput } from "@/lib/services/orders";
 
-/** GET /api/v1/orders — sipariş geçmişi (durumları güncellenmiş hâlde) */
+/** GET /api/v1/orders — sipariş geçmişi */
 export async function GET(request: Request) {
   return handle(async () => {
     const user = await requireUser(request);
-    return ok({ orders: listOrders(user) });
+    return ok({ orders: await listOrders(user) });
   });
 }
 
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   return handle(async () => {
     const user = await requireUser(request);
     const body = await readJson<CreateOrderInput>(request);
-    const order = createOrder(user, body);
-    return ok({ order, walletBalance: user.walletBalance }, { status: 201 });
+    const { order, walletBalance } = await createOrder(user, body);
+    return ok({ order, walletBalance }, { status: 201 });
   });
 }

@@ -6,6 +6,6 @@ import { adminFinance } from "@/lib/services/admin";
 export async function GET(request: Request) {
   return handle(async () => {
     await requireAdmin(request);
-    return ok(adminFinance());
+    return ok(await adminFinance());
   });
 }

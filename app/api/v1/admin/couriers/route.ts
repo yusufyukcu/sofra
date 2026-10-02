@@ -6,6 +6,6 @@ import { adminCouriers } from "@/lib/services/admin";
 export async function GET(request: Request) {
   return handle(async () => {
     await requireAdmin(request);
-    return ok({ rows: adminCouriers() });
+    return ok({ rows: await adminCouriers() });
   });
 }

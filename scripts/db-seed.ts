@@ -184,10 +184,11 @@ async function main() {
     }
 
     /* Ayarlar */
+    // Değerler JSON olarak yazılır (sim_speed sayı, metin değil)
     await tx`
       insert into public.app_settings (key, value) values
-        ('demo_mode', 'true'::jsonb),
-        ('sim_speed', ${String(simSpeed)}::jsonb)
+        ('demo_mode', ${tx.json(true)}),
+        ('sim_speed', ${tx.json(simSpeed)})
     `;
 
     /* Restoranlar, kategoriler, ürünler */

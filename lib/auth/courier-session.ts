@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { SignJWT, jwtVerify } from "jose";
-import { findCourier } from "../db/store";
+import { findCourier } from "../db/queries";
 import { DomainError } from "../errors";
 import type { Courier } from "../types";
 
@@ -66,7 +66,7 @@ export async function currentCourier(
 
   const courierId = await verifyCourierSession(token);
   if (!courierId) return null;
-  return findCourier(courierId) ?? null;
+  return (await findCourier(courierId)) ?? null;
 }
 
 export async function requireCourier(request?: Request): Promise<Courier> {
@@ -89,10 +89,9 @@ export const courierCookieOptions = {
   secure: process.env.NODE_ENV === "production",
 };
 
-/** Kurye hesabının istemciye dönen güvenli gösterimi (PIN hariç). */
+/** Kurye hesabının istemciye dönen gösterimi. */
 export function publicCourier(courier: Courier) {
-  const { pin: _pin, ...rest } = courier;
-  return rest;
+  return courier;
 }
 
 export async function respondWithCourierSession(

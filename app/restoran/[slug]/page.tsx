@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { findRestaurant, reviewsOf } from "@/lib/db/store";
+import { customerMenu, findRestaurant, findRestaurantRow, reviewsOf } from "@/lib/db/queries";
 import { RestaurantClient } from "@/components/restaurant/restaurant-client";
 
 /*
@@ -9,12 +9,13 @@ import { RestaurantClient } from "@/components/restaurant/restaurant-client";
  */
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata(
-  props: PageProps<"/restoran/[slug]">
-): Promise<Metadata> {
+export async function generateMetadata(props: PageProps<"/restoran/[slug]">): Promise<Metadata> {
   const { slug } = await props.params;
-  const restaurant = findRestaurant(slug);
-  if (!restaurant) return { title: "Restoran bulunamadı" };
+  const restaurant = await findRestaurantRow(slug);
+  // Onaysız restoranın adı başlıkta da görünmesin
+  if (!restaurant || restaurant.approvalStatus !== "approved") {
+    return { title: "Restoran bulunamadı" };
+  }
 
   return {
     title: restaurant.name,
@@ -26,18 +27,16 @@ export async function generateMetadata(
   };
 }
 
-export default async function RestaurantPage(
-  props: PageProps<"/restoran/[slug]">
-) {
+export default async function RestaurantPage(props: PageProps<"/restoran/[slug]">) {
   const { slug } = await props.params;
-  const restaurant = findRestaurant(slug);
+  const restaurant = await findRestaurant(slug);
   // Onay bekleyen veya askıya alınan restoranlar müşteriye görünmez
   if (!restaurant || restaurant.approvalStatus !== "approved") notFound();
 
   return (
     <RestaurantClient
-      restaurant={restaurant}
-      reviews={reviewsOf(restaurant.id).slice(0, 24)}
+      restaurant={customerMenu(restaurant)}
+      reviews={await reviewsOf(restaurant.id, 24)}
     />
   );
 }

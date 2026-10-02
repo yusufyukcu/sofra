@@ -10,7 +10,7 @@ import { courierBoard } from "@/lib/services/courier";
 export async function GET(request: Request) {
   return handle(async () => {
     const courier = await requireCourier(request);
-    const board = courierBoard(courier);
+    const board = await courierBoard(courier);
     return ok({ ...board, courier: publicCourier(board.courier) });
   });
 }

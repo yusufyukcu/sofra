@@ -1,69 +1,82 @@
-import { courierDriven, syncOrder } from "../db/simulator";
+import "server-only";
+import { asJson, dispatchNow, sql, type Db } from "../db/client";
 import {
-  commit,
-  db,
-  earningsOf,
+  addOrderEvent,
   findCourier,
-  findUserById,
-  offersOf,
+  findCourierRow,
+  findOrderRow,
+  hydrateOrders,
+} from "../db/queries";
+import {
   toCourierSummary,
-} from "../db/store";
+  toEarning,
+  toOffer,
+  type EarningRow,
+  type OfferRow,
+  type OrderRow,
+} from "../db/mappers";
+import { appSettings, scaledMs } from "../db/settings";
+import { toCourierView } from "../orders/progress";
 import { DomainError } from "../errors";
-import type {
-  Courier,
-  CourierEarning,
-  DeliveryOffer,
-  LatLng,
-  Order,
-} from "../types";
-import { buildRoute, createId, distanceKm, round2 } from "../utils";
-import { OFFER_TTL_SECONDS } from "../courier-constants";
+import type { Courier, CourierEarning, DeliveryOffer, LatLng, Order } from "../types";
+import { buildRoute, createId, dayKey, distanceKm, formatDayKey, round2 } from "../utils";
+import { COURIER_PIN } from "../db/seed";
 import { payoutsFor } from "./payouts";
 
 /**
  * Kurye Uygulaması (Courier App) iş mantığı.
  *
  * Üç sorumluluk: vardiya ve konum, teklif akışı (atanan siparişi süre
- * kısıtıyla kabul/ret) ve teslimat aşamaları. Kazanç ve performans
- * metrikleri tamamlanan teslimatlardan türetilir.
+ * kısıtıyla kabul/ret) ve teslimat aşamaları. Teklifleri veritabanındaki
+ * dağıtım turu üretir (`app_private.dispatch_tick`); burası kuryenin
+ * kararlarını uygular.
  */
 
-/* ================================================================== */
-/* Ücretlendirme                                                      */
-/* ================================================================== */
-
-/** Kuryeye ödenen paket ücreti: sabit taban + mesafe başına. */
-const FEE_BASE = 35;
-const FEE_PER_KM = 11;
-const FEE_MIN = 45;
-
+/** Kuryeye ödenen paket ücreti: sabit taban + mesafe başına (dağıtım turuyla aynı). */
 export function courierFee(totalKm: number): number {
-  return round2(Math.max(FEE_MIN, FEE_BASE + totalKm * FEE_PER_KM));
+  return round2(Math.max(45, 35 + totalKm * 11));
 }
 
-/** Teklifin kuryede kalma süresi — "süre kısıtlı" kabul penceresi. */
 export { OFFER_TTL_SECONDS } from "../courier-constants";
 
 /* ================================================================== */
-/* Giriş                                                              */
+/* Giriş (geçici: Supabase Auth'a geçişte telefon + kodla değişecek)  */
 /* ================================================================== */
 
-export function courierLogin(courierId: string, pin: string): Courier {
-  const courier = findCourier(courierId);
-  if (!courier) {
-    throw new DomainError("courier_not_found", "Kurye hesabı bulunamadı.", 404);
-  }
-  if (courier.pin !== pin.trim()) {
-    throw new DomainError("invalid_pin", "PIN hatalı. Tekrar dene.", 401);
-  }
+export async function courierLogin(courierId: string, pin: string): Promise<Courier> {
+  const courier = await findCourier(courierId);
+  if (!courier) throw new DomainError("courier_not_found", "Kurye hesabı bulunamadı.", 404);
+  if (pin.trim() !== COURIER_PIN) throw new DomainError("invalid_pin", "PIN hatalı. Tekrar dene.", 401);
   return courier;
+}
+
+export async function courierPickerList() {
+  const rows = await sql<
+    { id: string; name: string; emoji: string; vehicle: Courier["vehicle"]; rating: number; online: boolean }[]
+  >`select id, name, emoji, vehicle, rating, online from public.couriers order by id`;
+  return rows;
 }
 
 /* ================================================================== */
 /* Vardiya ve konum                                                   */
 /* ================================================================== */
 
-export function setShift(courier: Courier, online: boolean): Courier {
+const ACTIVE_STAGES = ["assigned", "at_restaurant", "picked_up"];
+
+/** Kuryenin üzerindeki açık teslimat. İptal ve teslim edilenler sayılmaz. */
+export async function activeOrderRow(courierId: string, db: Db = sql): Promise<OrderRow | null> {
+  const [row] = await db<OrderRow[]>`
+    select * from public.orders
+     where courier_id = ${courierId}
+       and courier_stage = any(${ACTIVE_STAGES}::text[])
+       and status not in ('delivered', 'cancelled')
+     order by created_at desc
+     limit 1
+  `;
+  return row ?? null;
+}
+
+export async function setShift(courier: Courier, online: boolean): Promise<Courier> {
   if (online && courier.status !== "active") {
     throw new DomainError(
       "courier_not_active",
@@ -72,254 +85,155 @@ export function setShift(courier: Courier, online: boolean): Courier {
         : "Hesabın askıya alındı. Destek ekibiyle iletişime geçmelisin."
     );
   }
-  if (!online && activeOrderOf(courier.id)) {
-    throw new DomainError(
-      "active_delivery",
-      "Üzerinde açık bir teslimat varken mesaiyi kapatamazsın."
-    );
-  }
 
-  courier.online = online;
-  if (online) {
-    courier.shiftStartedAt = new Date().toISOString();
-  } else {
-    courier.shiftStartedAt = undefined;
-    // Vardiya dışında bekleyen teklifleri düşür
-    db()
-      .offers.filter((o) => o.courierId === courier.id && o.status === "pending")
-      .forEach((o) => {
-        o.status = "expired";
-        const order = db().orders.find((x) => x.id === o.orderId);
-        if (order && order.courierStage === "offered") {
-          order.courierStage = "unassigned";
-        }
-      });
-  }
+  await sql.begin(async (tx) => {
+    if (!online && (await activeOrderRow(courier.id, tx))) {
+      throw new DomainError(
+        "active_delivery",
+        "Üzerinde açık bir teslimat varken mesaiyi kapatamazsın."
+      );
+    }
 
-  commit();
-  return courier;
+    await tx`
+      update public.couriers
+         set online = ${online},
+             shift_started_at = ${online ? new Date() : null}
+       where id = ${courier.id}
+    `;
+
+    if (!online) {
+      // Vardiya dışında bekleyen teklifler düşer, sipariş başka kuryeye gider
+      const expired = await tx<{ orderId: string }[]>`
+        update public.delivery_offers set status = 'expired', responded_at = now()
+         where courier_id = ${courier.id} and status = 'pending'
+        returning order_id
+      `;
+      if (expired.length) {
+        await tx`
+          update public.orders set courier_stage = 'unassigned'
+           where id = any(${expired.map((e) => e.orderId)}::text[])
+             and courier_stage = 'offered' and courier_id is null
+        `;
+      }
+    }
+  });
+
+  if (online) await dispatchNow().catch((err) => console.warn("[sofra/dispatch]", err));
+  return (await findCourier(courier.id))!;
 }
 
 /**
- * Cihazdan gelen konum bildirimi.
- * Kuryenin üzerinde açık bir teslimat varsa siparişin canlı kurye konumu
- * da güncellenir — müşterinin takip haritası bundan beslenir.
+ * Cihazdan gelen konum bildirimi. Kuryenin üzerinde açık teslimat varsa
+ * siparişin canlı kurye konumu da güncellenir — müşterinin takip haritası
+ * bundan beslenir.
  */
-export function updateLocation(courier: Courier, point: LatLng): Courier {
+export async function updateLocation(courier: Courier, point: LatLng): Promise<Courier> {
   if (
     !point ||
     typeof point.lat !== "number" ||
     typeof point.lng !== "number" ||
+    !Number.isFinite(point.lat) ||
+    !Number.isFinite(point.lng) ||
     Math.abs(point.lat) > 90 ||
     Math.abs(point.lng) > 180
   ) {
     throw new DomainError("invalid_point", "Geçersiz konum bilgisi.");
   }
 
-  courier.point = { lat: point.lat, lng: point.lng };
-
-  const order = activeOrderOf(courier.id);
-  if (order) order.courierPoint = courier.point;
-
-  commit();
-  return courier;
+  await sql`
+    update public.couriers
+       set lat = ${point.lat}, lng = ${point.lng}, location_updated_at = now()
+     where id = ${courier.id}
+  `;
+  await sql`
+    update public.orders
+       set courier_lat = ${point.lat}, courier_lng = ${point.lng}
+     where courier_id = ${courier.id}
+       and courier_stage = any(${ACTIVE_STAGES}::text[])
+       and status not in ('delivered', 'cancelled')
+  `;
+  return (await findCourier(courier.id))!;
 }
 
 /* ================================================================== */
-/* Teklif akışı (dispatcher)                                          */
+/* Teklif akışı                                                       */
 /* ================================================================== */
 
-const ACTIVE_STAGES = ["assigned", "at_restaurant", "picked_up"];
-
-export function activeOrderOf(courierId: string): Order | undefined {
-  return db().orders.find(
-    (o) =>
-      o.courier?.id === courierId &&
-      o.courierStage !== undefined &&
-      ACTIVE_STAGES.includes(o.courierStage)
-  );
-}
-
-/**
- * Teklif senkronizasyonu.
- *
- * Simülatörle aynı mantıkla okuma anında (lazy) çalışır: süresi dolan
- * teklifleri kapatır, kurye bekleyen siparişler için en yakın uygun
- * kuryeye yeni teklif üretir. Reddeden veya süresi dolan kuryeye aynı
- * sipariş ikinci kez gönderilmez.
- */
-export function syncOffers(now = Date.now()): void {
-  const store = db();
-
-  /*
-   * 0) Teklif verebilmek için siparişlerin durumu güncel olmalı.
-   * Bir sipariş ancak "Hazırlanıyor"a geçtiğinde kurye aranır; bu geçişi
-   * simülatör veya restoran paneli yapar, dolayısıyla önce senkronlarız.
-   */
-  store.orders
-    .filter(
-      (o) =>
-        o.courierMode === "platform" &&
-        o.status !== "delivered" &&
-        o.status !== "cancelled"
-    )
-    .forEach((o) => syncOrder(o, now));
-
-  let changed = false;
-
-  /* 1) Süresi dolanlar */
-  for (const offer of store.offers) {
-    if (offer.status !== "pending") continue;
-    if (new Date(offer.expiresAt).getTime() > now) continue;
-
-    offer.status = "expired";
-    const order = store.orders.find((o) => o.id === offer.orderId);
-    if (order && order.courierStage === "offered") {
-      order.courierStage = "unassigned";
+export async function acceptOffer(courier: Courier, offerId: string): Promise<void> {
+  await sql.begin(async (tx) => {
+    const [offer] = await tx<OfferRow[]>`
+      select * from public.delivery_offers
+       where id = ${offerId} and courier_id = ${courier.id}
+       for update
+    `;
+    if (!offer) throw new DomainError("offer_not_found", "Teklif bulunamadı.", 404);
+    if (offer.status === "expired" || (offer.status === "pending" && offer.expiresAt.getTime() <= Date.now())) {
+      if (offer.status === "pending") {
+        await tx`update public.delivery_offers set status = 'expired', responded_at = now() where id = ${offer.id}`;
+      }
+      return { error: ["offer_expired", "Teklifin süresi doldu, sipariş başka bir kuryeye gönderildi."] };
     }
-    changed = true;
-  }
-
-  /* 2) Kurye bekleyen siparişler */
-  const online = store.couriers.filter((c) => c.online);
-  if (online.length) {
-    const busy = new Set(
-      store.orders
-        .filter(
-          (o) =>
-            o.courier &&
-            o.courierStage !== undefined &&
-            ACTIVE_STAGES.includes(o.courierStage)
-        )
-        .map((o) => o.courier!.id)
-    );
-    // Aynı turda bir kuryeye iki teklif gitmesin
-    store.offers
-      .filter((o) => o.status === "pending")
-      .forEach((o) => busy.add(o.courierId));
-
-    const waiting = store.orders.filter(
-      (o) =>
-        o.courierMode === "platform" &&
-        o.status === "preparing" &&
-        !o.courier &&
-        (!o.courierStage || o.courierStage === "unassigned")
-    );
-
-    for (const order of waiting) {
-      const seen = new Set(
-        store.offers
-          .filter((f) => f.orderId === order.id)
-          .map((f) => f.courierId)
-      );
-
-      const candidate = online
-        .filter((c) => !busy.has(c.id) && !seen.has(c.id))
-        .map((c) => ({
-          courier: c,
-          km: distanceKm(c.point, order.restaurantLocation),
-        }))
-        .sort((a, b) => a.km - b.km)[0];
-
-      if (!candidate) continue;
-
-      const dropoffKm = distanceKm(
-        order.restaurantLocation,
-        order.address.point
-      );
-
-      store.offers.push({
-        id: createId("ofr"),
-        orderId: order.id,
-        courierId: candidate.courier.id,
-        createdAt: new Date(now).toISOString(),
-        expiresAt: new Date(now + OFFER_TTL_SECONDS * 1000).toISOString(),
-        status: "pending",
-        fee: courierFee(candidate.km + dropoffKm),
-        pickupKm: Math.round(candidate.km * 10) / 10,
-        dropoffKm: Math.round(dropoffKm * 10) / 10,
-      });
-
-      order.courierStage = "offered";
-      busy.add(candidate.courier.id);
-      changed = true;
+    if (offer.status !== "pending") {
+      throw new DomainError("offer_closed", "Bu teklif artık geçerli değil.");
     }
-  }
 
-  if (changed) commit();
-}
+    const fresh = await findCourierRow(courier.id, tx);
+    if (!fresh || fresh.status !== "active" || !fresh.online) {
+      throw new DomainError("courier_offline", "Teklif kabul etmek için mesaide olmalısın.");
+    }
+    if (await activeOrderRow(courier.id, tx)) {
+      throw new DomainError("already_busy", "Üzerinde açık bir teslimat var. Önce onu tamamla.");
+    }
 
-function ownedOffer(courierId: string, offerId: string): DeliveryOffer {
-  const offer = db().offers.find(
-    (o) => o.id === offerId && o.courierId === courierId
-  );
-  if (!offer) {
-    throw new DomainError("offer_not_found", "Teklif bulunamadı.", 404);
-  }
-  return offer;
-}
+    const order = await findOrderRow(offer.orderId, tx, { forUpdate: true });
+    if (!order) throw new DomainError("order_not_found", "Sipariş bulunamadı.", 404);
 
-export function acceptOffer(courier: Courier, offerId: string): Order {
-  syncOffers();
-  const offer = ownedOffer(courier.id, offerId);
+    // İptal edilen, teslim edilen ya da başka kuryenin aldığı sipariş kabul edilemez
+    if (order.status !== "preparing" || order.courierId) {
+      await tx`update public.delivery_offers set status = 'expired', responded_at = now() where id = ${offer.id}`;
+      return {
+        error:
+          order.status === "cancelled"
+            ? ["order_cancelled", "Bu sipariş iptal edildi."]
+            : ["order_taken", "Bu sipariş artık müsait değil."],
+      };
+    }
 
-  if (offer.status === "expired") {
-    throw new DomainError(
-      "offer_expired",
-      "Teklifin süresi doldu, sipariş başka bir kuryeye gönderildi."
-    );
-  }
-  if (offer.status !== "pending") {
-    throw new DomainError("offer_closed", "Bu teklif artık geçerli değil.");
-  }
-  if (activeOrderOf(courier.id)) {
-    throw new DomainError(
-      "already_busy",
-      "Üzerinde açık bir teslimat var. Önce onu tamamla."
-    );
-  }
-
-  const order = db().orders.find((o) => o.id === offer.orderId);
-  if (!order) {
-    throw new DomainError("order_not_found", "Sipariş bulunamadı.", 404);
-  }
-  if (order.courier) {
-    offer.status = "expired";
-    commit();
-    throw new DomainError(
-      "order_taken",
-      "Bu siparişi başka bir kurye aldı."
-    );
-  }
-
-  offer.status = "accepted";
-  order.courier = toCourierSummary(courier);
-  order.courierStage = "assigned";
-  order.courierFee = offer.fee;
-  order.courierPoint = courier.point;
-  order.timeline.push({
-    status: order.status,
-    at: new Date().toISOString(),
-    note: `${courier.name} siparişi üstlendi, restorana gidiyor.`,
+    await tx`
+      update public.delivery_offers set status = 'accepted', responded_at = now() where id = ${offer.id}
+    `;
+    await tx`
+      update public.orders
+         set courier_id = ${courier.id},
+             courier = ${tx.json(asJson(toCourierSummary(fresh)))},
+             courier_stage = 'assigned',
+             courier_fee = ${offer.fee},
+             courier_lat = ${fresh.lat},
+             courier_lng = ${fresh.lng}
+       where id = ${order.id}
+    `;
+    await addOrderEvent(tx, order.id, "preparing", `${fresh.name} siparişi üstlendi, restorana gidiyor.`);
+    return { error: null };
+  }).then((result) => {
+    if (result.error) throw new DomainError(result.error[0], result.error[1]);
   });
-
-  commit();
-  return order;
 }
 
-export function rejectOffer(courier: Courier, offerId: string): void {
-  const offer = ownedOffer(courier.id, offerId);
-  if (offer.status !== "pending") return;
-
-  offer.status = "rejected";
-  const order = db().orders.find((o) => o.id === offer.orderId);
-  if (order && order.courierStage === "offered") {
-    order.courierStage = "unassigned";
-  }
-  commit();
-
+export async function rejectOffer(courier: Courier, offerId: string): Promise<void> {
+  await sql.begin(async (tx) => {
+    const [offer] = await tx<OfferRow[]>`
+      update public.delivery_offers set status = 'rejected', responded_at = now()
+       where id = ${offerId} and courier_id = ${courier.id} and status = 'pending'
+      returning *
+    `;
+    if (!offer) return;
+    await tx`
+      update public.orders set courier_stage = 'unassigned'
+       where id = ${offer.orderId} and courier_stage = 'offered' and courier_id is null
+    `;
+  });
   // Sıradaki en yakın kuryeye hemen gönder
-  syncOffers();
+  await dispatchNow().catch((err) => console.warn("[sofra/dispatch]", err));
 }
 
 /* ================================================================== */
@@ -328,160 +242,98 @@ export function rejectOffer(courier: Courier, offerId: string): void {
 
 export type StageAction = "arrived" | "pickup" | "deliver";
 
-function ownedOrder(courierId: string, orderId: string): Order {
-  const order = db().orders.find(
-    (o) => o.id === orderId && o.courier?.id === courierId
-  );
-  if (!order) {
-    throw new DomainError("order_not_found", "Sipariş bulunamadı.", 404);
-  }
-  return order;
-}
-
 /**
  * Aşama bildirimleri: Restorana vardım → Teslim aldım → Teslim ettim.
  * `pickup` siparişi müşteri tarafında "Yolda"ya, `deliver` ise
  * "Teslim edildi"ye çevirir.
  */
-export function advanceStage(
+export async function advanceStage(
   courier: Courier,
   orderId: string,
   action: StageAction
-): Order {
-  const order = ownedOrder(courier.id, orderId);
-  const now = new Date();
+): Promise<Order> {
+  const settings = await appSettings();
 
-  if (order.status === "cancelled") {
-    throw new DomainError("order_cancelled", "Bu sipariş iptal edilmiş.");
-  }
-
-  if (action === "arrived") {
-    if (order.courierStage !== "assigned") {
-      throw new DomainError(
-        "invalid_stage",
-        "Bu bildirim yalnızca restorana giderken yapılabilir."
-      );
+  await sql.begin(async (tx) => {
+    const order = await findOrderRow(orderId, tx, { forUpdate: true });
+    if (!order || order.courierId !== courier.id) {
+      throw new DomainError("order_not_found", "Sipariş bulunamadı.", 404);
     }
-    order.courierStage = "at_restaurant";
-    order.courierArrivedAt = now.toISOString();
-    order.courierPoint = order.restaurantLocation;
-    order.timeline.push({
-      status: order.status,
-      at: now.toISOString(),
-      note: `${courier.name} restorana vardı.`,
-    });
-  }
-
-  if (action === "pickup") {
-    if (order.courierStage !== "at_restaurant") {
-      throw new DomainError(
-        "invalid_stage",
-        "Önce restorana vardığını bildirmelisin."
-      );
+    if (order.status === "cancelled") {
+      throw new DomainError("order_cancelled", "Bu sipariş iptal edilmiş.");
     }
-    order.courierStage = "picked_up";
-    order.pickedUpAt = now.toISOString();
-    order.status = "on_the_way";
-    order.courierPoint = order.restaurantLocation;
-    // Rota her ihtimale karşı yeniden kurulur (adres güncellenmiş olabilir)
-    order.courierRoute = buildRoute(
-      order.restaurantLocation,
-      order.address.point
-    );
-    order.timeline.push({
-      status: "on_the_way",
-      at: now.toISOString(),
-      note: `${courier.name} siparişi restorandan teslim aldı.`,
-    });
-  }
+    const now = new Date();
 
-  if (action === "deliver") {
-    if (order.courierStage !== "picked_up") {
-      throw new DomainError(
-        "invalid_stage",
-        "Önce siparişi restorandan teslim almalısın."
-      );
+    if (action === "arrived") {
+      if (order.courierStage !== "assigned") {
+        throw new DomainError("invalid_stage", "Bu bildirim yalnızca restorana giderken yapılabilir.");
+      }
+      await tx`
+        update public.orders
+           set courier_stage = 'at_restaurant', courier_arrived_at = ${now},
+               courier_lat = restaurant_lat, courier_lng = restaurant_lng
+         where id = ${order.id}
+      `;
+      await addOrderEvent(tx, order.id, order.status, `${courier.name} restorana vardı.`, now);
     }
-    order.courierStage = "delivered";
-    order.status = "delivered";
-    order.deliveredAt = now.toISOString();
-    order.courierPoint = order.address.point;
-    order.timeline.push({
-      status: "delivered",
-      at: now.toISOString(),
-      note: `${courier.name} siparişi adrese teslim etti.`,
-    });
 
-    recordEarning(courier, order, now);
-    courier.totalDeliveries += 1;
-    courier.point = order.address.point;
-  }
+    if (action === "pickup") {
+      if (order.courierStage !== "at_restaurant") {
+        throw new DomainError("invalid_stage", "Önce restorana vardığını bildirmelisin.");
+      }
+      if (order.status !== "preparing") {
+        throw new DomainError("invalid_stage", "Restoran siparişi henüz onaylamadı.");
+      }
+      const route = buildRoute(
+        { lat: order.restaurantLat, lng: order.restaurantLng },
+        order.address.point
+      );
+      await tx`
+        update public.orders
+           set courier_stage = 'picked_up', status = 'on_the_way', picked_up_at = ${now},
+               courier_lat = restaurant_lat, courier_lng = restaurant_lng,
+               courier_route = ${tx.json(asJson(route))},
+               eta_at = ${new Date(now.getTime() + scaledMs(order.travelMinutes, settings))}
+         where id = ${order.id}
+      `;
+      await addOrderEvent(tx, order.id, "on_the_way", `${courier.name} siparişi restorandan teslim aldı.`, now);
+    }
 
-  commit();
-  return order;
-}
+    if (action === "deliver") {
+      if (order.courierStage !== "picked_up") {
+        throw new DomainError("invalid_stage", "Önce siparişi restorandan teslim almalısın.");
+      }
+      await tx`
+        update public.orders
+           set courier_stage = 'delivered', status = 'delivered', delivered_at = ${now},
+               courier_lat = ${order.address.point.lat}, courier_lng = ${order.address.point.lng}
+         where id = ${order.id}
+      `;
+      await addOrderEvent(tx, order.id, "delivered", `${courier.name} siparişi adrese teslim etti.`, now);
 
-function recordEarning(courier: Courier, order: Order, now: Date) {
-  const pickedUp = order.pickedUpAt
-    ? new Date(order.pickedUpAt).getTime()
-    : now.getTime();
-  const durationMinutes = Math.max(
-    1,
-    Math.round((now.getTime() - pickedUp) / 60_000)
-  );
-
-  db().earnings.push({
-    id: createId("ern"),
-    courierId: courier.id,
-    orderId: order.id,
-    orderCode: order.code,
-    restaurantName: order.restaurantName,
-    fee: order.courierFee ?? courierFee(order.travelMinutes / 2.5),
-    tip: 0,
-    distanceKm:
-      Math.round(
-        distanceKm(order.restaurantLocation, order.address.point) * 10
-      ) / 10,
-    durationMinutes,
-    at: now.toISOString(),
+      const pickedUp = order.pickedUpAt ? order.pickedUpAt.getTime() : now.getTime();
+      const km = distanceKm({ lat: order.restaurantLat, lng: order.restaurantLng }, order.address.point);
+      await tx`
+        insert into public.courier_earnings (
+          id, courier_id, order_id, order_code, restaurant_name, fee, tip, distance_km,
+          duration_minutes, at
+        ) values (
+          ${createId("ern")}, ${courier.id}, ${order.id}, ${order.code}, ${order.restaurantName},
+          ${order.courierFee ?? courierFee(order.travelMinutes / 2.5)}, 0, ${Math.round(km * 10) / 10},
+          ${Math.max(1, Math.round((now.getTime() - pickedUp) / 60_000))}, ${now}
+        )
+      `;
+      await tx`
+        update public.couriers
+           set total_deliveries = total_deliveries + 1,
+               lat = ${order.address.point.lat}, lng = ${order.address.point.lng}
+         where id = ${courier.id}
+      `;
+    }
   });
-}
 
-/**
- * Müşteri değerlendirme ekranından bahşiş bırakıldığında çağrılır.
- * Tutar müşterinin cüzdanından düşer, kuryenin kazancına eklenir.
- */
-export function addTip(order: Order, amount: number): number {
-  if (!order.courier) return 0;
-  const tip = round2(Math.min(Math.max(amount, 0), 500));
-  if (tip <= 0) return 0;
-
-  const user = findUserById(order.userId);
-  if (!user) return 0;
-  if (user.walletBalance < tip) {
-    throw new DomainError(
-      "insufficient_wallet",
-      "Cüzdan bakiyen bahşiş için yeterli değil."
-    );
-  }
-
-  const earning = db().earnings.find((e) => e.orderId === order.id);
-  if (!earning) return 0;
-
-  user.walletBalance = round2(user.walletBalance - tip);
-  earning.tip = round2(earning.tip + tip);
-  commit();
-  return tip;
-}
-
-/** Kurye puanı — müşteri değerlendirmesinden gelir. */
-export function applyCourierRating(courierId: string, score: number): void {
-  const courier = findCourier(courierId);
-  if (!courier) return;
-  courier.ratingSum += score;
-  courier.ratingCount += 1;
-  courier.rating = Math.round((courier.ratingSum / courier.ratingCount) * 10) / 10;
-  commit();
+  const [order] = await hydrateOrders([(await findOrderRow(orderId))!]);
+  return toCourierView(order);
 }
 
 /* ================================================================== */
@@ -511,78 +363,62 @@ export interface CourierBoard {
   stats: CourierSummaryStats;
 }
 
-function startOfToday(): number {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
-function startOfWeek(): number {
-  const d = new Date();
-  const day = (d.getDay() + 6) % 7;
-  d.setDate(d.getDate() - day);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
-export function courierStats(courier: Courier): CourierSummaryStats {
-  const earnings = earningsOf(courier.id);
-  const dayStart = startOfToday();
-  const weekStart = startOfWeek();
-
-  const today = earnings.filter((e) => new Date(e.at).getTime() >= dayStart);
-  const week = earnings.filter((e) => new Date(e.at).getTime() >= weekStart);
-
-  const sum = (list: CourierEarning[]) =>
-    round2(list.reduce((total, e) => total + e.fee + e.tip, 0));
+export async function courierStats(courier: Courier): Promise<CourierSummaryStats> {
+  const [row] = await sql<
+    { todayCount: number; todayTotal: number; todayTips: number; weekTotal: number }[]
+  >`
+    with bounds as (
+      select (date_trunc('day', now() at time zone 'Europe/Istanbul') at time zone 'Europe/Istanbul') as day_start,
+             (date_trunc('week', now() at time zone 'Europe/Istanbul') at time zone 'Europe/Istanbul') as week_start
+    )
+    select
+      count(*) filter (where e.at >= b.day_start)::int as today_count,
+      coalesce(sum(e.fee + e.tip) filter (where e.at >= b.day_start), 0) as today_total,
+      coalesce(sum(e.tip) filter (where e.at >= b.day_start), 0) as today_tips,
+      coalesce(sum(e.fee + e.tip) filter (where e.at >= b.week_start), 0) as week_total
+    from bounds b
+    left join public.courier_earnings e on e.courier_id = ${courier.id} and e.at >= b.week_start
+    group by b.day_start, b.week_start
+  `;
 
   return {
     online: courier.online,
     shiftStartedAt: courier.shiftStartedAt,
-    todayDeliveries: today.length,
-    todayEarnings: sum(today),
-    todayTips: round2(today.reduce((total, e) => total + e.tip, 0)),
-    weekEarnings: sum(week),
+    todayDeliveries: row?.todayCount ?? 0,
+    todayEarnings: round2(row?.todayTotal ?? 0),
+    todayTips: round2(row?.todayTips ?? 0),
+    weekEarnings: round2(row?.weekTotal ?? 0),
     totalDeliveries: courier.totalDeliveries,
     rating: courier.rating,
   };
 }
 
-export function courierBoard(courier: Courier): CourierBoard {
-  syncOffers();
+export async function courierBoard(courier: Courier): Promise<CourierBoard> {
+  const fresh = (await findCourier(courier.id)) ?? courier;
 
-  // Aktif siparişin mutfak bacağı hâlâ simülatörden ilerleyebilir
-  db()
-    .orders.filter((o) => o.courier?.id === courier.id)
-    .forEach((o) => syncOrder(o));
+  const [pending] = await sql<OfferRow[]>`
+    select * from public.delivery_offers
+     where courier_id = ${courier.id} and status = 'pending' and expires_at > now()
+     order by created_at desc limit 1
+  `;
 
-  const now = Date.now();
-  const pending = offersOf(courier.id).find(
-    (o) => o.status === "pending" && new Date(o.expiresAt).getTime() > now
-  );
+  let offer: CourierBoard["offer"] = null;
+  if (pending) {
+    const row = await findOrderRow(pending.orderId);
+    if (row && row.status !== "cancelled") {
+      const [order] = await hydrateOrders([row]);
+      offer = {
+        ...toOffer(pending),
+        order: toCourierView(order),
+        secondsLeft: Math.max(0, Math.round((pending.expiresAt.getTime() - Date.now()) / 1000)),
+      };
+    }
+  }
 
-  const offerOrder = pending
-    ? db().orders.find((o) => o.id === pending.orderId)
-    : undefined;
+  const activeRow = await activeOrderRow(courier.id);
+  const activeOrder = activeRow ? toCourierView((await hydrateOrders([activeRow]))[0]) : null;
 
-  const active = activeOrderOf(courier.id) ?? null;
-
-  return {
-    courier,
-    offer:
-      pending && offerOrder
-        ? {
-            ...pending,
-            order: offerOrder,
-            secondsLeft: Math.max(
-              0,
-              Math.round((new Date(pending.expiresAt).getTime() - now) / 1000)
-            ),
-          }
-        : null,
-    activeOrder: active,
-    stats: courierStats(courier),
-  };
+  return { courier: fresh, offer, activeOrder, stats: await courierStats(fresh) };
 }
 
 /* ================================================================== */
@@ -614,40 +450,18 @@ export interface EarningsReport {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function dayKey(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
+export async function earningsReport(courier: Courier): Promise<EarningsReport> {
+  const rows = await sql<EarningRow[]>`
+    select * from public.courier_earnings where courier_id = ${courier.id} order by at desc
+  `;
+  const earnings = rows.map(toEarning);
 
-function weekKey(date: Date) {
-  const monday = new Date(date);
-  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-  monday.setHours(0, 0, 0, 0);
-  return monday.toISOString().slice(0, 10);
-}
-
-export function earningsReport(courier: Courier): EarningsReport {
-  const earnings = earningsOf(courier.id);
-
-  /* Son 14 gün */
+  /* Son 14 gün (İstanbul takvimiyle) */
   const map = new Map<string, EarningsBucket>();
-  const now = new Date();
   for (let i = 13; i >= 0; i--) {
-    const date = new Date(now);
-    date.setDate(date.getDate() - i);
-    const key = dayKey(date);
-    map.set(key, {
-      key,
-      label: new Intl.DateTimeFormat("tr-TR", {
-        day: "numeric",
-        month: "short",
-      }).format(date),
-      deliveries: 0,
-      fee: 0,
-      tip: 0,
-      total: 0,
-    });
+    const key = dayKey(new Date(Date.now() - i * DAY_MS));
+    map.set(key, { key, label: formatDayKey(key), deliveries: 0, fee: 0, tip: 0, total: 0 });
   }
-
   for (const earning of earnings) {
     const bucket = map.get(dayKey(new Date(earning.at)));
     if (!bucket) continue;
@@ -657,30 +471,19 @@ export function earningsReport(courier: Courier): EarningsReport {
     bucket.total = round2(bucket.fee + bucket.tip);
   }
 
-  /*
-   * Haftalık hakedişler ortak defterden okunur: yönetici panelinde
-   * onaylanan tutar ve durum burada birebir görünür.
-   */
-  const payouts = payoutsFor("courier", courier.id)
-    .slice(0, 6)
-    .map((p) => ({
-      id: p.id,
-      label: p.periodLabel,
-      deliveries: p.orders,
-      total: p.net,
-      status: p.status,
-    }));
+  const payouts = (await payoutsFor("courier", courier.id)).slice(0, 6).map((p) => ({
+    id: p.id,
+    label: p.periodLabel,
+    deliveries: p.orders,
+    total: p.net,
+    status: p.status,
+  }));
 
   const fee = round2(earnings.reduce((total, e) => total + e.fee, 0));
   const tip = round2(earnings.reduce((total, e) => total + e.tip, 0));
 
   return {
-    totals: {
-      deliveries: earnings.length,
-      fee,
-      tip,
-      total: round2(fee + tip),
-    },
+    totals: { deliveries: earnings.length, fee, tip, total: round2(fee + tip) },
     buckets: [...map.values()],
     recent: earnings.slice(0, 20),
     payouts,
@@ -699,52 +502,40 @@ export interface PerformanceReport {
   acceptanceRate: number;
   offers: { accepted: number; rejected: number; expired: number };
   avgDistanceKm: number;
-  /** Bu haftaki çevrimiçi teslimat sayısı */
+  /** Bu haftaki teslimat sayısı */
   weekDeliveries: number;
 }
 
-export function performanceReport(courier: Courier): PerformanceReport {
-  const earnings = earningsOf(courier.id);
-  const offers = offersOf(courier.id);
-
-  const accepted = offers.filter((o) => o.status === "accepted").length;
-  const rejected = offers.filter((o) => o.status === "rejected").length;
-  const expired = offers.filter((o) => o.status === "expired").length;
-  const answered = accepted + rejected + expired;
-
-  const durations = earnings.map((e) => e.durationMinutes);
-  const weekStart = startOfWeek();
+export async function performanceReport(courier: Courier): Promise<PerformanceReport> {
+  const [earn] = await sql<
+    { count: number; avgMinutes: number | null; fastest: number | null; avgKm: number | null; week: number }[]
+  >`
+    select count(*)::int as count,
+           avg(duration_minutes) as avg_minutes,
+           min(duration_minutes) as fastest,
+           avg(distance_km) as avg_km,
+           count(*) filter (
+             where at >= (date_trunc('week', now() at time zone 'Europe/Istanbul') at time zone 'Europe/Istanbul')
+           )::int as week
+      from public.courier_earnings where courier_id = ${courier.id}
+  `;
+  const [offers] = await sql<{ accepted: number; rejected: number; expired: number }[]>`
+    select count(*) filter (where status = 'accepted')::int as accepted,
+           count(*) filter (where status = 'rejected')::int as rejected,
+           count(*) filter (where status = 'expired')::int as expired
+      from public.delivery_offers where courier_id = ${courier.id}
+  `;
+  const answered = offers.accepted + offers.rejected + offers.expired;
 
   return {
     rating: courier.rating,
     ratingCount: courier.ratingCount,
     totalDeliveries: courier.totalDeliveries,
-    avgDeliveryMinutes: durations.length
-      ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
-      : 0,
-    fastestMinutes: durations.length ? Math.min(...durations) : null,
-    acceptanceRate: answered ? Math.round((accepted / answered) * 100) : 100,
-    offers: { accepted, rejected, expired },
-    avgDistanceKm: earnings.length
-      ? Math.round(
-          (earnings.reduce((a, e) => a + e.distanceKm, 0) / earnings.length) * 10
-        ) / 10
-      : 0,
-    weekDeliveries: earnings.filter((e) => new Date(e.at).getTime() >= weekStart)
-      .length,
+    avgDeliveryMinutes: earn.avgMinutes ? Math.round(earn.avgMinutes) : 0,
+    fastestMinutes: earn.fastest,
+    acceptanceRate: answered ? Math.round((offers.accepted / answered) * 100) : 100,
+    offers,
+    avgDistanceKm: earn.avgKm ? Math.round(earn.avgKm * 10) / 10 : 0,
+    weekDeliveries: earn.week,
   };
 }
-
-/** Kurye listesi — giriş ekranındaki seçici için. */
-export function courierPickerList() {
-  return db().couriers.map((c) => ({
-    id: c.id,
-    name: c.name,
-    emoji: c.emoji,
-    vehicle: c.vehicle,
-    rating: c.rating,
-    online: c.online,
-  }));
-}
-
-export { courierDriven };

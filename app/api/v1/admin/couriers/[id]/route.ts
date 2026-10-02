@@ -31,7 +31,7 @@ export async function POST(
       );
     }
 
-    setCourierStatus(admin, id, status, body.reason);
-    return ok({ rows: adminCouriers() });
+    await setCourierStatus(admin, id, status, body.reason);
+    return ok({ rows: await adminCouriers() });
   });
 }

@@ -26,13 +26,13 @@ export async function POST(
 
     switch (body.action) {
       case "block":
-        setUserBlocked(admin, id, true, body.reason);
+        await setUserBlocked(admin, id, true, body.reason);
         break;
       case "unblock":
-        setUserBlocked(admin, id, false);
+        await setUserBlocked(admin, id, false);
         break;
       case "credit":
-        creditWallet(admin, id, Number(body.amount), body.reason ?? "");
+        await creditWallet(admin, id, Number(body.amount), body.reason ?? "");
         break;
       default:
         throw new DomainError(
@@ -41,6 +41,6 @@ export async function POST(
         );
     }
 
-    return ok({ rows: adminUsers() });
+    return ok({ rows: await adminUsers() });
   });
 }

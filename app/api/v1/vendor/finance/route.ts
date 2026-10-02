@@ -10,6 +10,6 @@ export async function GET(request: Request) {
     const period: FinancePeriod =
       raw === "week" || raw === "month" ? raw : "day";
 
-    return ok({ report: financeReport(restaurant.id, period) });
+    return ok({ report: await financeReport(restaurant.id, period) });
   });
 }

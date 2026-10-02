@@ -24,7 +24,7 @@ export async function POST(
       );
     }
 
-    setPayoutStatus(admin, id, body.action);
-    return ok(adminFinance());
+    await setPayoutStatus(admin, id, body.action);
+    return ok(await adminFinance());
   });
 }

@@ -1,18 +1,11 @@
 import { handle, ok, readJson } from "@/lib/api/respond";
 import { requireVendor } from "@/lib/auth/vendor-session";
 import { DomainError } from "@/lib/errors";
-import {
-  deleteCategory,
-  moveCategory,
-  upsertCategory,
-} from "@/lib/services/vendor";
+import { deleteCategory, moveCategory, upsertCategory } from "@/lib/services/vendor";
 
 /**
  * POST /api/v1/vendor/menu/categories
- * Body: { action: "upsert" | "delete" | "move", ... }
- *
- * Menü kategorilerinin sırası müşteri menüsündeki sırayı belirler,
- * bu yüzden taşıma da bir işlem olarak buradan yürütülür.
+ * Body: { action: "upsert" | "delete" | "move", id?, name?, description?, direction? }
  */
 export async function POST(request: Request) {
   return handle(async () => {
@@ -25,32 +18,25 @@ export async function POST(request: Request) {
       direction?: "up" | "down";
     }>(request);
 
-    let updated;
+    let menu;
     switch (body.action) {
       case "upsert":
-        updated = upsertCategory(restaurant.id, {
+        menu = await upsertCategory(restaurant.id, {
           id: body.id,
           name: body.name ?? "",
           description: body.description,
         });
         break;
       case "delete":
-        updated = deleteCategory(restaurant.id, body.id ?? "");
+        menu = await deleteCategory(restaurant.id, body.id ?? "");
         break;
       case "move":
-        updated = moveCategory(
-          restaurant.id,
-          body.id ?? "",
-          body.direction === "up" ? "up" : "down"
-        );
+        menu = await moveCategory(restaurant.id, body.id ?? "", body.direction === "up" ? "up" : "down");
         break;
       default:
-        throw new DomainError(
-          "unknown_action",
-          "Geçersiz işlem. Beklenen: upsert, delete, move."
-        );
+        throw new DomainError("unknown_action", "Geçersiz işlem. Beklenen: upsert, delete, move.");
     }
 
-    return ok({ menu: updated.menu });
+    return ok({ menu });
   });
 }

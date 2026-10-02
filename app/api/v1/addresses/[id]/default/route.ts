@@ -10,6 +10,6 @@ export async function POST(
   return handle(async () => {
     const user = await requireUser(request);
     const { id } = await ctx.params;
-    return ok({ addresses: setDefaultAddress(user, id) });
+    return ok({ addresses: await setDefaultAddress(user, id) });
   });
 }

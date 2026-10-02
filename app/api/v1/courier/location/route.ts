@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   return handle(async () => {
     const courier = await requireCourier(request);
     const body = await readJson<{ point?: LatLng }>(request);
-    const updated = updateLocation(courier, body.point as LatLng);
+    const updated = await updateLocation(courier, body.point as LatLng);
     return ok({ courier: publicCourier(updated) });
   });
 }

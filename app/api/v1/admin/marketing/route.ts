@@ -1,11 +1,10 @@
 import { handle, ok, readJson } from "@/lib/api/respond";
 import { requireAdmin } from "@/lib/auth/admin-session";
-import { allBanners, allCoupons, db } from "@/lib/db/store";
 import { DomainError } from "@/lib/errors";
 import {
   deleteBanner,
   deleteCoupon,
-  knownDistricts,
+  marketingSnapshot,
   moveBanner,
   pushAudience,
   sendPush,
@@ -18,49 +17,30 @@ import {
 } from "@/lib/services/admin";
 import type { PushCampaign } from "@/lib/types";
 
-function snapshot() {
-  return {
-    coupons: allCoupons(),
-    banners: allBanners(),
-    campaigns: db().pushCampaigns.slice(0, 20),
-    districts: knownDistricts(),
-    restaurants: db().restaurants.map((r) => ({
-      id: r.id,
-      name: r.name,
-      emoji: r.emoji,
-    })),
-  };
-}
-
-/** GET /api/v1/admin/marketing — kampanyalar, afişler, push geçmişi */
+/**
+ * GET /api/v1/admin/marketing
+ * Kampanyalar, afişler, push geçmişi, bölgeler ve restoranlar.
+ * `?segment=&districts=` ile gönderim öncesi hedef kitle sayılır.
+ */
 export async function GET(request: Request) {
   return handle(async () => {
     await requireAdmin(request);
     const params = new URL(request.url).searchParams;
+    const snapshot = await marketingSnapshot();
 
-    // Push formu, gönder demeden önce hedef kitleyi sayabilsin
     const segment = params.get("segment") as PushCampaign["segment"] | null;
     if (segment) {
-      const districts = (params.get("districts") ?? "")
-        .split(",")
-        .filter(Boolean);
-      return ok({
-        ...snapshot(),
-        audienceCount: pushAudience(segment, districts).length,
-      });
+      const districts = (params.get("districts") ?? "").split(",").filter(Boolean);
+      return ok({ ...snapshot, audienceCount: (await pushAudience(segment, districts)).length });
     }
-
-    return ok(snapshot());
+    return ok(snapshot);
   });
 }
 
 /**
  * POST /api/v1/admin/marketing
- * Body: { action, ... }
- *
- *   coupon-upsert / coupon-delete / coupon-toggle
- *   banner-upsert / banner-delete / banner-move
- *   push-send
+ * Body: { action: "coupon-upsert" | "coupon-delete" | "coupon-toggle" |
+ *                 "banner-upsert" | "banner-delete" | "banner-move" | "push-send", ... }
  */
 export async function POST(request: Request) {
   return handle(async () => {
@@ -78,34 +58,30 @@ export async function POST(request: Request) {
 
     switch (body.action) {
       case "coupon-upsert":
-        upsertCoupon(admin, body.coupon as CouponInput, body.originalCode);
+        await upsertCoupon(admin, body.coupon as CouponInput, body.originalCode);
         break;
       case "coupon-delete":
-        deleteCoupon(admin, body.code ?? "");
+        await deleteCoupon(admin, body.code ?? "");
         break;
       case "coupon-toggle":
-        toggleCoupon(admin, body.code ?? "");
+        await toggleCoupon(admin, body.code ?? "");
         break;
       case "banner-upsert":
-        upsertBanner(admin, body.banner as BannerInput);
+        await upsertBanner(admin, body.banner as BannerInput);
         break;
       case "banner-delete":
-        deleteBanner(admin, body.id ?? "");
+        await deleteBanner(admin, body.id ?? "");
         break;
       case "banner-move":
-        moveBanner(admin, body.id ?? "", body.direction === "up" ? "up" : "down");
+        await moveBanner(admin, body.id ?? "", body.direction === "up" ? "up" : "down");
         break;
       case "push-send": {
-        const campaign = sendPush(admin, body.push as PushInput);
-        return ok({ ...snapshot(), sent: campaign });
+        const campaign = await sendPush(admin, body.push as PushInput);
+        return ok({ ...(await marketingSnapshot()), sent: campaign });
       }
       default:
-        throw new DomainError(
-          "unknown_action",
-          "Geçersiz işlem. Beklenen: coupon-*, banner-*, push-send."
-        );
+        throw new DomainError("unknown_action", "Geçersiz işlem. Beklenen: coupon-*, banner-*, push-send.");
     }
-
-    return ok(snapshot());
+    return ok(await marketingSnapshot());
   });
 }

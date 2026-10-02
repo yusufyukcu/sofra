@@ -15,8 +15,8 @@ export async function PATCH(request: Request, ctx: Ctx) {
     const user = await requireUser(request);
     const { id } = await ctx.params;
     const body = await readJson<Partial<AddressInput>>(request);
-    const address = updateAddress(user, id, body);
-    return ok({ address, addresses: listAddresses(user) });
+    const address = await updateAddress(user, id, body);
+    return ok({ address, addresses: await listAddresses(user) });
   });
 }
 
@@ -25,6 +25,6 @@ export async function DELETE(request: Request, ctx: Ctx) {
   return handle(async () => {
     const user = await requireUser(request);
     const { id } = await ctx.params;
-    return ok({ addresses: deleteAddress(user, id) });
+    return ok({ addresses: await deleteAddress(user, id) });
   });
 }

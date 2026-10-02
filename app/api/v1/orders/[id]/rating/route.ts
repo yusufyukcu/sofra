@@ -4,10 +4,7 @@ import { rateOrder, type RatingInput } from "@/lib/services/orders";
 
 /**
  * POST /api/v1/orders/:id/rating
- * Body: { restaurantScore, restaurantComment?, courierScore?, courierComment? }
- *
- * Restoran ve kurye ayrı ayrı puanlanır. Yorum bırakılırsa restoran
- * sayfasındaki değerlendirmeler listesine eklenir.
+ * Restoran ve kurye ayrı puanlanır; kuryeye bahşiş cüzdandan düşer.
  */
 export async function POST(
   request: Request,
@@ -17,7 +14,6 @@ export async function POST(
     const user = await requireUser(request);
     const { id } = await ctx.params;
     const body = await readJson<RatingInput>(request);
-    const { order, review } = rateOrder(user, id, body);
-    return ok({ order, review });
+    return ok(await rateOrder(user, id, body));
   });
 }

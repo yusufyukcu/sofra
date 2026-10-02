@@ -14,7 +14,7 @@ const FORM_OVERHEAD_BYTES = 64 * 1024;
 export async function GET(request: Request) {
   return handle(async () => {
     const { restaurant } = await requireVendor(request);
-    return ok({ requests: vendorMediaRequests(restaurant.id) });
+    return ok({ requests: await vendorMediaRequests(restaurant.id) });
   });
 }
 
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     });
 
     return ok(
-      { request: created, requests: vendorMediaRequests(restaurant.id) },
+      { request: created, requests: await vendorMediaRequests(restaurant.id) },
       { status: 201 }
     );
   });

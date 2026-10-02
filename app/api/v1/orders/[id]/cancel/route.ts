@@ -4,10 +4,9 @@ import { cancelOrder } from "@/lib/services/orders";
 
 /**
  * POST /api/v1/orders/:id/cancel
- * Body: { reason?: string }
- *
- * Yalnızca "Onay bekliyor" ve "Hazırlanıyor" durumlarında mümkündür.
- * Online ödemelerde tutar cüzdana iade edilir.
+ * Body: { reason }
+ * Onay bekleyen ya da hazırlanan sipariş iptal edilebilir. Online ödemede
+ * tutar cüzdana iade edilir; `refunded` iade edilen tutarı bildirir.
  */
 export async function POST(
   request: Request,
@@ -17,7 +16,6 @@ export async function POST(
     const user = await requireUser(request);
     const { id } = await ctx.params;
     const body = await readJson<{ reason?: string }>(request);
-    const order = cancelOrder(user, id, body.reason ?? "Kullanıcı iptali");
-    return ok({ order, walletBalance: user.walletBalance });
+    return ok(await cancelOrder(user, id, body.reason ?? "Kullanıcı iptali"));
   });
 }

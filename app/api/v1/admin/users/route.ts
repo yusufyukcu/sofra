@@ -7,6 +7,6 @@ export async function GET(request: Request) {
   return handle(async () => {
     await requireAdmin(request);
     const q = new URL(request.url).searchParams.get("q") ?? "";
-    return ok({ rows: adminUsers(q) });
+    return ok({ rows: await adminUsers(q) });
   });
 }

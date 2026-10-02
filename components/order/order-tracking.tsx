@@ -46,6 +46,8 @@ export function OrderTracking({ orderId }: { orderId: string }) {
   const router = useRouter();
   const toast = useToast();
   const refreshActiveOrders = useSession((s) => s.refreshActiveOrders);
+  const user = useSession((s) => s.user);
+  const setUser = useSession((s) => s.setUser);
   const { order, progress, remainingMinutes, live, loading, error, setOrder } =
     useOrderStream(orderId);
 
@@ -91,13 +93,18 @@ export function OrderTracking({ orderId }: { orderId: string }) {
   async function cancelOrder() {
     setCancelling(true);
     try {
-      const data = await api.post<{ order: Order }>(
+      const data = await api.post<{ order: Order; refunded: number; walletBalance: number }>(
         `/orders/${orderId}/cancel`,
         { reason }
       );
       setOrder(data.order);
+      if (user) setUser({ ...user, walletBalance: data.walletBalance });
       void refreshActiveOrders();
-      toast.success("Siparişin iptal edildi, tutar cüzdanına iade edildi.");
+      toast.success(
+        data.refunded > 0
+          ? `Siparişin iptal edildi, ${formatPrice(data.refunded)} cüzdanına iade edildi.`
+          : "Siparişin iptal edildi. Kapıda ödeme seçtiğin için tahsilat yapılmayacak."
+      );
       setCancelOpen(false);
     } catch (err) {
       toast.error(errorMessage(err));

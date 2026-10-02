@@ -6,6 +6,6 @@ import { performanceReport } from "@/lib/services/courier";
 export async function GET(request: Request) {
   return handle(async () => {
     const courier = await requireCourier(request);
-    return ok({ report: performanceReport(courier) });
+    return ok({ report: await performanceReport(courier) });
   });
 }

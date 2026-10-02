@@ -15,6 +15,6 @@ export async function POST(
   return handle(async () => {
     const user = await requireUser(request);
     const { id } = await ctx.params;
-    return ok(reorder(user, id));
+    return ok(await reorder(user, id));
   });
 }

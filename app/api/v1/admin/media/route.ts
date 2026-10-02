@@ -9,6 +9,6 @@ import { adminMediaRequests } from "@/lib/services/media";
 export async function GET(request: Request) {
   return handle(async () => {
     await requireAdmin(request);
-    return ok({ rows: adminMediaRequests() });
+    return ok({ rows: await adminMediaRequests() });
   });
 }

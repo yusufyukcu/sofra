@@ -1,12 +1,13 @@
 import { handle, ok } from "@/lib/api/respond";
 import { requireAdmin } from "@/lib/auth/admin-session";
-import { db } from "@/lib/db/store";
+import { recentAudit } from "@/lib/db/queries";
 import { adminOverview } from "@/lib/services/admin";
 
-/** GET /api/v1/admin/overview — canli operasyon ekrani */
+/** GET /api/v1/admin/overview — canlı operasyon özeti + son yönetici işlemleri */
 export async function GET(request: Request) {
   return handle(async () => {
     await requireAdmin(request);
-    return ok({ ...adminOverview(), audit: db().audit.slice(0, 12) });
+    const [overview, audit] = await Promise.all([adminOverview(), recentAudit(12)]);
+    return ok({ ...overview, audit });
   });
 }

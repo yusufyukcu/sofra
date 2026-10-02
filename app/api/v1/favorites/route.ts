@@ -1,7 +1,7 @@
 import { handle, ok, readJson } from "@/lib/api/respond";
 import { requireUser } from "@/lib/auth/session";
 import { DEFAULT_CENTER } from "@/lib/constants";
-import { publishedRestaurants } from "@/lib/db/store";
+import { publishedRestaurantBases } from "@/lib/db/queries";
 import { decorate } from "@/lib/discovery";
 import { toggleFavorite } from "@/lib/services/account";
 import { DomainError } from "@/lib/errors";
@@ -18,8 +18,9 @@ export async function GET(request: Request) {
         ? { lat, lng }
         : DEFAULT_CENTER;
 
+    const restaurants = await publishedRestaurantBases();
     const favorites = decorate(
-      publishedRestaurants().filter((r) => user.favoriteRestaurantIds.includes(r.id)),
+      restaurants.filter((r) => user.favoriteRestaurantIds.includes(r.id)),
       point,
       user.favoriteRestaurantIds
     );
@@ -36,10 +37,7 @@ export async function POST(request: Request) {
     if (!body.restaurantId) {
       throw new DomainError("restaurant_id_required", "Restoran seçilmedi.");
     }
-    const favoriteIds = toggleFavorite(user, body.restaurantId);
-    return ok({
-      favoriteIds,
-      isFavorite: favoriteIds.includes(body.restaurantId),
-    });
+    const favoriteIds = await toggleFavorite(user, body.restaurantId);
+    return ok({ favoriteIds, isFavorite: favoriteIds.includes(body.restaurantId) });
   });
 }

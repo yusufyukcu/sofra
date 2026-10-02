@@ -1,33 +1,28 @@
+import "server-only";
 import sharp, { type Metadata } from "sharp";
-import { commit, db, findRestaurant, recordAudit } from "../db/store";
+import { sql } from "../db/client";
+import { findRestaurantRow, recordAudit } from "../db/queries";
+import { toMediaRequest, type MediaRow } from "../db/mappers";
 import { DomainError } from "../errors";
 import { deleteMedia, saveMedia } from "../media/storage";
-import type {
-  AdminAccount,
-  MediaRequest,
-  MediaTarget,
-  Product,
-  Restaurant,
-} from "../types";
+import type { AdminAccount, MediaRequest, MediaTarget, Restaurant } from "../types";
 import { createId } from "../utils";
 
 /**
  * Restoran fotoğrafları — yükleme ve onay akışı.
  *
  * Restoran panelden kapak ya da ürün fotoğrafı yükler; dosya işlenip
- * saklanır ama yayına girmez. Yönetici "Görsel onayları" ekranından
- * onaylayınca fotoğraf kapağa veya ürüne işlenir, reddederse gerekçesi
- * restorana görünür. Aynı hedefe bekleyen ikinci bir fotoğraf gönderilirse
- * yenisi eskisinin yerini alır — kuyrukta hedef başına tek talep durur.
+ * depoya yazılır ama yayına girmez. Yönetici onaylayınca fotoğraf kapağa
+ * veya ürüne işlenir, reddederse gerekçesi restorana görünür. Aynı hedefe
+ * bekleyen ikinci fotoğraf gönderilirse yenisi eskisinin yerini alır.
  */
 
-/** Yüklenebilecek en büyük dosya. Proxy gövdeyi 10 MB'a kadar tamponlar. */
+/** Yüklenebilecek en büyük dosya. */
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 /**
  * Çıktı ölçüleri müşteri sitesindeki oranlarla aynı: kapak 16:9, ürün 4:3.
- * Fotoğraf bu orana kırpılır ama büyütülmez; kırpım en az `minWidth` geniş
- * olmalı, yoksa ekranda bulanık görünür.
+ * Fotoğraf bu orana kırpılır ama büyütülmez.
  */
 const OUTPUT = {
   cover: { width: 1600, height: 900, minWidth: 960 },
@@ -36,45 +31,24 @@ const OUTPUT = {
 
 const ACCEPTED_FORMATS = new Set(["jpeg", "png", "webp"]);
 
-const fileOf = (request: MediaRequest) => request.url.replace(/^\/media\//, "");
-
-function sameTarget(a: MediaTarget, b: MediaTarget): boolean {
-  if (a.kind === "cover" || b.kind === "cover") return a.kind === b.kind;
-  return a.productId === b.productId;
-}
-
-function findProduct(restaurant: Restaurant, productId: string): Product | undefined {
-  for (const category of restaurant.menu) {
-    const product = category.products.find((p) => p.id === productId);
-    if (product) return product;
-  }
-  return undefined;
-}
-
 /* ------------------------------------------------------------------ */
 /* Görüntü işleme                                                      */
 /* ------------------------------------------------------------------ */
 
 /**
- * Dosyayı uzantısına ya da tarayıcının bildirdiği türe göre değil, içeriğini
- * çözerek doğrular. WebP'ye yeniden kodlamak EXIF'i (konum dahil) siler ve
- * fotoğraf kılığındaki başka içerikleri etkisizleştirir.
+ * Dosya uzantısına değil içeriğine bakarak doğrulanır. WebP'ye yeniden
+ * kodlamak EXIF'i (konum dahil) siler ve fotoğraf kılığındaki başka
+ * içerikleri etkisizleştirir.
  */
 async function processImage(input: Buffer, kind: MediaTarget["kind"]) {
   let meta: Metadata;
   try {
     meta = await sharp(input).metadata();
   } catch {
-    throw new DomainError(
-      "invalid_image",
-      "Dosya okunamadı. JPEG, PNG ya da WebP bir fotoğraf yükle."
-    );
+    throw new DomainError("invalid_image", "Dosya okunamadı. JPEG, PNG ya da WebP bir fotoğraf yükle.");
   }
   if (!meta.format || !ACCEPTED_FORMATS.has(meta.format) || !meta.width || !meta.height) {
-    throw new DomainError(
-      "unsupported_image",
-      "Yalnızca JPEG, PNG ya da WebP fotoğraf yüklenebilir."
-    );
+    throw new DomainError("unsupported_image", "Yalnızca JPEG, PNG ya da WebP fotoğraf yüklenebilir.");
   }
 
   // EXIF'te 90°/270° dönük çekilmiş fotoğrafta en ve boy yer değiştirir
@@ -120,10 +94,8 @@ export async function submitMediaRequest(
   restaurantId: string,
   input: MediaUploadInput
 ): Promise<MediaRequest> {
-  const restaurant = findRestaurant(restaurantId);
-  if (!restaurant) {
-    throw new DomainError("restaurant_not_found", "Restoran bulunamadı.", 404);
-  }
+  const restaurant = await findRestaurantRow(restaurantId);
+  if (!restaurant) throw new DomainError("restaurant_not_found", "Restoran bulunamadı.", 404);
 
   let target: MediaTarget;
   let targetName: string;
@@ -131,115 +103,87 @@ export async function submitMediaRequest(
     target = { kind: "cover" };
     targetName = "Kapak fotoğrafı";
   } else if (input.kind === "product") {
-    const product = findProduct(restaurant, input.productId ?? "");
-    if (!product) {
-      throw new DomainError("product_not_found", "Ürün bulunamadı.", 404);
-    }
+    const [product] = await sql<{ id: string; name: string }[]>`
+      select id, name from public.products
+       where id = ${input.productId ?? ""} and restaurant_id = ${restaurant.id}
+    `;
+    if (!product) throw new DomainError("product_not_found", "Ürün bulunamadı.", 404);
     target = { kind: "product", productId: product.id };
     targetName = product.name;
   } else {
-    throw new DomainError(
-      "invalid_target",
-      "Geçersiz hedef. Beklenen: cover ya da product."
-    );
+    throw new DomainError("invalid_target", "Geçersiz hedef. Beklenen: cover ya da product.");
   }
 
-  if (!input.file || input.file.size === 0) {
-    throw new DomainError("file_required", "Bir fotoğraf seç.");
-  }
+  if (!input.file || input.file.size === 0) throw new DomainError("file_required", "Bir fotoğraf seç.");
   if (input.file.size > MAX_UPLOAD_BYTES) {
-    throw new DomainError(
-      "file_too_large",
-      "Fotoğraf en fazla 5 MB olabilir.",
-      413
-    );
+    throw new DomainError("file_too_large", "Fotoğraf en fazla 5 MB olabilir.", 413);
   }
 
-  const processed = await processImage(
-    Buffer.from(await input.file.arrayBuffer()),
-    target.kind
-  );
+  const processed = await processImage(Buffer.from(await input.file.arrayBuffer()), target.kind);
 
   const id = createId("med");
-  saveMedia(`${id}.webp`, processed.data);
+  const file = `${id}.webp`;
+  await saveMedia(file, processed.data);
 
   // Aynı hedefe bekleyen eski talep varsa yenisi onun yerini alır
-  const store = db();
-  const replaced = store.mediaRequests.filter(
-    (r) =>
-      r.restaurantId === restaurant.id &&
-      r.status === "pending" &&
-      sameTarget(r.target, target)
-  );
-  replaced.forEach((r) => deleteMedia(fileOf(r)));
-  store.mediaRequests = store.mediaRequests.filter((r) => !replaced.includes(r));
+  const productId = target.kind === "product" ? target.productId : null;
+  const replaced = await sql.begin(async (tx) => {
+    const old = await tx<{ storagePath: string }[]>`
+      delete from public.media_requests
+       where restaurant_id = ${restaurant.id} and status = 'pending'
+         and target_kind = ${target.kind}
+         and (${productId}::text is null or target_product_id = ${productId}::text)
+      returning storage_path
+    `;
+    await tx`
+      insert into public.media_requests (
+        id, restaurant_id, target_kind, target_product_id, target_name, storage_path, url,
+        width, height, bytes, status
+      ) values (
+        ${id}, ${restaurant.id}, ${target.kind}, ${productId}, ${targetName}, ${file},
+        ${`/media/${file}`}, ${processed.width}, ${processed.height}, ${processed.data.length}, 'pending'
+      )
+    `;
+    return old.map((o) => o.storagePath);
+  });
+  await deleteMedia(replaced);
 
-  const request: MediaRequest = {
-    id,
-    restaurantId: restaurant.id,
-    target,
-    targetName,
-    url: `/media/${id}.webp`,
-    width: processed.width,
-    height: processed.height,
-    bytes: processed.data.length,
-    status: "pending",
-    createdAt: new Date().toISOString(),
-  };
-  store.mediaRequests.unshift(request);
-  commit();
-  return request;
+  const [row] = await sql<MediaRow[]>`select * from public.media_requests where id = ${id}`;
+  return toMediaRequest(row);
 }
 
 /** Restoranın talepleri, en yenisi başta. */
-export function vendorMediaRequests(restaurantId: string): MediaRequest[] {
-  return db()
-    .mediaRequests.filter((r) => r.restaurantId === restaurantId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, 100);
+export async function vendorMediaRequests(restaurantId: string): Promise<MediaRequest[]> {
+  const rows = await sql<MediaRow[]>`
+    select * from public.media_requests where restaurant_id = ${restaurantId}
+     order by created_at desc limit 100
+  `;
+  return rows.map(toMediaRequest);
 }
 
 /** Bekleyen talebi geri çeker; dosya da silinir. */
-export function withdrawMediaRequest(restaurantId: string, id: string): void {
-  const store = db();
-  const request = store.mediaRequests.find(
-    (r) => r.id === id && r.restaurantId === restaurantId
-  );
-  if (!request) {
-    throw new DomainError(
-      "media_request_not_found",
-      "Fotoğraf talebi bulunamadı.",
-      404
-    );
+export async function withdrawMediaRequest(restaurantId: string, id: string): Promise<void> {
+  const [row] = await sql<MediaRow[]>`
+    select * from public.media_requests where id = ${id} and restaurant_id = ${restaurantId}
+  `;
+  if (!row) throw new DomainError("media_request_not_found", "Fotoğraf talebi bulunamadı.", 404);
+  if (row.status !== "pending") {
+    throw new DomainError("media_request_closed", "Bu talep sonuçlandı, artık geri çekilemez.");
   }
-  if (request.status !== "pending") {
-    throw new DomainError(
-      "media_request_closed",
-      "Bu talep sonuçlandı, artık geri çekilemez."
-    );
-  }
-  deleteMedia(fileOf(request));
-  store.mediaRequests = store.mediaRequests.filter((r) => r.id !== id);
-  commit();
+  await sql`delete from public.media_requests where id = ${id} and status = 'pending'`;
+  await deleteMedia([row.storagePath]);
 }
 
-/**
- * Menüden kaldırılan ürünlerin bekleyen taleplerini temizler — yöneticinin
- * kuyruğunda artık uygulanamayacak fotoğraf kalmasın.
- */
-export function discardPendingMedia(restaurantId: string, productIds: string[]): void {
+/** Menüden kaldırılan ürünlerin bekleyen taleplerini temizler. */
+export async function discardPendingMedia(restaurantId: string, productIds: string[]): Promise<void> {
   if (productIds.length === 0) return;
-  const store = db();
-  const stale = store.mediaRequests.filter(
-    (r) =>
-      r.restaurantId === restaurantId &&
-      r.status === "pending" &&
-      r.target.kind === "product" &&
-      productIds.includes(r.target.productId)
-  );
-  if (stale.length === 0) return;
-  stale.forEach((r) => deleteMedia(fileOf(r)));
-  store.mediaRequests = store.mediaRequests.filter((r) => !stale.includes(r));
+  const stale = await sql<{ storagePath: string }[]>`
+    delete from public.media_requests
+     where restaurant_id = ${restaurantId} and status = 'pending' and target_kind = 'product'
+       and target_product_id = any(${productIds}::text[])
+    returning storage_path
+  `;
+  await deleteMedia(stale.map((s) => s.storagePath));
 }
 
 /* ------------------------------------------------------------------ */
@@ -256,119 +200,102 @@ export interface AdminMediaRow {
 }
 
 /** Bekleyenler geliş sırasıyla başta; sonuçlananlardan son 60 karar. */
-export function adminMediaRequests(): AdminMediaRow[] {
-  const all = db().mediaRequests;
-  const pending = all
-    .filter((r) => r.status === "pending")
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const decided = all
-    .filter((r) => r.status !== "pending")
-    .sort((a, b) => (b.decidedAt ?? "").localeCompare(a.decidedAt ?? ""))
-    .slice(0, 60);
+export async function adminMediaRequests(): Promise<AdminMediaRow[]> {
+  const rows = await sql<
+    (MediaRow & {
+      restaurantName: string;
+      restaurantEmoji: string;
+      restaurantDistrict: string;
+      restaurantImage: string | null;
+      productImage: string | null;
+      productExists: boolean;
+    })[]
+  >`
+    (select m.*, r.name as restaurant_name, r.emoji as restaurant_emoji, r.district as restaurant_district,
+            r.image as restaurant_image, p.image as product_image, (p.id is not null) as product_exists
+       from public.media_requests m
+       join public.restaurants r on r.id = m.restaurant_id
+       left join public.products p on p.id = m.target_product_id
+      where m.status = 'pending'
+      order by m.created_at)
+    union all
+    (select m.*, r.name, r.emoji, r.district, r.image, p.image, (p.id is not null)
+       from public.media_requests m
+       join public.restaurants r on r.id = m.restaurant_id
+       left join public.products p on p.id = m.target_product_id
+      where m.status <> 'pending'
+      order by m.decided_at desc nulls last
+      limit 60)
+  `;
 
-  return [...pending, ...decided].flatMap((request) => {
-    const restaurant = findRestaurant(request.restaurantId);
-    if (!restaurant) return [];
-    const product =
-      request.target.kind === "product"
-        ? findProduct(restaurant, request.target.productId)
-        : undefined;
-    return [
-      {
-        request,
-        restaurant: {
-          id: restaurant.id,
-          name: restaurant.name,
-          emoji: restaurant.emoji,
-          district: restaurant.district,
-          image: restaurant.image,
-        },
-        currentImage:
-          request.target.kind === "cover" ? restaurant.image : product?.image,
-        targetExists: request.target.kind === "cover" || Boolean(product),
-      },
-    ];
-  });
-}
-
-function pendingRequest(id: string): { request: MediaRequest; restaurant: Restaurant } {
-  const request = db().mediaRequests.find((r) => r.id === id);
-  if (!request) {
-    throw new DomainError(
-      "media_request_not_found",
-      "Fotoğraf talebi bulunamadı.",
-      404
-    );
-  }
-  if (request.status !== "pending") {
-    throw new DomainError("media_request_closed", "Bu talep zaten sonuçlandı.");
-  }
-  const restaurant = findRestaurant(request.restaurantId);
-  if (!restaurant) {
-    throw new DomainError("restaurant_not_found", "Restoran bulunamadı.", 404);
-  }
-  return { request, restaurant };
+  return rows.map((row) => ({
+    request: toMediaRequest(row),
+    restaurant: {
+      id: row.restaurantId,
+      name: row.restaurantName,
+      emoji: row.restaurantEmoji,
+      district: row.restaurantDistrict,
+      image: row.restaurantImage ?? undefined,
+    },
+    currentImage:
+      row.targetKind === "cover" ? row.restaurantImage ?? undefined : row.productImage ?? undefined,
+    targetExists: row.targetKind === "cover" || row.productExists,
+  }));
 }
 
 /** Fotoğrafı kapağa ya da ürüne işler; müşteri sitesinde anında görünür. */
-export function approveMediaRequest(admin: AdminAccount, id: string): MediaRequest {
-  const { request, restaurant } = pendingRequest(id);
+export async function approveMediaRequest(admin: AdminAccount, id: string): Promise<void> {
+  const result = await sql.begin(async (tx) => {
+    const [row] = await tx<MediaRow[]>`select * from public.media_requests where id = ${id} for update`;
+    if (!row) throw new DomainError("media_request_not_found", "Fotoğraf talebi bulunamadı.", 404);
+    if (row.status !== "pending") throw new DomainError("media_request_closed", "Bu talep zaten sonuçlandı.");
 
-  if (request.target.kind === "cover") {
-    restaurant.image = request.url;
-  } else {
-    const product = findProduct(restaurant, request.target.productId);
-    if (!product) {
-      throw new DomainError(
-        "product_not_found",
-        "Ürün menüden kaldırılmış, fotoğraf uygulanamaz. Talebi reddedebilirsin.",
-        409
-      );
+    if (row.targetKind === "cover") {
+      await tx`update public.restaurants set image = ${row.url} where id = ${row.restaurantId}`;
+    } else {
+      const updated = await tx`
+        update public.products set image = ${row.url}
+         where id = ${row.targetProductId} and restaurant_id = ${row.restaurantId}
+        returning id
+      `;
+      if (updated.length === 0) {
+        throw new DomainError(
+          "product_not_found",
+          "Ürün menüden kaldırılmış, fotoğraf uygulanamaz. Talebi reddedebilirsin.",
+          409
+        );
+      }
     }
-    product.image = request.url;
-  }
 
-  request.status = "approved";
-  request.decidedAt = new Date().toISOString();
-  request.decidedBy = admin.name;
-  commit();
+    await tx`
+      update public.media_requests
+         set status = 'approved', decided_at = now(), decided_by = ${admin.name}
+       where id = ${id}
+    `;
+    const [restaurant] = await tx<{ name: string }[]>`select name from public.restaurants where id = ${row.restaurantId}`;
+    return { restaurantName: restaurant?.name ?? row.restaurantId, targetName: row.targetName };
+  });
 
-  recordAudit(
-    admin.name,
-    "Fotoğraf onaylandı",
-    restaurant.name,
-    request.targetName
-  );
-  return request;
+  await recordAudit(admin.name, "Fotoğraf onaylandı", result.restaurantName, result.targetName);
 }
 
-export function rejectMediaRequest(
-  admin: AdminAccount,
-  id: string,
-  reason: string
-): MediaRequest {
-  const { request, restaurant } = pendingRequest(id);
+export async function rejectMediaRequest(admin: AdminAccount, id: string, reason: string): Promise<void> {
   const text = reason.trim();
   if (text.length < 3) {
-    throw new DomainError(
-      "reason_required",
-      "Restoran neyi düzelteceğini bilsin: kısa bir gerekçe yaz."
-    );
+    throw new DomainError("reason_required", "Restoran neyi düzelteceğini bilsin: kısa bir gerekçe yaz.");
   }
 
-  request.status = "rejected";
-  request.rejectReason = text.slice(0, 200);
-  request.decidedAt = new Date().toISOString();
-  request.decidedBy = admin.name;
-  commit();
+  const [row] = await sql<(MediaRow & { restaurantName: string })[]>`
+    update public.media_requests m
+       set status = 'rejected', reject_reason = ${text.slice(0, 200)}, decided_at = now(),
+           decided_by = ${admin.name}
+      from public.restaurants r
+     where m.id = ${id} and m.status = 'pending' and r.id = m.restaurant_id
+    returning m.*, r.name as restaurant_name
+  `;
+  if (!row) throw new DomainError("media_request_closed", "Bu talep bulunamadı ya da zaten sonuçlandı.");
 
-  recordAudit(
-    admin.name,
-    "Fotoğraf reddedildi",
-    restaurant.name,
-    `${request.targetName} · ${request.rejectReason}`
-  );
-  return request;
+  await recordAudit(admin.name, "Fotoğraf reddedildi", row.restaurantName, `${row.targetName} · ${row.rejectReason}`);
 }
 
 /* ------------------------------------------------------------------ */
@@ -376,10 +303,14 @@ export function rejectMediaRequest(
 /* ------------------------------------------------------------------ */
 
 /** `/media/<dosya>` isteğinin kaydı — erişim kararı için. */
-export function mediaByFile(file: string): MediaRequest | undefined {
-  return db().mediaRequests.find((r) => r.url === `/media/${file}`);
+export async function mediaByFile(file: string): Promise<MediaRequest | null> {
+  const [row] = await sql<MediaRow[]>`select * from public.media_requests where url = ${`/media/${file}`}`;
+  return row ? toMediaRequest(row) : null;
 }
 
-export function pendingMediaCount(): number {
-  return db().mediaRequests.filter((r) => r.status === "pending").length;
+export async function pendingMediaCount(): Promise<number> {
+  const [row] = await sql<{ n: number }[]>`
+    select count(*)::int as n from public.media_requests where status = 'pending'
+  `;
+  return row.n;
 }

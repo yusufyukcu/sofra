@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { api, errorMessage } from "@/lib/api-client";
-import { ORDER_STATUS_META } from "@/lib/constants";
+import { ORDER_STATUS_META, PAYMENT_METHODS } from "@/lib/constants";
 import { useVendor } from "@/lib/store/vendor";
 import type { Order } from "@/lib/types";
 import { cn, formatPrice, formatTime, relativeTime } from "@/lib/utils";
@@ -61,8 +61,11 @@ export function OrderTicket({
   const onTheWay = order.status === "on_the_way";
   const closed = order.status === "delivered" || order.status === "cancelled";
 
+  const ownCourier = order.courierMode === "vendor";
+  const paidOnDelivery = PAYMENT_METHODS[order.paymentMethod].onDelivery;
+
   async function act(
-    action: "approve" | "prep-time" | "ready" | "dispatch" | "reject",
+    action: "approve" | "prep-time" | "ready" | "dispatch" | "deliver" | "reject",
     extra: Record<string, unknown> = {}
   ) {
     setBusy(true);
@@ -79,7 +82,10 @@ export function OrderTicket({
         "prep-time": `${order.code} süresi ${prep} dakikaya güncellendi`,
         ready: `${order.code} hazır olarak işaretlendi`,
         dispatch: `${order.code} yola çıktı`,
-        reject: `${order.code} reddedildi, tutar müşteriye iade edildi`,
+        deliver: `${order.code} teslim edildi`,
+        reject: paidOnDelivery
+          ? `${order.code} reddedildi`
+          : `${order.code} reddedildi, tutar müşteriye iade edildi`,
       };
       toast.success(messages[action]);
     } catch (err) {
@@ -304,38 +310,60 @@ export function OrderTicket({
                 </Button>
               </div>
             </div>
-          ) : (
+          ) : ownCourier ? (
+            /* Restoran kendi kuryesiyle götürüyor: yola çıkışı panel bildirir */
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setRejectOpen(true)}
-                disabled={busy}
-              >
+              <Button variant="outline" onClick={() => setRejectOpen(true)} disabled={busy}>
                 İptal
               </Button>
-              <Button
-                block
-                size="lg"
-                variant="success"
-                loading={busy}
-                onClick={() => act("dispatch")}
-              >
+              <Button block size="lg" variant="success" loading={busy} onClick={() => act("dispatch")}>
                 Yola çıktı
               </Button>
+            </div>
+          ) : (
+            /* Platform kuryesi aranıyor: "Yolda" geçişini kurye yapacak */
+            <div className="space-y-2.5">
+              <p className="rounded-xl border border-border bg-surface-2 px-3 py-2.5 text-xs text-muted">
+                {order.courierStage === "offered"
+                  ? "Yakındaki bir kuryeye teklif gönderildi, yanıtı bekleniyor."
+                  : "Platform kuryesi aranıyor. Kurye atanınca burada görünecek."}
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setRejectOpen(true)} disabled={busy}>
+                  İptal
+                </Button>
+                <Button
+                  block
+                  size="lg"
+                  variant={order.readyAt ? "secondary" : "success"}
+                  loading={busy}
+                  disabled={Boolean(order.readyAt)}
+                  onClick={() => act("ready")}
+                >
+                  {order.readyAt ? "Hazır · kurye bekleniyor" : "Sipariş hazır"}
+                </Button>
+              </div>
             </div>
           )}
         </div>
       )}
 
       {onTheWay && (
-        <div className="tabular border-t border-border px-4 py-3 text-sm text-muted">
-          <Clock className="mr-1.5 inline size-4" />
-          Tahmini teslim {formatTime(order.etaAt)}
-          {order.courier
-            ? ` · ${order.courier.name}`
-            : order.courierMode === "platform"
-              ? " · platform kuryesinde"
-              : " · restoran kuryesinde"}
+        <div className="space-y-2.5 border-t border-border px-4 py-3">
+          <p className="tabular text-sm text-muted">
+            <Clock className="mr-1.5 inline size-4" />
+            Tahmini teslim {formatTime(order.etaAt)}
+            {order.courier
+              ? ` · ${order.courier.name}`
+              : ownCourier
+                ? " · restoran kuryesinde"
+                : " · platform kuryesinde"}
+          </p>
+          {ownCourier && (
+            <Button block variant="success" loading={busy} onClick={() => act("deliver")}>
+              Teslim edildi
+            </Button>
+          )}
         </div>
       )}
 

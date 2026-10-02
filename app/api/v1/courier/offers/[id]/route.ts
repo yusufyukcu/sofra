@@ -20,9 +20,9 @@ export async function POST(
     const body = await readJson<{ action?: string }>(request);
 
     if (body.action === "accept") {
-      acceptOffer(courier, id);
+      await acceptOffer(courier, id);
     } else if (body.action === "reject") {
-      rejectOffer(courier, id);
+      await rejectOffer(courier, id);
     } else {
       throw new DomainError(
         "unknown_action",
@@ -30,7 +30,7 @@ export async function POST(
       );
     }
 
-    const board = courierBoard(courier);
+    const board = await courierBoard(courier);
     return ok({ ...board, courier: publicCourier(board.courier) });
   });
 }

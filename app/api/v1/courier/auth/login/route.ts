@@ -7,7 +7,7 @@ import { courierLogin, courierPickerList } from "@/lib/services/courier";
  * Giris ekranindaki kurye secicisi (kimlik dogrulama gerekmez).
  */
 export async function GET() {
-  return handle(async () => ok({ couriers: courierPickerList() }));
+  return handle(async () => ok({ couriers: await courierPickerList() }));
 }
 
 /**
@@ -17,7 +17,7 @@ export async function GET() {
 export async function POST(request: Request) {
   return handle(async () => {
     const body = await readJson<{ courierId?: string; pin?: string }>(request);
-    const courier = courierLogin(body.courierId ?? "", body.pin ?? "");
+    const courier = await courierLogin(body.courierId ?? "", body.pin ?? "");
     return respondWithCourierSession(courier);
   });
 }

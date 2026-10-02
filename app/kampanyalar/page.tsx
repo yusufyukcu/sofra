@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { activeBanners, allCoupons } from "@/lib/db/store";
+import { connection } from "next/server";
+import { activeBanners, allCoupons } from "@/lib/db/queries";
 import { formatPrice } from "@/lib/utils";
 import { Badge } from "@/components/ui/primitives";
 import { BannerArt } from "@/components/discovery/banner-art";
@@ -11,12 +12,14 @@ export const metadata: Metadata = {
   description: "Güncel indirim kodları ve kampanyalar.",
 };
 
-export default function CampaignsPage() {
+export default async function CampaignsPage() {
+  // Kampanyalar yönetici panelinden anında değişir: her istekte güncel oku
+  await connection();
   const now = Date.now();
-  const coupons = allCoupons().filter(
+  const [allList, banners] = await Promise.all([allCoupons(), activeBanners()]);
+  const coupons = allList.filter(
     (coupon) => coupon.active && new Date(coupon.expiresAt).getTime() > now
   );
-  const banners = activeBanners();
 
   return (
     <div className="mx-auto max-w-5xl px-4 pt-6 lg:px-6 lg:pt-8">

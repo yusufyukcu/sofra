@@ -19,11 +19,14 @@ import { useToast } from "@/components/ui/toast";
 
 interface Transaction {
   id: string;
-  type: "spend" | "refund";
+  type: "spend" | "refund" | "topup" | "credit" | "debit" | "tip";
+  /** Bakiyeye giriş mi çıkış mı */
+  direction: "in" | "out";
   amount: number;
+  balanceAfter: number;
   label: string;
   at: string;
-  orderId: string;
+  orderId?: string;
 }
 
 const QUICK_AMOUNTS = [100, 250, 500, 1000];
@@ -49,8 +52,11 @@ export function WalletPanel() {
   async function topUp() {
     setSaving(true);
     try {
-      const data = await api.post<{ balance: number }>("/wallet", { amount });
+      const data = await api.post<{ balance: number; transactions: Transaction[] }>("/wallet", {
+        amount,
+      });
       if (user) setUser({ ...user, walletBalance: data.balance });
+      setTransactions(data.transactions);
       toast.success(`${formatPrice(amount)} yüklendi.`);
       setTopUpOpen(false);
     } catch (err) {
@@ -110,49 +116,49 @@ export function WalletPanel() {
             <EmptyState
               emoji="💸"
               title="Henüz hareket yok"
-              description="Cüzdanınla ödeme yaptığında veya iade aldığında burada görünecek."
+              description="Bakiye yüklediğinde, cüzdanla ödediğinde ya da iade aldığında burada görünecek."
             />
           </div>
         ) : (
           <ul className="divide-y divide-border">
-            {transactions.map((item) => (
-              <li key={item.id}>
-                <Link
-                  href={`/siparis/${item.orderId}`}
-                  className="flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-surface-2"
-                >
+            {transactions.map((item) => {
+              const incoming = item.direction === "in";
+              const body = (
+                <>
                   <span
                     className={`flex size-9 shrink-0 items-center justify-center rounded-full ${
-                      item.type === "refund"
-                        ? "bg-success-soft text-success"
-                        : "bg-surface-2 text-muted"
+                      incoming ? "bg-success-soft text-success" : "bg-surface-2 text-muted"
                     }`}
                   >
-                    {item.type === "refund" ? (
-                      <ArrowDownLeft className="size-4" />
-                    ) : (
-                      <ArrowUpRight className="size-4" />
-                    )}
+                    {incoming ? <ArrowDownLeft className="size-4" /> : <ArrowUpRight className="size-4" />}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-text">
-                      {item.label}
-                    </span>
+                    <span className="block truncate text-sm font-semibold text-text">{item.label}</span>
                     <span className="block text-xs text-muted">
-                      {formatDateTime(item.at)}
+                      {formatDateTime(item.at)} · Bakiye {formatPrice(item.balanceAfter)}
                     </span>
                   </span>
-                  <span
-                    className={`shrink-0 font-extrabold ${
-                      item.type === "refund" ? "text-success" : "text-text"
-                    }`}
-                  >
-                    {item.type === "refund" ? "+" : "−"}
+                  <span className={`tabular shrink-0 font-extrabold ${incoming ? "text-success" : "text-text"}`}>
+                    {incoming ? "+" : "−"}
                     {formatPrice(item.amount)}
                   </span>
-                </Link>
-              </li>
-            ))}
+                </>
+              );
+              return (
+                <li key={item.id}>
+                  {item.orderId ? (
+                    <Link
+                      href={`/siparis/${item.orderId}`}
+                      className="flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-surface-2"
+                    >
+                      {body}
+                    </Link>
+                  ) : (
+                    <div className="flex items-center gap-3 px-5 py-3.5">{body}</div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

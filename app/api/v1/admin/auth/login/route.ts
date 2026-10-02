@@ -10,6 +10,6 @@ import { adminLogin } from "@/lib/services/admin";
 export async function POST(request: Request) {
   return handle(async () => {
     const body = await readJson<{ pin?: string }>(request);
-    return respondWithAdminSession(adminLogin(body.pin ?? ""));
+    return respondWithAdminSession(await adminLogin(body.pin ?? ""));
   });
 }

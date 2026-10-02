@@ -1,6 +1,6 @@
 import { handle, readJson } from "@/lib/api/respond";
 import { respondWithSession } from "@/lib/auth/session";
-import { verifyOtp } from "@/lib/services/auth";
+import { consumeOtp, customerFromVerifiedTarget } from "@/lib/services/auth";
 import { listAddresses } from "@/lib/services/account";
 
 /**
@@ -10,21 +10,13 @@ import { listAddresses } from "@/lib/services/account";
  */
 export async function POST(request: Request) {
   return handle(async () => {
-    const body = await readJson<{
-      challengeId?: string;
-      code?: string;
-      name?: string;
-    }>(request);
-
-    const { user, isNewUser } = verifyOtp(
-      body.challengeId ?? "",
-      body.code ?? "",
-      body.name
-    );
+    const body = await readJson<{ challengeId?: string; code?: string; name?: string }>(request);
+    const verified = await consumeOtp(body.challengeId ?? "", body.code ?? "");
+    const { user, isNewUser } = await customerFromVerifiedTarget(verified, body.name);
 
     return respondWithSession(user, {
       isNewUser,
-      addresses: listAddresses(user),
+      addresses: await listAddresses(user),
     });
   });
 }

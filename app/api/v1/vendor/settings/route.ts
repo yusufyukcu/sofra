@@ -22,6 +22,6 @@ export async function PATCH(request: Request) {
   return handle(async () => {
     const { restaurant } = await requireVendor(request);
     const body = await readJson<StoreSettingsInput>(request);
-    return ok({ restaurant: updateStoreSettings(restaurant.id, body) });
+    return ok({ restaurant: await updateStoreSettings(restaurant.id, body) });
   });
 }

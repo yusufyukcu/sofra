@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { SignJWT, jwtVerify } from "jose";
-import { findRestaurant, findVendorById } from "../db/store";
+import { findRestaurant, findVendorMember } from "../db/queries";
 import { DomainError } from "../errors";
 import type { Restaurant, VendorAccount } from "../types";
 
@@ -80,8 +80,8 @@ export async function currentVendor(
   const claims = await verifyVendorSession(token);
   if (!claims) return null;
 
-  const vendor = findVendorById(claims.vendorId);
-  const restaurant = findRestaurant(claims.restaurantId);
+  const vendor = await findVendorMember(claims.vendorId);
+  const restaurant = await findRestaurant(claims.restaurantId);
   if (!vendor || !restaurant || vendor.restaurantId !== restaurant.id) {
     return null;
   }
