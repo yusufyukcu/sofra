@@ -1,11 +1,14 @@
 import { router } from "expo-router";
 import {
+  Bell,
   Bike,
   ChevronRight,
   CreditCard,
+  Headset,
   Heart,
   LogOut,
   MapPin,
+  Plus,
   Wallet,
 } from "lucide-react-native";
 import type { ReactNode } from "react";
@@ -23,9 +26,8 @@ import { useTheme } from "@/theme";
 /**
  * Hesabım.
  *
- * Cüzdan, adresler, kartlar, favoriler ve kurye moduna geçiş. Adres ve kart
- * düzenleme web panelinde; mobilde şimdilik okunur — hangi adrese teslimat
- * yapılacağı buradan seçilir.
+ * Cüzdan, adresler (seçme ve ekleme), kartlar, bildirimler, canlı destek
+ * ve kurye moduna geçiş.
  *
  * "Kurye modu" bu uygulamanın ikinci yüzü: aynı binary içinde ayrı oturum,
  * ayrı token ve ayrı uç noktalar. Müşteri oturumu açıkken de kurye olarak
@@ -150,13 +152,27 @@ export default function AccountScreen() {
 
             {addresses.length === 0 ? (
               <Card>
-                <Text variant="small">
-                  Kayıtlı adresin yok. Web panelinden adres ekleyebilirsin.
-                </Text>
+                <Text variant="small">Kayıtlı adresin yok.</Text>
               </Card>
             ) : null}
+            <Button
+              label="Yeni adres ekle"
+              variant="secondary"
+              icon={<Plus size={16} color={t.colors.ink} />}
+              onPress={() => router.push("/adres-ekle")}
+              fullWidth
+            />
           </View>
         </View>
+
+        {/* Kısayollar */}
+        <Card style={{ gap: t.spacing.sm }}>
+          <LinkRow icon={<Bell size={18} color={t.colors.muted} />} label="Bildirimler" onPress={() => router.push("/bildirimler")} />
+          <Divider />
+          <LinkRow icon={<CreditCard size={18} color={t.colors.muted} />} label="Kartlarım" onPress={() => router.push("/kartlar")} />
+          <Divider />
+          <LinkRow icon={<Headset size={18} color={t.colors.muted} />} label="Canlı destek" onPress={() => router.push("/destek")} />
+        </Card>
 
         {/* Kartlar */}
         {cards.length ? (
@@ -211,6 +227,23 @@ export default function AccountScreen() {
 
 /* ------------------------------------------------------------------ */
 
+function LinkRow({ icon, label, onPress }: { icon: ReactNode; label: string; onPress: () => void }) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.linkRow, { opacity: pressed ? 0.6 : 1 }]}
+    >
+      {icon}
+      <Text variant="body" weight="semibold" tone="ink" style={{ flex: 1 }}>
+        {label}
+      </Text>
+      <ChevronRight size={18} color={t.colors.muted} />
+    </Pressable>
+  );
+}
+
 /** Kurye moduna geçiş — aynı uygulamanın ikinci yüzü. */
 function CourierCard() {
   const t = useTheme();
@@ -263,6 +296,7 @@ function ServerCard() {
 }
 
 const styles = StyleSheet.create({
+  linkRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 4 },
   profile: { flexDirection: "row", alignItems: "center", gap: 12 },
   avatar: { fontSize: 38, lineHeight: 46 },
   wallet: {

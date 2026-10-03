@@ -10,15 +10,15 @@ import {
   type User,
 } from "@sofra/core";
 import { api, onUnauthorized } from "@/lib/api";
-import { clearToken, saveToken } from "@/lib/token-store";
+import { clearToken, saveAuthPayload } from "@/lib/token-store";
 
 /**
  * Oturum ve teslimat konumu.
  *
  * Web'deki `lib/store/session.ts` ile aynı sözleşme: aynı alanlar, aynı
  * eylemler, aynı türetilmiş seçiciler. İki fark var — kalıcı depo
- * `localStorage` yerine `AsyncStorage`, ve girişte dönen `accessToken`
- * cihazın güvenli alanına yazılır.
+ * `localStorage` yerine `AsyncStorage`, ve girişte dönen erişim/yenileme
+ * token çifti cihazın güvenli alanına yazılır.
  *
  * Giriş yapmamış kullanıcı da restoranları konumuna göre görebilsin diye
  * "misafir konumu" ayrıca tutulur.
@@ -49,9 +49,12 @@ interface SessionState {
   applyAuth: (payload: {
     user: User;
     accessToken?: string;
+    refreshToken?: string | null;
+    expiresAt?: number | null;
     addresses?: Address[];
     cards?: SavedCard[];
   }) => Promise<void>;
+  setCards: (cards: SavedCard[]) => void;
   logout: () => Promise<void>;
   setAddresses: (addresses: Address[]) => void;
   selectAddress: (id: string) => void;
@@ -109,8 +112,8 @@ export const useSession = create<SessionState>()(
         }
       },
 
-      applyAuth: async ({ user, accessToken, addresses = [], cards = [] }) => {
-        if (accessToken) await saveToken("customer", accessToken);
+      applyAuth: async ({ user, accessToken, refreshToken, expiresAt, addresses = [], cards = [] }) => {
+        await saveAuthPayload("customer", { accessToken, refreshToken, expiresAt });
         set({
           status: "authenticated",
           user,
@@ -154,6 +157,8 @@ export const useSession = create<SessionState>()(
       },
 
       selectAddress: (id) => set({ selectedAddressId: id }),
+
+      setCards: (cards) => set({ cards }),
 
       setGuestLocation: (point, label) =>
         set({ guestPoint: point, guestLabel: label }),
@@ -201,8 +206,8 @@ export const useSession = create<SessionState>()(
   )
 );
 
-/** 401 gelirse oturumu düşür — API istemcisi bunu tetikler. */
-onUnauthorized(() => {
+/** Yenileme de reddedildiyse oturumu düşür — API istemcisi bunu tetikler. */
+onUnauthorized("customer", () => {
   if (useSession.getState().status === "authenticated") {
     useSession.setState({
       status: "guest",

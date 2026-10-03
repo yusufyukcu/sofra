@@ -12,6 +12,7 @@ import {
   type CourierStage,
   type Order,
 } from "@sofra/core";
+import { useMaskedCall } from "@/components/call/masked-call";
 import { MapView } from "@/components/map/map-view";
 import { Button } from "@/components/ui/button";
 import { Header, Screen } from "@/components/ui/screen";
@@ -26,8 +27,8 @@ import { useTheme } from "@/theme";
  * Sipariş takibi.
  *
  * Durum çizgisi, canlı harita, kurye bilgisi ve sipariş özeti. Veriler
- * `useLive` ile saniyede bir tazelenir; web SSE kullanıyor, mobil aynı
- * gövdeyi GET ile yokluyor (bkz. `use-live.ts`).
+ * `useLive` ile 2 saniyede bir tazelenir (bkz. `use-live.ts`). Kuryeyi
+ * arama maskeli hat üzerinden yapılır; destek sohbeti siparişe bağlı açılır.
  *
  * Kurye teslimatı üstlendiğinde ilerleme artık zamanlayıcıdan değil kuryenin
  * bildirdiği aşamadan geliyor — `courierStage` doluysa aşama etiketi
@@ -61,6 +62,8 @@ export default function OrderScreen() {
   );
 
   const order = data?.order ?? null;
+  // Kuryeyi platform hattından ara: iki taraf da birbirinin numarasını görmez
+  const call = useMaskedCall(api, `/orders/${id}/call`);
   const terminal =
     order?.status === "delivered" || order?.status === "cancelled";
 
@@ -253,7 +256,7 @@ export default function OrderScreen() {
                     {order.courier.rating.toFixed(1)}
                   </Text>
                   <Text variant="caption">· {order.courier.vehicle}</Text>
-                  <Text variant="caption">· {order.courier.maskedPhone}</Text>
+
                 </View>
               </View>
               <Pressable
@@ -266,12 +269,8 @@ export default function OrderScreen() {
                     opacity: pressed ? 0.7 : 1,
                   },
                 ]}
-                onPress={() =>
-                  Alert.alert(
-                    "Prototip",
-                    "Gerçek sistemde kurye maskeli numarayla aranır."
-                  )
-                }
+                disabled={call.busy || !order.courierStage || !["assigned", "at_restaurant", "picked_up"].includes(order.courierStage)}
+                onPress={call.start}
               >
                 <Phone size={17} color={t.colors.pistachio} />
               </Pressable>
@@ -356,15 +355,11 @@ export default function OrderScreen() {
             label="Destek"
             variant="secondary"
             icon={<MessageCircle size={17} color={t.colors.ink} />}
-            onPress={() =>
-              Alert.alert(
-                "Destek",
-                "Canlı destek sohbeti web uygulamasında açık. Mobilde sıradaki sürümde."
-              )
-            }
+            onPress={() => router.push({ pathname: "/destek", params: { siparis: order.id } })}
             fullWidth
           />
         </View>
+        {call.sheet}
       </ScrollView>
     </Screen>
   );

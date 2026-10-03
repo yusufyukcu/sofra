@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { Courier } from "@sofra/core";
-import { courierApi } from "@/lib/api";
-import { clearToken, saveToken } from "@/lib/token-store";
+import { courierApi, onUnauthorized } from "@/lib/api";
+import { clearToken, saveAuthPayload } from "@/lib/token-store";
 
 /**
  * Kurye oturumu.
@@ -11,16 +11,28 @@ import { clearToken, saveToken } from "@/lib/token-store";
  * müşteri olarak sipariş vermeni engelleyen bir şey yok, tıpkı webde iki
  * ayrı çerezin birlikte durması gibi.
  *
- * Kalıcı depoya yazılmaz; token zaten güvenli alanda duruyor ve açılışta
- * `restore()` ile doğrulanıyor.
+ * Giriş telefon + SMS koduyla yapılır (test modunda kod ekranda görünür).
+ * Kalıcı depoya yazılmaz; token çifti zaten güvenli alanda duruyor ve
+ * açılışta `restore()` ile doğrulanıyor.
  */
+
+export interface CourierOtpChallenge {
+  challengeId: string;
+  maskedTarget: string;
+  expiresInSeconds: number;
+  /** Yalnızca test modunda (SMS sağlayıcısı bağlı değilken) */
+  devCode?: string;
+}
 
 interface CourierState {
   status: "loading" | "authenticated" | "guest";
   courier: Courier | null;
 
   restore: () => Promise<void>;
-  login: (courierId: string, pin: string) => Promise<void>;
+  /** 1. adım: telefona doğrulama kodu */
+  startLogin: (phone: string) => Promise<CourierOtpChallenge>;
+  /** 2. adım: kodu doğrula, oturumu aç */
+  verifyLogin: (challengeId: string, code: string) => Promise<void>;
   logout: () => Promise<void>;
   setCourier: (courier: Courier) => void;
 }
@@ -38,12 +50,17 @@ export const useCourier = create<CourierState>()((set) => ({
     }
   },
 
-  login: async (courierId, pin) => {
+  startLogin: (phone) =>
+    courierApi.post<CourierOtpChallenge>("/courier/auth/otp/start", { phone }),
+
+  verifyLogin: async (challengeId, code) => {
     const data = await courierApi.post<{
       courier: Courier;
       accessToken: string;
-    }>("/courier/auth/login", { courierId, pin });
-    await saveToken("courier", data.accessToken);
+      refreshToken: string;
+      expiresAt: number | null;
+    }>("/courier/auth/otp/verify", { challengeId, code });
+    await saveAuthPayload("courier", data);
     set({ status: "authenticated", courier: data.courier });
   },
 
@@ -60,3 +77,10 @@ export const useCourier = create<CourierState>()((set) => ({
 
   setCourier: (courier) => set({ courier }),
 }));
+
+/** Kurye oturumu düşerse yalnızca kurye ekranı girişe döner (müşteri oturumu etkilenmez). */
+onUnauthorized("courier", () => {
+  if (useCourier.getState().status === "authenticated") {
+    useCourier.setState({ status: "guest", courier: null });
+  }
+});

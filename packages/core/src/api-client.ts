@@ -53,6 +53,11 @@ export interface ApiClientConfig {
   credentials?: RequestCredentials;
   /** Oturum düştüğünde çağrılır (mobilde giriş ekranına dönmek için). */
   onUnauthorized?: () => void;
+  /**
+   * 401 alındığında bir kez çağrılır; `true` dönerse (ör. mobilde yenileme
+   * token'ıyla yeni erişim token'ı alındıysa) istek bir kez tekrarlanır.
+   */
+  refreshOnUnauthorized?: () => Promise<boolean>;
   /** Saniye cinsinden istek zaman aşımı. Mobil ağlarda gerekli. */
   timeoutSeconds?: number;
 }
@@ -75,12 +80,13 @@ export function createApiClient(config: ApiClientConfig = {}): ApiClient {
     getToken,
     credentials,
     onUnauthorized,
+    refreshOnUnauthorized,
     timeoutSeconds = 20,
   } = config;
 
   const url = (path: string) => `${baseUrl}${API_PREFIX}${path}`;
 
-  async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  async function request<T>(path: string, init: RequestInit = {}, retried = false): Promise<T> {
     // FormData'da içerik türünü (ve sınırını) istemci kendisi yazar
     const isForm =
       typeof FormData !== "undefined" && init.body instanceof FormData;
@@ -131,7 +137,13 @@ export function createApiClient(config: ApiClientConfig = {}): ApiClient {
         error?.message ?? "Beklenmeyen bir hata oluştu.",
         response.status
       );
-      if (onUnauthorized && isUnauthorized(apiError)) onUnauthorized();
+      if (isUnauthorized(apiError)) {
+        // Erişim token'ının süresi dolmuş olabilir: bir kez yenileyip tekrar dene
+        if (!retried && refreshOnUnauthorized && (await refreshOnUnauthorized().catch(() => false))) {
+          return request<T>(path, init, true);
+        }
+        onUnauthorized?.();
+      }
       throw apiError;
     }
 

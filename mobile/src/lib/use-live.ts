@@ -5,11 +5,11 @@ import type { ApiClient } from "@sofra/core";
 /**
  * Canlı veri kancası.
  *
- * Web uygulaması bu verileri Server-Sent Events ile alıyor. React Native'de
- * `EventSource` yok ve `fetch` gövdesi güvenilir biçimde akış olarak
- * okunamıyor, bu yüzden mobilde aynı uç noktanın GET karşılığı düzenli
- * aralıklarla yoklanıyor. Sunucu sözleşmesi ikisinde de aynı — SSE uçları
- * `/stream` ile bitiyor, GET karşılıkları aynı gövdeyi tek seferde dönüyor.
+ * Web uygulaması değişiklikleri Supabase Realtime kanallarından anında alıp
+ * ilgili GET ucunu yeniden çeker. Mobil şimdilik aynı GET uçlarını düzenli
+ * aralıklarla yokluyor (sipariş takibi 2 sn, kurye panosu 3 sn); gövde
+ * webdekiyle birebir aynı. Realtime'ın mobile taşınması yalnızca bu kancayı
+ * değiştirir, ekranlar değişmez.
  *
  * Uygulama arka plana alındığında yoklama durur; öne geldiğinde hemen bir
  * tur atıp devam eder. Böylece telefon boşuna istek atıp pil harcamaz.

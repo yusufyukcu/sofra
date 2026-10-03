@@ -23,8 +23,8 @@ import { useTheme } from "@/theme";
  * Giriş.
  *
  * Üç yol var, üçü de web ile aynı uç noktaları kullanır: telefon + OTP,
- * sosyal giriş ve demo hesabı. Girişte sunucu `accessToken` döndürür; mobil
- * bunu cihazın güvenli alanına yazar (web aynı token'ı çerezde taşır).
+ * sosyal giriş ve demo hesabı. Girişte sunucu erişim + yenileme token'ı
+ * döndürür; mobil ikisini cihazın güvenli alanına yazar (web çerezde taşır).
  *
  * Prototipte doğrulama kodu cevapta `devCode` ile geliyor ve ekranda
  * gösteriliyor — gerçek sistemde SMS ile gider ve bu alan kaldırılır.
@@ -33,6 +33,8 @@ import { useTheme } from "@/theme";
 interface AuthPayload {
   user: User;
   accessToken: string;
+  refreshToken?: string;
+  expiresAt?: number | null;
   addresses?: Address[];
   isNewUser?: boolean;
 }

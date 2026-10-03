@@ -5,10 +5,12 @@ import {
   type CourierStage,
   type Order,
 } from "@sofra/core";
+import { useMaskedCall } from "@/components/call/masked-call";
 import { MapView } from "@/components/map/map-view";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, Divider } from "@/components/ui/surfaces";
 import { Text } from "@/components/ui/text";
+import { courierApi } from "@/lib/api";
 import { useTheme } from "@/theme";
 
 /**
@@ -61,6 +63,8 @@ export function ActiveDelivery({
   const t = useTheme();
   const stage = order.courierStage ?? "assigned";
   const next = NEXT[stage];
+  // Müşterinin numarası kuryeye hiç gelmez: platform hattı + dahili kod
+  const call = useMaskedCall(courierApi, `/courier/orders/${order.id}/call`);
 
   // Hedef: paketi almadıysan restoran, aldıysan müşteri.
   const heading =
@@ -158,13 +162,9 @@ export function ActiveDelivery({
           </View>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Müşteriyi ara"
-            onPress={() =>
-              Alert.alert(
-                "Prototip",
-                "Gerçek sistemde müşteri maskeli numarayla aranır."
-              )
-            }
+            accessibilityLabel="Müşteriyi maskeli hattan ara"
+            disabled={call.busy}
+            onPress={call.start}
             style={({ pressed }) => [
               styles.call,
               {
@@ -204,6 +204,8 @@ export function ActiveDelivery({
           />
         </View>
       </View>
+
+      {call.sheet}
 
       {next ? (
         <View style={{ gap: 6 }}>

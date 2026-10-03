@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { ChevronDown, MapPin, SlidersHorizontal } from "lucide-react-native";
+import { ChevronDown, Filter, MapPin, SlidersHorizontal, Sparkles } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FlatList,
@@ -31,7 +31,8 @@ import { useTheme } from "@/theme";
 /**
  * Keşfet.
  *
- * Konum → kampanya vitrini → kategori şeridi → sıralama → restoran listesi.
+ * Konum → kampanya vitrini → öne çıkanlar → kategori şeridi → sıralama ve
+ * hızlı filtreler → restoran listesi.
  * Filtreleme ve sıralama sunucuda `@sofra/core/discovery` ile yapılır; mobil
  * yalnızca parametreleri gönderir, kural kopyalanmaz.
  *
@@ -43,6 +44,8 @@ interface DiscoveryResponse {
   restaurants: RestaurantListItem[];
   total: number;
   banners: Banner[];
+  /** Yönetimin öne çıkardıkları (sıralı) */
+  featured?: RestaurantListItem[];
   categories: { id: string; count: number }[];
   point: LatLng;
 }
@@ -60,6 +63,7 @@ export default function DiscoverScreen() {
 
   const [category, setCategory] = useState<string | null>(null);
   const [sort, setSort] = useState<SortKey>("recommended");
+  const [quick, setQuick] = useState({ openOnly: false, freeDeliveryOnly: false, topRated: false, fast: false });
 
   const query = useMemo(() => {
     // Parametre adları `@sofra/core` içinden geliyor; web ile aynı sözleşme.
@@ -69,8 +73,12 @@ export default function DiscoverScreen() {
       [FILTER_PARAM_KEYS.sort]: sort,
     });
     if (category) params.set(FILTER_PARAM_KEYS.category, category);
+    if (quick.openOnly) params.set(FILTER_PARAM_KEYS.openOnly, "1");
+    if (quick.freeDeliveryOnly) params.set(FILTER_PARAM_KEYS.freeDeliveryOnly, "1");
+    if (quick.topRated) params.set(FILTER_PARAM_KEYS.minRating, "4.5");
+    if (quick.fast) params.set(FILTER_PARAM_KEYS.maxEta, "30");
     return params.toString();
-  }, [point.lat, point.lng, sort, category]);
+  }, [point.lat, point.lng, sort, category, quick]);
 
   const load = useCallback(
     async (mode: "initial" | "refresh" = "initial") => {
@@ -98,6 +106,7 @@ export default function DiscoverScreen() {
   }, [load]);
 
   const list = data?.restaurants ?? [];
+  const featured = (data?.featured ?? []).filter((r) => r.deliverable);
   const counts = useMemo(
     () => new Map((data?.categories ?? []).map((c) => [c.id, c.count])),
     [data]
@@ -168,6 +177,30 @@ export default function DiscoverScreen() {
               </ScrollView>
             ) : null}
 
+            {/* Öne çıkanlar — yalnızca kategori seçilmemişken */}
+            {category === null && featured.length ? (
+              <View style={{ gap: t.spacing.sm }}>
+                <View style={styles.sortRow}>
+                  <Sparkles size={16} color={t.colors.saffron} />
+                  <Text variant="title">Öne çıkanlar</Text>
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: t.spacing.md }}
+                  style={{ marginHorizontal: -t.spacing.lg }}
+                >
+                  <View style={{ width: t.spacing.lg - t.spacing.md }} />
+                  {featured.map((item) => (
+                    <View key={item.id} style={{ width: 280 }}>
+                      <RestaurantCard restaurant={item} />
+                    </View>
+                  ))}
+                  <View style={{ width: t.spacing.lg - t.spacing.md }} />
+                </ScrollView>
+              </View>
+            ) : null}
+
             {/* Kategoriler */}
             <ScrollView
               horizontal
@@ -214,6 +247,29 @@ export default function DiscoverScreen() {
                 ))}
               </ScrollView>
             </View>
+
+            {/* Hızlı filtreler */}
+            <View style={styles.sortRow}>
+              <Filter size={15} color={t.colors.muted} />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                {(
+                  [
+                    ["openOnly", "Şu an açık"],
+                    ["freeDeliveryOnly", "Ücretsiz teslimat"],
+                    ["topRated", "4,5+ puan"],
+                    ["fast", "30 dk altı"],
+                  ] as const
+                ).map(([key, chipLabel]) => (
+                  <Chip
+                    key={key}
+                    label={chipLabel}
+                    small
+                    active={quick[key]}
+                    onPress={() => setQuick((current) => ({ ...current, [key]: !current[key] }))}
+                  />
+                ))}
+              </ScrollView>
+            </View>
           </View>
         }
         renderItem={({ item, index }) => (
@@ -236,7 +292,7 @@ export default function DiscoverScreen() {
             <EmptyState
               emoji="🍽️"
               title="Bu filtrelerle restoran yok"
-              description="Kategoriyi kaldırmayı ya da başka bir sıralama seçmeyi dene."
+              description="Kategoriyi ya da filtreleri kaldırmayı dene."
             />
           )
         }

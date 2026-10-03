@@ -23,7 +23,7 @@ import { themeFor } from "@/theme";
  * Kök yerleşim.
  *
  * Üç şey yapar: web'le aynı yazı tiplerini yükler (Bricolage Grotesque +
- * Geist), cihazın güvenli alanındaki oturum token'ını okur ve oturumu
+ * Geist), cihazın güvenli alanındaki oturum token'larını okur ve oturumu
  * sunucudan doğrular. Üçü de bitmeden açılış ekranı kapanmaz, böylece
  * kullanıcı hiçbir zaman yarı yüklü bir ekran görmez.
  */
@@ -87,6 +87,13 @@ export default function RootLayout() {
           options={{ presentation: "modal", animation: "slide_from_bottom" }}
         />
         <Stack.Screen name="kurye" />
+        <Stack.Screen name="destek" />
+        <Stack.Screen name="bildirimler" />
+        <Stack.Screen name="kartlar" />
+        <Stack.Screen
+          name="adres-ekle"
+          options={{ presentation: "modal", animation: "slide_from_bottom" }}
+        />
       </Stack>
     </SafeAreaProvider>
   );

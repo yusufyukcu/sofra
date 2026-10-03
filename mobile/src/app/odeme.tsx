@@ -200,10 +200,17 @@ export default function CheckoutScreen() {
                     Kayıtlı adresin yok
                   </Text>
                   <Text variant="caption" style={{ marginTop: 2 }}>
-                    Hesabım sekmesinden adres ekleyebilirsin.
+                    Teslimat için bir adres ekle.
                   </Text>
                 </Card>
               ) : null}
+              <Button
+                label="Yeni adres ekle"
+                variant="secondary"
+                icon={<Plus size={16} color={t.colors.ink} />}
+                onPress={() => router.push("/adres-ekle")}
+                fullWidth
+              />
             </View>
           </View>
 
@@ -240,6 +247,21 @@ export default function CheckoutScreen() {
                   />
                 ))}
               </View>
+            ) : null}
+
+            {payment === "online_card" && cards.length === 0 ? (
+              <Card
+                elevation="none"
+                style={{ marginTop: t.spacing.sm, gap: t.spacing.sm, backgroundColor: t.colors.surface2, borderColor: t.colors.border }}
+              >
+                <Text variant="small">Online ödeme için kayıtlı kartın yok.</Text>
+                <Button
+                  label="Kart ekle"
+                  size="sm"
+                  icon={<Plus size={15} color={t.colors.brandContrast} />}
+                  onPress={() => router.push({ pathname: "/kartlar", params: { donus: "odeme" } })}
+                />
+              </Card>
             ) : null}
 
             {payment === "online_card" && cards.length ? (
@@ -385,7 +407,7 @@ export default function CheckoutScreen() {
             trailing={totals ? formatPrice(totals.grandTotal) : undefined}
             onPress={placeOrder}
             loading={placing}
-            disabled={!addressId || !totals || walletShort}
+            disabled={!addressId || !totals || walletShort || (payment === "online_card" && cards.length === 0)}
             size="lg"
             fullWidth
           />
