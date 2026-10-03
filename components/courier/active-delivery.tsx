@@ -5,7 +5,6 @@ import {
   NotebookPen,
   Navigation,
   Package,
-  Phone,
   Store,
   MapPin,
 } from "lucide-react";
@@ -15,6 +14,7 @@ import { useCourier } from "@/lib/store/courier";
 import type { Order } from "@/lib/types";
 import { cn, formatDistance, formatPrice, formatTime } from "@/lib/utils";
 import { TrackingMap } from "@/components/map";
+import { MaskedCallButton } from "@/components/order/masked-call-button";
 import { useToast } from "@/components/ui/toast";
 
 /**
@@ -197,14 +197,12 @@ export function ActiveDelivery({ order }: { order: Order }) {
             </p>
           )}
 
-          {/* Maskeli arama */}
-          <a
-            href={`tel:${order.address.contactPhone ?? ""}`}
-            className="mt-1 flex h-12 items-center justify-center gap-2 rounded-xl border border-border bg-surface-2 text-sm font-bold text-ink transition-colors hover:bg-surface-3"
-          >
-            <Phone className="size-4" />
-            Müşteriyi ara · maskeli hat
-          </a>
+          {/* Maskeli arama: müşterinin numarası kuryeye hiç gelmez */}
+          <MaskedCallButton
+            endpoint={`/courier/orders/${order.id}/call`}
+            label="Müşteriyi ara · maskeli hat"
+            className="mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface-2 text-sm font-bold text-ink transition-colors hover:bg-surface-3 disabled:opacity-60"
+          />
           <p className="text-center text-[11px] text-muted">
             Numaran müşteriye görünmez; görüşme platform hattı üzerinden yapılır.
           </p>

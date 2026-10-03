@@ -7,7 +7,6 @@ import {
   Check,
   Headset,
   MapPin,
-  Phone,
   Radio,
   Star,
   XCircle,
@@ -28,6 +27,7 @@ import { useOrderStream } from "@/lib/use-order-stream";
 import type { CourierStage, Order } from "@/lib/types";
 import { cn, formatPrice, formatTime } from "@/lib/utils";
 import { TrackingMap } from "@/components/map";
+import { MaskedCallButton } from "@/components/order/masked-call-button";
 import { ChatPanel } from "@/components/support/chat-panel";
 import { Modal } from "@/components/ui/modal";
 import { Badge, Button, EmptyState, Skeleton } from "@/components/ui/primitives";
@@ -272,13 +272,12 @@ export function OrderTracking({ orderId }: { orderId: string }) {
                   </span>
                 </p>
               </div>
-              <a
-                href={`tel:${order.courier.maskedPhone.replace(/\s/g, "")}`}
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-border px-3 text-sm font-semibold text-text transition-colors hover:bg-surface-2"
-              >
-                <Phone className="size-4" />
-                Ara
-              </a>
+              {order.courierStage && ["assigned", "at_restaurant", "picked_up"].includes(order.courierStage) && (
+                <MaskedCallButton
+                  endpoint={`/orders/${order.id}/call`}
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-border px-3 text-sm font-semibold text-text transition-colors hover:bg-surface-2 disabled:opacity-60"
+                />
+              )}
             </div>
           ) : (
             <p className="border-t border-border p-4 text-sm text-muted">
