@@ -2,11 +2,12 @@
 
 Expo (SDK 57) + React Native ile yazılmış müşteri ve kurye uygulaması.
 Web uygulamasının kullandığı `/api/v1` uç noktalarının aynısına bağlanır;
-mobil için ayrı bir backend yok.
+backend Supabase üzerindedir, mobil için ayrı bir sunucu yok.
 
 ## Çalıştırma
 
-Önce **kök dizinde** web sunucusunu başlat — mobil uygulama API'yi oradan alır:
+Önce **kök dizinde** web sunucusunu başlat — mobil uygulama API'yi oradan alır
+(kurulum: kök `README.md` → Hızlı başlangıç):
 
 ```bash
 cd ..
@@ -19,8 +20,6 @@ Sonra bu klasörde:
 npm install
 npx expo start
 ```
-
-Açılan ekrandan:
 
 | Tuş | Hedef |
 |-----|-------|
@@ -37,7 +36,10 @@ ayarlamak istersen:
 EXPO_PUBLIC_SOFRA_API=http://192.168.1.42:3000 npx expo start
 ```
 
-Bağlı olduğun adresi uygulamada **Hesabım → Bağlı sunucu** altında görebilirsin.
+Bağlı olduğun adresi **Hesabım → Bağlı sunucu** altında görebilirsin.
+
+**Giriş:** müşteri telefon + kod ya da demo hesabı; kurye telefon
+(532 111 00 01–04) + kod. SMS test modundayken kod ekranda gösterilir.
 
 ## Ne var
 
@@ -45,57 +47,59 @@ Bağlı olduğun adresi uygulamada **Hesabım → Bağlı sunucu** altında gör
 
 | Ekran | İçerik |
 |---|---|
-| Keşfet | Konum, kampanya vitrini, kategori şeridi, sıralama, restoran listesi |
-| Ara | Restoran / mutfak / ürün araması, popüler mutfak önerileri |
+| Keşfet | Konum, kampanya vitrini, **öne çıkanlar**, kategori şeridi, sıralama, **hızlı filtreler** (açık, ücretsiz teslimat, 4,5+ puan, 30 dk altı) |
+| Ara | Restoran / mutfak / ürün araması |
 | Siparişlerim | Aktif siparişler üstte, geçmiş altta; tekrarla ve değerlendir |
-| Hesabım | Cüzdan, adresler, kayıtlı kartlar, kurye moduna geçiş |
+| Hesabım | Cüzdan, adresler (seç / **ekle**), **bildirimler**, **kartlarım**, **canlı destek**, kurye moduna geçiş |
 
 Yığın ekranları: restoran + menü, ürün seçim yaprağı (varyantlar), sepet,
-ödeme, canlı sipariş takibi, değerlendirme (puan + bahşiş), giriş.
+ödeme (kayıtlı kart, kart ekleme, adres ekleme), canlı sipariş takibi
+(**maskeli arama**, destek), değerlendirme (puan + bahşiş), adres ekleme
+(GPS + ters coğrafi kodlama), kartlar (test kartlarıyla), bildirimler,
+canlı destek sohbeti, giriş.
 
 **Kurye** (`/kurye`, alt sekmeler)
 
 | Ekran | İçerik |
 |---|---|
-| Teslimat | Mesai anahtarı, 45 sn'lik teklif, aktif teslimat ve aşama bildirimi |
+| Teslimat | Mesai anahtarı, 45 sn'lik teklif, aktif teslimat, aşama bildirimi, **maskeli arama** |
 | Kazanç | Günlük kırılım, son teslimatlar, hakediş defteri |
 | Performans | Puan, kabul oranı, süre ve teklif dağılımı |
 
-Kurye modu aynı uygulamanın içinde ama **ayrı oturum**: farklı token, farklı
-uç noktalar. Müşteri oturumu açıkken kurye olarak da girebilirsin.
+Kurye modu aynı uygulamanın içinde ama **ayrı oturum**: farklı token,
+farklı uç noktalar, ayrı "oturum düştü" işleyicisi. Kurye oturumu düşünce
+müşteri oturumu etkilenmez.
+
+## Oturum
+
+Girişte sunucu erişim token'ı (1 saat), yenileme token'ı ve bitiş anını
+döndürür; üçü cihazın güvenli alanında (Keychain / EncryptedSharedPreferences)
+tutulur. Erişim token'ının bitmesine 2 dakika kala ya da sunucu 401
+dönerse `POST /api/v1/auth/refresh` ile yenisi alınır ve istek bir kez
+tekrarlanır (`src/lib/api.ts`, ortak `refreshOnUnauthorized`). Yenileme de
+reddedilirse giriş ekranına dönülür.
 
 ## Web ile ne paylaşıyor
 
 `@sofra/core` (`../packages/core`) — arayüz kütüphanesinden bağımsız çekirdek:
-
-- alan modeli (`types`)
-- fiyat ve kupon hesabı (`pricing`)
-- restoran filtreleme ve sıralama (`discovery`)
-- sepet kuralları (`cart`)
-- biçimlendiriciler ve mesafe (`utils`)
-- API istemcisi (`api-client`)
-- **tasarım jetonları** (`theme`) — palet, tipografi ölçeği, boşluk ritmi
-
-Web ve mobil bu dosyaların aynısını okur; bir kuralın iki istemcide
-ayrışması mümkün değil. Palet tutarlılığı ayrıca doğrulanır:
-
-```bash
-cd .. && npm run check:theme
-```
+alan modeli, fiyat ve kupon hesabı, keşif filtreleri, sepet kuralları,
+biçimlendiriciler, kart numarası denetimi, API istemcisi ve **tasarım
+jetonları**. Palet tutarlılığı: `cd .. && npm run check:theme`.
 
 ## Mobile özgü olanlar
 
 | Konu | Web | Mobil |
 |---|---|---|
-| Kimlik | `httpOnly` çerez | `Authorization: Bearer` + cihaz güvenli alanı |
-| Canlı veri | Server-Sent Events | Aynı uç noktanın GET karşılığı, düzenli yoklama |
+| Kimlik | `httpOnly` çerez | Bearer + yenileme token'ı, cihazın güvenli alanı |
+| Canlı veri | Supabase Realtime | Aynı GET uçlarını yoklama (takip 2 sn, kurye 3 sn) |
 | Harita | Leaflet | OpenStreetMap karoları + `react-native-svg` katmanı |
-| Kurye konumu | Simüle sürüş | Cihazın gerçek GPS akışı (`expo-location`) |
-| Geri bildirim | Görsel | Görsel + haptik (yeni teklif, ana eylemler) |
-| Yol tarifi | — | Cihazın harita uygulamasını açar |
+| Kurye konumu | Simüle sürüş / cihaz | Cihazın GPS akışı (`expo-location`) |
+| Geri bildirim | Görsel | Görsel + haptik |
+| Yol tarifi | Google Haritalar bağlantısı | Cihazın harita uygulaması |
 
 Uygulama arka plana alındığında yoklama durur, öne geldiğinde kaldığı
-yerden devam eder — telefon boşuna istek atıp pil harcamaz.
+yerden devam eder. Realtime'ın mobile taşınması yalnızca
+`src/lib/use-live.ts` kancasını değiştirir.
 
 ## Komutlar
 
@@ -109,10 +113,10 @@ npx expo export --platform android   # native paket üretimi (doğrulama)
 ## Bilinen sınırlar
 
 - **Harita sürüklenmiyor / yakınlaştırılmıyor.** İlgili noktalara kendini
-  oturtur. `expo-maps` alfa ve Expo Go'da yok, `react-native-maps` native
-  derleme istiyor; bu yaklaşım üç platformda tek kodla ve Expo Go'da
-  doğrudan çalışıyor.
-- **Push bildirimi yok.** Yönetici panelindeki gönderim hedef kitleyi
-  hesaplayıp kaydediyor; gerçek teslim için APNs/FCM gerekir.
-- **Adres ve kart düzenleme** web panelinde; mobilde okunur, seçilebilir.
-- **Destek sohbeti** web'de açık, mobilde sıradaki sürümde.
+  oturtur; `expo-maps` Expo Go'da yok, `react-native-maps` native derleme istiyor.
+- **Mobil push bildirimi yok.** Bildirimler uygulama içindeki kutuda;
+  cihaza push için Expo Notifications + EAS gerekir (sunucu tarafında
+  `push_subscriptions.kind = 'expo'` hazır).
+- **Canlı veri yoklamayla** gelir (web Realtime kullanır).
+- **Maskeli arama ve ödeme test modunda:** arama simüle edilir, yalnızca
+  test kartları kabul edilir.

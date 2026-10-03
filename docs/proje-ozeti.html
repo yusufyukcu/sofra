@@ -403,23 +403,23 @@
 
     <div class="meta">
       <div><span class="meta-k">Durum</span><span class="meta-v">Çalışıyor · derleme temiz</span></div>
-      <div><span class="meta-k">Teknoloji</span><span class="meta-v">Next.js 16 · Expo 57</span></div>
-      <div><span class="meta-k">Müşteri</span><span class="meta-v">localhost:3000</span></div>
-      <div><span class="meta-k">İşletme</span><span class="meta-v">/isletme · PIN 1234</span></div>
-      <div><span class="meta-k">Kurye</span><span class="meta-v">/kurye · PIN 1234</span></div>
-      <div><span class="meta-k">Yönetim</span><span class="meta-v">/yonetim · PIN 1234</span></div>
+      <div><span class="meta-k">Teknoloji</span><span class="meta-v">Next.js 16 · Supabase · Expo 57</span></div>
+      <div><span class="meta-k">Müşteri</span><span class="meta-v">localhost:3000 · telefon + kod / demo</span></div>
+      <div><span class="meta-k">İşletme</span><span class="meta-v">/isletme · e-posta + parola</span></div>
+      <div><span class="meta-k">Kurye</span><span class="meta-v">/kurye · telefon + kod</span></div>
+      <div><span class="meta-k">Yönetim</span><span class="meta-v">/yonetim · e-posta + parola</span></div>
       <div><span class="meta-k">Mobil</span><span class="meta-v">mobile/ · expo start</span></div>
     </div>
   </header>
 
   <section>
     <div class="stats">
-      <div class="stat"><b>30</b><span>web sayfası</span></div>
-      <div class="stat"><b>16</b><span>mobil ekran</span></div>
-      <div class="stat"><b>60</b><span>API uç noktası</span></div>
-      <div class="stat"><b>0</b><span>mobil için backend değişikliği</span></div>
-      <div class="stat"><b>245</b><span>kaynak dosya</span></div>
-      <div class="stat"><b>38.8K</b><span>satır kod</span></div>
+      <div class="stat"><b>39</b><span>web sayfası</span></div>
+      <div class="stat"><b>17</b><span>mobil ekran</span></div>
+      <div class="stat"><b>94</b><span>API uç noktası</span></div>
+      <div class="stat"><b>9</b><span>SQL migrasyonu (Supabase)</span></div>
+      <div class="stat"><b>343</b><span>kaynak dosya</span></div>
+      <div class="stat"><b>54K</b><span>satır kod</span></div>
     </div>
   </section>
 
@@ -480,9 +480,10 @@
         <span class="label">Takip &amp; satış sonrası</span>
         <ul>
           <li>Onay bekliyor → Hazırlanıyor → Yolda → Teslim edildi</li>
-          <li>Server-Sent Events ile saniyelik canlı güncelleme</li>
+          <li>Supabase Realtime ile anında canlı güncelleme</li>
           <li>Kurye canlı harita takibi, kat edilen/kalan rota</li>
-          <li>Maskeli numara ile kuryeyi arama</li>
+          <li>Maskeli hat ile kuryeyi arama (iki taraf da numarayı görmez)</li>
+          <li>Bildirim kutusu + tarayıcı bildirimleri (Web Push)</li>
           <li>Restoran ve kurye için ayrı puanlama + yorum</li>
           <li>İptal → online ödemede cüzdana anında iade</li>
         </ul>
@@ -1072,8 +1073,8 @@
 
   <section>
     <div class="sec-head">
-      <h2>Prototip sınırları</h2>
-      <p>Bilerek simüle edilen noktalar. Her biri tek bir modül değiştirilerek gerçeğe bağlanacak şekilde yalıtıldı.</p>
+      <h2>Gerçek olanlar ve test modları</h2>
+      <p>Dış hesap gerektiren noktalar test modunda; her biri tek bir modül değiştirilerek gerçek sağlayıcıya bağlanacak şekilde yalıtıldı.</p>
     </div>
 
     <div class="scroller">
@@ -1082,21 +1083,23 @@
           <tr><th>Konu</th><th>Şu an</th><th>Üretimde</th></tr>
         </thead>
         <tbody>
-          <tr><td>SMS / e-posta OTP</td><td><span class="pill pill-sim">Simüle</span> kod cevapta döner</td><td>Netgsm, Twilio</td></tr>
-          <tr><td>Apple / Google girişi</td><td><span class="pill pill-sim">Simüle</span> sabit profil</td><td>OAuth + <code>id_token</code> doğrulama</td></tr>
-          <tr><td>İşletme girişi</td><td><span class="pill pill-sim">Simüle</span> restoran seçimi + ortak PIN</td><td>E-posta + parola + iki adımlı doğrulama</td></tr>
-          <tr><td>Ödeme</td><td><span class="pill pill-sim">Simüle</span> her zaman başarılı</td><td>Ödeme geçidi + 3D Secure</td></tr>
-          <tr><td>Veritabanı</td><td><span class="pill pill-sim">Simüle</span> JSON dosyası</td><td>PostgreSQL + Prisma/Drizzle</td></tr>
-          <tr><td>Kurye girişi</td><td><span class="pill pill-sim">Simüle</span> kurye seçimi + ortak PIN</td><td>Telefon + OTP, kimlik doğrulama</td></tr>
-          <tr><td>Yönetici girişi</td><td><span class="pill pill-sim">Simüle</span> tek hesap + ortak PIN</td><td>Kurumsal SSO veya parola + 2FA, rol bazlı yetki</td></tr>
-          <tr><td>Push bildirimi</td><td><span class="pill pill-sim">Simüle</span> hedef kitle sayılır, gönderi kaydedilir</td><td>APNs / FCM sağlayıcısı</td></tr>
+          <tr><td>Veritabanı</td><td><span class="pill pill-ok">Gerçek</span> Supabase Postgres · SQL migrasyonları · RLS kapalı kapı</td><td>Geliştirme için ayrı proje / branching</td></tr>
+          <tr><td>Kimlik</td><td><span class="pill pill-ok">Gerçek</span> Supabase Auth · dört rol · mobilde yenileme token'ı</td><td>Aynı</td></tr>
+          <tr><td>Gerçek zaman</td><td><span class="pill pill-ok">Gerçek</span> Supabase Realtime özel kanalları (web)</td><td>Mobile taşınması (şimdi yoklama)</td></tr>
+          <tr><td>Kurye dağıtımı</td><td><span class="pill pill-ok">Gerçek</span> pg_cron · en yakın boş kurye · 45 sn teklif</td><td>Aynı</td></tr>
+          <tr><td>Teslimat bölgesi</td><td><span class="pill pill-ok">Gerçek</span> yarıçap ya da poligon çizimi</td><td>Aynı</td></tr>
+          <tr><td>Web push</td><td><span class="pill pill-ok">Gerçek</span> VAPID · service worker · gönderim kuyruğu</td><td>Aynı</td></tr>
+          <tr><td>Fotoğraflar</td><td><span class="pill pill-ok">Gerçek</span> Supabase Storage (özel bucket) + yönetici onayı</td><td>Aynı</td></tr>
+          <tr><td>SMS / e-posta OTP</td><td><span class="pill pill-sim">Test modu</span> kod ekranda</td><td>Netgsm, Twilio, Resend</td></tr>
+          <tr><td>Maskeli arama</td><td><span class="pill pill-sim">Test modu</span> oturum ve kayıt gerçek, arama simülasyon</td><td>Netgsm, Verimor, Twilio Proxy</td></tr>
+          <tr><td>Ödeme</td><td><span class="pill pill-sim">Simülasyon</span> yalnızca test kartları, kart verisi saklanmaz</td><td>iyzico / PayTR / Stripe + 3D Secure</td></tr>
+          <tr><td>Apple / Google girişi</td><td><span class="pill pill-sim">Test modu</span> sabit profil</td><td>Supabase Auth OAuth</td></tr>
           <tr><td>Hakediş ödemesi</td><td><span class="pill pill-sim">Simüle</span> onay → ödendi işaretlenir</td><td>Banka transferi / toplu ödeme dosyası</td></tr>
-          <tr><td>Kurye konumu</td><td><span class="pill pill-ok">Gerçek</span> mobilde cihazın GPS'i (webde simüle)</td><td>Aynı — değişiklik gerekmez</td></tr>
-          <tr><td>Mobil canlı veri</td><td><span class="pill pill-sim">Simüle</span> yoklama (RN'de EventSource yok)</td><td>WebSocket veya push ile uyandırma</td></tr>
+          <tr><td>Mobil push</td><td><span class="pill pill-sim">Yok</span> uygulama içi bildirim kutusu</td><td>Expo Notifications + EAS</td></tr>
+          <tr><td>Kurye konumu</td><td><span class="pill pill-ok">Gerçek</span> mobilde cihazın GPS'i (webde simüle sürüş)</td><td>Aynı</td></tr>
           <tr><td>Mobil harita</td><td><span class="pill pill-ok">Gerçek</span> OSM karoları · sürüklenmez</td><td>Ticari SDK ya da react-native-maps</td></tr>
-          <tr><td>Mağaza dağıtımı</td><td><span class="pill pill-sim">Simüle</span> Expo Go ile denenir</td><td>EAS Build → App Store / Play Store</td></tr>
-          <tr><td>Teslimat bölgesi</td><td><span class="pill pill-sim">Simüle</span> merkez + yarıçap</td><td>Poligon çizimi</td></tr>
-          <tr><td>Sipariş zili</td><td><span class="pill pill-ok">Gerçek</span> Web Audio sentezi</td><td>Aynı — dosya indirmeye gerek yok</td></tr>
+          <tr><td>Mağaza dağıtımı</td><td><span class="pill pill-sim">Expo Go</span> ile denenir</td><td>EAS Build → App Store / Play Store</td></tr>
+          <tr><td>Sipariş zili</td><td><span class="pill pill-ok">Gerçek</span> Web Audio sentezi</td><td>Aynı</td></tr>
           <tr><td>Harita &amp; adres çözümleme</td><td><span class="pill pill-ok">Gerçek</span> Leaflet + OpenStreetMap</td><td>Ticari harita/geocoding servisi (isteğe bağlı)</td></tr>
         </tbody>
       </table>
@@ -1145,7 +1148,7 @@
           <tr>
             <td>Mağazaya çıkış</td>
             <td><span class="pill pill-next">Sırada</span></td>
-            <td>EAS Build, push bildirimi (APNs/FCM), gerçek ödeme geçidi ve PostgreSQL</td>
+            <td>EAS Build, mobil push (Expo), gerçek ödeme kuruluşu, SMS ve sesli arama sağlayıcıları, ayrı geliştirme veritabanı</td>
           </tr>
         </tbody>
       </table>
@@ -1161,18 +1164,20 @@
 
     <pre><span class="c"># proje dizini: C:\Users\yusuf\sofra</span>
 npm install
+npx vercel link && npx vercel env pull   <span class="c"># Supabase bağlantısı</span>
+npm run db:migrate && npm run db:seed     <span class="c"># demo parolası → .env.development.local</span>
 npm run dev
 
 <span class="c"># sekme 1 — yönetim</span>
-/yonetim/giris   <span class="c">→ PIN 1234</span>
+/yonetim/giris   <span class="c">→ yonetim@sofra.app + demo parolası</span>
                  <span class="c">→ Restoranlar: onay kuyruğunu boşalt</span>
                  <span class="c">→ Kullanıcılar › Kuryeler: bekleyeni aktive et</span>
 
 <span class="c"># sekme 2 — kurye</span>
-/kurye/giris     <span class="c">→ Elif Şahin · PIN 1234 → mesaiyi başlat</span>
+/kurye/giris     <span class="c">→ Elif Şahin (532 111 00 02) · ekrandaki kod → mesaiyi başlat</span>
 
 <span class="c"># sekme 3 — restoran paneli</span>
-/isletme/giris   <span class="c">→ Kasap Burger Co. · PIN 1234</span>
+/isletme/giris   <span class="c">→ Kasap Burger Co. (listeden) · demo parolası</span>
                  <span class="c">→ Mağaza: otomatik onayı kapat · zili aç</span>
 
 <span class="c"># sekme 4 — müşteri</span>
@@ -1194,11 +1199,11 @@ npx expo start   <span class="c">→ w = tarayıcı · i = iOS · a = Android ·
 <span class="c"># telefonda sipariş ver: aşama bildirimleri anında düşer</span></pre>
 
     <div class="note" style="margin-top:1rem">
-      <b>Demoyu izlenebilir kılmak için:</b> <code>SOFRA_SIM_SPEED=12</code>
-      ayarıyla 30 dakikalık bir sipariş yaklaşık 2,5 dakikada teslim edilir.
-      Değeri <code>1</code> yaparsan gerçek zamanlı çalışır. Panellerden biri
-      kapalıysa hiçbir şey durmaz — devreye giren yoksa akışı simülatör
-      tamamlar.
+      <b>Demo modu:</b> yönetici panelinde <i>Canlı operasyon → Demo modu</i>
+      açıkken süreler seçilen kat (ör. 12×) hızlı akar: 30 dakikalık bir
+      sipariş yaklaşık 2,5 dakikada teslim edilir. Mesaide kurye yoksa akışı
+      simülasyon tamamlar. Kapatınca siparişler yalnızca gerçek kuryelerle,
+      gerçek sürede ilerler.
     </div>
   </section>
 
