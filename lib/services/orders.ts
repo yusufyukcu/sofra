@@ -228,10 +228,16 @@ export async function createOrder(
     }
 
     if (couponCheck?.valid && coupon) {
+      // Aynı anda iki siparişte aynı kupon: veritabanındaki tekil dizin durdurur
       await tx`
         insert into public.coupon_redemptions (user_id, code, order_id)
         values (${user.id}, ${coupon.code}, ${id})
-      `;
+      `.catch((err: unknown) => {
+        if ((err as { code?: string }).code === "23505") {
+          throw new DomainError("coupon_used", "Bu kodu daha önce kullandın.");
+        }
+        throw err;
+      });
     }
 
     // Ödeme kaydı. Geçit şimdilik simüle: online ödemeler başarılı sayılır.
