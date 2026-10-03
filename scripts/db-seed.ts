@@ -3,6 +3,7 @@
  *
  *   npm run db:seed            boş veritabanını doldurur
  *   npm run db:seed -- --reset tüm uygulama tablolarını boşaltıp yeniden doldurur
+ *                              (sahipsiz Auth kullanıcıları ve fotoğraf dosyaları da silinir)
  *
  * Katalog (restoranlar, menüler, kuponlar, afişler, kuryeler) ve demo
  * hesapları yazar. İşletme ve yönetici hesapları Supabase Auth'ta e-posta +
@@ -358,6 +359,49 @@ async function main() {
 
   console.log(`Auth hesapları hazır: ${vendors.length} işletme + 1 yönetici.`);
   console.log("Giriş e-postaları: <restoran-slug>@sofra.app ve yonetim@sofra.app");
+
+  if (RESET) {
+    const keep = new Set([...vendors.map((v) => v.email.toLowerCase()), "yonetim@sofra.app"]);
+    const removedUsers = await removeOrphanAuthUsers(keep);
+    const removedFiles = await emptyMediaBucket();
+    console.log(`Temizlik: ${removedUsers} sahipsiz Auth kullanıcısı, ${removedFiles} sahipsiz dosya silindi.`);
+  }
+}
+
+/**
+ * Sıfırlamada uygulamanın açtığı ama artık bir hesaba bağlı olmayan Auth
+ * kullanıcıları silinir (test müşterileri, eski kurye/müşteri oturumları,
+ * denemede açılan işletmeler). Müşteri ve kurye hesapları ilk girişte
+ * yeniden açılır; tohum işletme ve yönetici hesapları korunur.
+ */
+async function removeOrphanAuthUsers(keepEmails: Set<string>): Promise<number> {
+  const rows = await sql<{ id: string; email: string | null }[]>`
+    select id::text, email from auth.users
+     where raw_app_meta_data ->> 'role' in ('customer', 'courier', 'vendor', 'admin')
+  `;
+  let removed = 0;
+  for (const row of rows) {
+    if (row.email && keepEmails.has(row.email.toLowerCase())) continue;
+    const { error } = await supabase.auth.admin.deleteUser(row.id);
+    if (error) console.warn(`Auth kullanıcısı silinemedi (${row.email}): ${error.message}`);
+    else removed++;
+  }
+  return removed;
+}
+
+/** Sıfırlamada fotoğraf talepleri silindiği için `media` bucket'ı da boşaltılır. */
+async function emptyMediaBucket(): Promise<number> {
+  const objects = await sql<{ name: string }[]>`
+    select name from storage.objects where bucket_id = 'media'
+  `;
+  let removed = 0;
+  for (let i = 0; i < objects.length; i += 100) {
+    const batch = objects.slice(i, i + 100).map((o) => o.name);
+    const { error } = await supabase.storage.from("media").remove(batch);
+    if (error) console.warn(`Dosyalar silinemedi: ${error.message}`);
+    else removed += batch.length;
+  }
+  return removed;
 }
 
 main()
