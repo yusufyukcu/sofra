@@ -80,7 +80,11 @@ export async function activeOrderRow(courierId: string, db: Db = sql): Promise<O
   return row ?? null;
 }
 
-export async function setShift(courier: Courier, online: boolean): Promise<Courier> {
+/**
+ * Mesai aç/kapat. Kurye uygulaması mesaiyi açarken cihazın o anki konumunu
+ * gönderir; konum son 5 dakikada gelmemiş kurye teklif almaz.
+ */
+export async function setShift(courier: Courier, online: boolean, point?: LatLng | null): Promise<Courier> {
   if (online && courier.status !== "active") {
     throw new DomainError(
       "courier_not_active",
@@ -98,12 +102,22 @@ export async function setShift(courier: Courier, online: boolean): Promise<Couri
       );
     }
 
-    await tx`
-      update public.couriers
-         set online = ${online},
-             shift_started_at = ${online ? new Date() : null}
-       where id = ${courier.id}
-    `;
+    // Tek güncelleme: ekranlara tek "kurye değişti" yayını gider
+    if (online && validPoint(point)) {
+      await tx`
+        update public.couriers
+           set online = true, shift_started_at = now(),
+               lat = ${point.lat}, lng = ${point.lng}, location_updated_at = now()
+         where id = ${courier.id}
+      `;
+    } else {
+      await tx`
+        update public.couriers
+           set online = ${online},
+               shift_started_at = ${online ? new Date() : null}
+         where id = ${courier.id}
+      `;
+    }
 
     if (!online) {
       // Vardiya dışında bekleyen teklifler düşer, sipariş başka kuryeye gider
@@ -131,16 +145,20 @@ export async function setShift(courier: Courier, online: boolean): Promise<Couri
  * siparişin canlı kurye konumu da güncellenir — müşterinin takip haritası
  * bundan beslenir.
  */
+function validPoint(point: LatLng | null | undefined): point is LatLng {
+  return Boolean(
+    point &&
+      typeof point.lat === "number" &&
+      typeof point.lng === "number" &&
+      Number.isFinite(point.lat) &&
+      Number.isFinite(point.lng) &&
+      Math.abs(point.lat) <= 90 &&
+      Math.abs(point.lng) <= 180
+  );
+}
+
 export async function updateLocation(courier: Courier, point: LatLng): Promise<Courier> {
-  if (
-    !point ||
-    typeof point.lat !== "number" ||
-    typeof point.lng !== "number" ||
-    !Number.isFinite(point.lat) ||
-    !Number.isFinite(point.lng) ||
-    Math.abs(point.lat) > 90 ||
-    Math.abs(point.lng) > 180
-  ) {
+  if (!validPoint(point)) {
     throw new DomainError("invalid_point", "Geçersiz konum bilgisi.");
   }
 

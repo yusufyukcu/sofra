@@ -84,6 +84,7 @@ uygulananlar `supabase_migrations.schema_migrations` tablosunda izlenir
 | `…0007_bildirimler` | Bildirim türü, push kuyruğu, sipariş durum bildirimi tetikleyicisi |
 | `…0008_maskeli_arama` | Görüşme kaydı, siparişle kapanan arama oturumları |
 | `…0009_kupon_tek_kullanim` | Kupon kullanıcı başına bir kez (eşzamanlı siparişe karşı) |
+| `…0010_gercek_dagitim` | Demo varsayılan kapalı, kurye varlığı (taze konum), hayalet kurye temizliği |
 
 ### 3.2 Tablolar
 
@@ -114,8 +115,10 @@ veritabanı korur:
 
 ### 3.4 Ayarlar
 
-`app_settings` anahtar/değer: `demo_mode`, `sim_speed`. Dağıtım fonksiyonu
-da buradan okur; değer yönetici panelinden değişir (5 sn önbellek).
+`app_settings` anahtar/değer: `demo_mode` (varsayılan **kapalı**),
+`sim_speed`. Dağıtım fonksiyonu da buradan okur; değer yönetici panelinden
+değişir (5 sn önbellek). İstemciler `GET /api/v1/config` ile demo modunu ve
+hangi servislerin test modunda olduğunu öğrenir.
 
 ---
 
@@ -253,13 +256,21 @@ tek tur çalışır (advisory lock).
 
 1. Süresi dolan teklifler kapanır, sipariş yeniden teklif bekler.
 2. Hazırlanan ve kuryesi olmayan platform siparişi, vardiyadaki **en yakın
-   boş kuryeye** (Haversine) 45 saniyelik teklif olarak gider. Elinde iş ya
-   da bekleyen teklif olan kurye atlanır; aynı siparişi son 2 dakikada
-   reddeden/kaçıran kurye ona tekrar seçilmez. Ücret mesafeden hesaplanır.
-3. **Demo modu:** vardiyada hiç kurye yoksa hazırlık süresi dolan siparişi
-   simüle kurye alır, rota üzerinde ilerletir ve teslim eder; süreler
-   `sim_speed` kat hızlıdır. Kendi kuryesi olan restoranın siparişi de
-   demo modunda kendiliğinden tamamlanabilir.
+   boş kuryeye** (Haversine) 45 saniyelik teklif olarak gider. Yalnızca
+   **konumu son 5 dakikada gelmiş** kurye aday olur; elinde iş ya da bekleyen
+   teklif olan kurye atlanır; aynı siparişi son 2 dakikada reddeden/kaçıran
+   kurye ona tekrar seçilmez. Ücret mesafeden hesaplanır.
+3. Önceden başlamış simüle teslimatlar (demo kapatılmış olsa da) tamamlanır.
+4. **Demo (sunum) modu — varsayılan kapalı:** açıkken vardiyada hiç kurye
+   yoksa hazırlık süresi dolan siparişi simüle kurye alır, rota üzerinde
+   ilerletir ve teslim eder; süreler `sim_speed` kat hızlıdır.
+
+**Kurye varlığı.** Kurye mesaiyi cihazın konumuyla açar (`POST /courier/shift`
+`point`); mesaideyken uygulama konumu teslimatta 3 sn, beklerken 15 sn'de bir
+gönderir, kurye dururken de dakikada bir son konumu yeniden yollar
+(`location_updated_at` tazelenir, yayın üretmez). `app_private.expire_idle_couriers()`
+**her dakika** çalışır: 15 dakikadır sinyal gelmeyen ve elinde teslimat
+olmayan kurye mesaiden düşer, bekleyen teklifleri kapanır.
 
 Kabul (`acceptOffer`) teklifin hâlâ geçerli ve siparişin hâlâ boşta
 olduğunu kilit altında doğrular; iki kurye aynı siparişi alamaz.
@@ -277,7 +288,7 @@ Tetikleyiciler `realtime.send(payload, event, topic, private => true)` ile
 |---|---|---|
 | `order:<id>` | `order_changed`, `courier_moved` | Siparişin müşterisi (kuryesi, restoranı) |
 | `restaurant:<id>` | `order_changed`, `restaurant_changed`, `review_changed`, `media_changed`, `payout_changed` | O restoranın işletme hesabı |
-| `courier:<id>` | `offer_changed`, `order_changed`, `courier_changed`, `payout_changed` | O kurye |
+| `courier:<id>` | `offer_changed`, `order_changed`, `courier_changed` (mesai/durum), `payout_changed` | O kurye |
 | `user:<id>` | `notification` | O müşteri |
 | `support:<id>` | `support_message`, `support_session` | Konuşmanın müşterisi |
 | `admin:ops` | sipariş/teklif/kurye/medya/hakediş olayları | Yöneticiler |
@@ -437,7 +448,7 @@ anlık filtreler → filtreler URL'e yazılır.
 | Kimlik | `httpOnly` çerez | Bearer + yenileme token'ı, cihazın güvenli alanında |
 | Canlı veri | Realtime | Aynı GET uçlarını yoklama (takip 2 sn, kurye 3 sn); arka planda durur |
 | Harita | Leaflet | OSM karoları + `react-native-svg` |
-| Kurye konumu | Simüle sürüş / cihaz | Cihaz GPS'i (`expo-location`) |
+| Kurye konumu | Tarayıcı konum servisi (izin zorunlu) | Cihaz GPS'i (`expo-location`, izin zorunlu) |
 
 Yoklama tek bir kancada (`mobile/src/lib/use-live.ts`); Realtime'ın mobile
 taşınması yalnızca bu kancayı değiştirir. Kurye ve müşteri oturumları ayrı

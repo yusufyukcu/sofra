@@ -38,8 +38,9 @@ EXPO_PUBLIC_SOFRA_API=http://192.168.1.42:3000 npx expo start
 
 Bağlı olduğun adresi **Hesabım → Bağlı sunucu** altında görebilirsin.
 
-**Giriş:** müşteri telefon + kod ya da demo hesabı; kurye telefon
-(532 111 00 01–04) + kod. SMS test modundayken kod ekranda gösterilir.
+**Giriş:** müşteri telefon + kod (hazır demo hesabı 555 111 22 33; demo
+düğmesi yalnızca sunum modunda görünür); kurye telefon (532 111 00 01–04) +
+kod. SMS test modundayken kod ekranda gösterilir.
 
 ## Ne var
 
@@ -47,7 +48,7 @@ Bağlı olduğun adresi **Hesabım → Bağlı sunucu** altında görebilirsin.
 
 | Ekran | İçerik |
 |---|---|
-| Keşfet | Konum, kampanya vitrini, **öne çıkanlar**, kategori şeridi, sıralama, **hızlı filtreler** (açık, ücretsiz teslimat, 4,5+ puan, 30 dk altı) |
+| Keşfet | Konum, kampanya vitrini, **restoran başvuru afişi**, **öne çıkanlar**, kategori şeridi, sıralama, **hızlı filtreler** (açık, ücretsiz teslimat, 4,5+ puan, 30 dk altı) |
 | Ara | Restoran / mutfak / ürün araması |
 | Siparişlerim | Aktif siparişler üstte, geçmiş altta; tekrarla ve değerlendir |
 | Hesabım | Cüzdan, adresler (seç / **ekle**), **bildirimler**, **kartlarım**, **canlı destek**, kurye moduna geçiş |
@@ -62,7 +63,7 @@ canlı destek sohbeti, giriş.
 
 | Ekran | İçerik |
 |---|---|
-| Teslimat | Mesai anahtarı, 45 sn'lik teklif, aktif teslimat, aşama bildirimi, **maskeli arama** |
+| Teslimat | Mesai anahtarı (konum izni zorunlu), 45 sn'lik teklif, aktif teslimat, aşama bildirimi, **maskeli arama** |
 | Kazanç | Günlük kırılım, son teslimatlar, hakediş defteri |
 | Performans | Puan, kabul oranı, süre ve teklif dağılımı |
 
@@ -93,7 +94,7 @@ jetonları**. Palet tutarlılığı: `cd .. && npm run check:theme`.
 | Kimlik | `httpOnly` çerez | Bearer + yenileme token'ı, cihazın güvenli alanı |
 | Canlı veri | Supabase Realtime | Aynı GET uçlarını yoklama (takip 2 sn, kurye 3 sn) |
 | Harita | Leaflet | OpenStreetMap karoları + `react-native-svg` katmanı |
-| Kurye konumu | Simüle sürüş / cihaz | Cihazın GPS akışı (`expo-location`) |
+| Kurye konumu | Tarayıcı konum servisi | Cihazın GPS akışı (`expo-location`); dururken dakikada bir varlık sinyali |
 | Geri bildirim | Görsel | Görsel + haptik |
 | Yol tarifi | Google Haritalar bağlantısı | Cihazın harita uygulaması |
 

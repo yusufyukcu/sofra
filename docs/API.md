@@ -90,7 +90,17 @@ Yeni kullanıcıya hoş geldin bakiyesi cüzdan defterine yazılır.
 `{ "provider": "google" | "apple" }` → giriş yükü. Test modunda sabit profil.
 
 ### `POST /auth/demo`
-Demo hesabıyla giriş. Yalnızca demo modu açıkken (`demo_disabled`, 403).
+Demo hesabıyla giriş. Canlıda yalnızca demo (sunum) modu açıkken
+(`demo_disabled`, 403); geliştirme ortamında otomatik testler için açık.
+Giriş ekranı düğmeyi yalnızca demo modunda gösterir.
+
+### `GET /config`
+```jsonc
+→ { "demoMode": false,
+    "testModes": { "sms": true, "email": true, "voice": true, "payment": true },
+    "webPush": true }
+```
+Kimlik doğrulama gerekmez; istemciler arayüzü buna göre uyarlar.
 
 ### `POST /auth/refresh`
 ```jsonc
@@ -487,13 +497,17 @@ giriş yapar ama mesai açamaz (`courier_not_active`).
 `{ "courier": {…}, "stats": { "online", "todayDeliveries", "todayEarnings", "todayTips", … } }`
 
 ### `POST /courier/shift`
-`{ "online": true }` → `{ "courier", "stats" }`. Açık teslimat varken
-kapatılamaz (`active_delivery`); kapatınca bekleyen teklifler düşer.
+`{ "online": true, "point": { "lat", "lng" } }` → `{ "courier", "stats" }`.
+Mesai cihazın konumuyla açılır; konumu son 5 dakikada gelmeyen kurye teklif
+almaz. Açık teslimat varken kapatılamaz (`active_delivery`); kapatınca
+bekleyen teklifler düşer. 15 dakikadır konum gelmeyen (elinde teslimat
+olmayan) kurye sunucu tarafından mesaiden düşürülür.
 
 ### `POST /courier/location`
-`{ "point": { "lat": 40.984, "lng": 29.027 } }` → `{ "courier" }`. Açık
-teslimatın canlı konumu da güncellenir (müşteriye Realtime `courier_moved`);
-aynı nokta tekrar gönderilirse yayın yapılmaz.
+`{ "point": { "lat": 40.984, "lng": 29.027 } }` → `{ "courier" }`. Mesaideyken
+düzenli gönderilir (teslimatta 3 sn, beklerken 15 sn, dururken dakikada bir
+varlık sinyali). Açık teslimatın canlı konumu da güncellenir (müşteriye
+Realtime `courier_moved`); aynı nokta tekrar gönderilirse yayın yapılmaz.
 
 ## Teslimat
 

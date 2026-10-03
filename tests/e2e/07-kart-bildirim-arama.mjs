@@ -137,7 +137,7 @@ try {
   check("müşteri user kanalına bağlandı", joined === true, joined);
 
   must(await courier.post("/api/v1/courier/shift", { online: false }), "kurye mesai kapalı (temiz başlangıç)");
-  must(await courier.post("/api/v1/courier/shift", { online: true }), "kurye mesaide");
+  must(await courier.post("/api/v1/courier/shift", { online: true, point: { lat: 40.9906, lng: 29.0291 } }), "kurye mesaide (konumla)");
   const created = await placeOrder("online_card", goodCard.id);
   const order = must(created, "Visa ile online sipariş verildi").order;
   orderId = order.id;

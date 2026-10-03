@@ -188,7 +188,7 @@ async function main() {
     // Değerler JSON olarak yazılır (sim_speed sayı, metin değil)
     await tx`
       insert into public.app_settings (key, value) values
-        ('demo_mode', ${tx.json(true)}),
+        ('demo_mode', ${tx.json(false)}),
         ('sim_speed', ${tx.json(simSpeed)})
     `;
 

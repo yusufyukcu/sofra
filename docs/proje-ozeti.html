@@ -404,7 +404,7 @@
     <div class="meta">
       <div><span class="meta-k">Durum</span><span class="meta-v">Çalışıyor · derleme temiz</span></div>
       <div><span class="meta-k">Teknoloji</span><span class="meta-v">Next.js 16 · Supabase · Expo 57</span></div>
-      <div><span class="meta-k">Müşteri</span><span class="meta-v">localhost:3000 · telefon + kod / demo</span></div>
+      <div><span class="meta-k">Müşteri</span><span class="meta-v">localhost:3000 · telefon + kod</span></div>
       <div><span class="meta-k">İşletme</span><span class="meta-v">/isletme · e-posta + parola</span></div>
       <div><span class="meta-k">Kurye</span><span class="meta-v">/kurye · telefon + kod</span></div>
       <div><span class="meta-k">Yönetim</span><span class="meta-v">/yonetim · e-posta + parola</span></div>
@@ -1086,7 +1086,7 @@
           <tr><td>Veritabanı</td><td><span class="pill pill-ok">Gerçek</span> Supabase Postgres · SQL migrasyonları · RLS kapalı kapı</td><td>Geliştirme için ayrı proje / branching</td></tr>
           <tr><td>Kimlik</td><td><span class="pill pill-ok">Gerçek</span> Supabase Auth · dört rol · mobilde yenileme token'ı</td><td>Aynı</td></tr>
           <tr><td>Gerçek zaman</td><td><span class="pill pill-ok">Gerçek</span> Supabase Realtime özel kanalları (web)</td><td>Mobile taşınması (şimdi yoklama)</td></tr>
-          <tr><td>Kurye dağıtımı</td><td><span class="pill pill-ok">Gerçek</span> pg_cron · en yakın boş kurye · 45 sn teklif</td><td>Aynı</td></tr>
+          <tr><td>Kurye dağıtımı</td><td><span class="pill pill-ok">Gerçek</span> pg_cron · konumla mesai · en yakın boş kurye · 45 sn teklif · hayalet kurye temizliği</td><td>Aynı</td></tr>
           <tr><td>Teslimat bölgesi</td><td><span class="pill pill-ok">Gerçek</span> yarıçap ya da poligon çizimi</td><td>Aynı</td></tr>
           <tr><td>Web push</td><td><span class="pill pill-ok">Gerçek</span> VAPID · service worker · gönderim kuyruğu</td><td>Aynı</td></tr>
           <tr><td>Fotoğraflar</td><td><span class="pill pill-ok">Gerçek</span> Supabase Storage (özel bucket) + yönetici onayı</td><td>Aynı</td></tr>
@@ -1174,14 +1174,14 @@ npm run dev
                  <span class="c">→ Kullanıcılar › Kuryeler: bekleyeni aktive et</span>
 
 <span class="c"># sekme 2 — kurye</span>
-/kurye/giris     <span class="c">→ Elif Şahin (532 111 00 02) · ekrandaki kod → mesaiyi başlat</span>
+/kurye/giris     <span class="c">→ Elif Şahin (532 111 00 02) · ekrandaki kod → konum izni → mesaiyi başlat</span>
 
 <span class="c"># sekme 3 — restoran paneli</span>
 /isletme/giris   <span class="c">→ Kasap Burger Co. (listeden) · demo parolası</span>
                  <span class="c">→ Mağaza: otomatik onayı kapat · zili aç</span>
 
 <span class="c"># sekme 4 — müşteri</span>
-/giris           <span class="c">→ "Demo hesabıyla hızlı giriş" → sipariş ver</span>
+/giris           <span class="c">→ 555 111 22 33 · ekrandaki kod → sipariş ver</span>
 
 <span class="c"># panelde zil çalar → Onayla</span>
 <span class="c"># kuryeye 45 sn'lik teklif düşer → Siparişi al → aşamaları bildir</span>
@@ -1199,11 +1199,10 @@ npx expo start   <span class="c">→ w = tarayıcı · i = iOS · a = Android ·
 <span class="c"># telefonda sipariş ver: aşama bildirimleri anında düşer</span></pre>
 
     <div class="note" style="margin-top:1rem">
-      <b>Demo modu:</b> yönetici panelinde <i>Canlı operasyon → Demo modu</i>
-      açıkken süreler seçilen kat (ör. 12×) hızlı akar: 30 dakikalık bir
-      sipariş yaklaşık 2,5 dakikada teslim edilir. Mesaide kurye yoksa akışı
-      simülasyon tamamlar. Kapatınca siparişler yalnızca gerçek kuryelerle,
-      gerçek sürede ilerler.
+      <b>Gerçek çalışma:</b> siparişi yalnızca mesaideki (konumunu paylaşan)
+      kuryeler üstlenir, süreler gerçektir. Yönetici panelindeki
+      <i>Demo modu (sunum)</i> yalnızca kuryesiz tanıtım içindir: açıkken
+      süreler hızlanır ve mesaide kurye yoksa akışı simülasyon tamamlar.
     </div>
   </section>
 

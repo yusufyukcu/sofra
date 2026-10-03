@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { appSettings } from "@/lib/db/settings";
 import { LoginClient } from "@/components/auth/login-client";
 
 export const metadata: Metadata = {
@@ -14,5 +15,7 @@ export default async function LoginPage(props: PageProps<"/giris">) {
   // Açık yönlendirme (open redirect) koruması: yalnızca site içi yollar.
   const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/";
 
-  return <LoginClient next={safeNext} />;
+  // Demo hesabıyla hızlı giriş yalnızca demo (sunum) modunda gösterilir
+  const settings = await appSettings();
+  return <LoginClient next={safeNext} demoEnabled={settings.demoMode} />;
 }

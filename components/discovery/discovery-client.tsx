@@ -18,6 +18,7 @@ import { deliveryLabel, deliveryPoint, useSession } from "@/lib/store/session";
 import type { Banner, CategoryId } from "@/lib/types";
 import { Button, EmptyState } from "@/components/ui/primitives";
 import { ActiveOrdersStrip } from "@/components/order/active-orders-strip";
+import { PartnerBanner } from "@/components/partner/partner-banner";
 import { BannerSlider } from "./banner-slider";
 import { CategoryRail, FilterBar, FilterPanel } from "./filters";
 import { RestaurantCard } from "./restaurant-card";
@@ -175,6 +176,7 @@ export function DiscoveryClient({
         <div className="space-y-6 pt-6 lg:space-y-8 lg:pt-8">
           <ActiveOrdersStrip />
           <BannerSlider banners={banners} />
+          <PartnerBanner />
 
           {showFeatured && (
             <section aria-labelledby="featured-title">

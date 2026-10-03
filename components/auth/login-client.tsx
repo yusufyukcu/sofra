@@ -21,7 +21,7 @@ import { useToast } from "@/components/ui/toast";
 type Channel = "phone" | "email";
 type AuthResult = { user: User; addresses?: Address[]; isNewUser: boolean };
 
-export function LoginClient({ next }: { next: string }) {
+export function LoginClient({ next, demoEnabled = false }: { next: string; demoEnabled?: boolean }) {
   const router = useRouter();
   const toast = useToast();
   const status = useSession((s) => s.status);
@@ -340,15 +340,17 @@ export function LoginClient({ next }: { next: string }) {
                 </button>
               </div>
 
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void demo()}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border-strong py-2.5 text-sm font-semibold text-muted transition-colors hover:border-brand hover:text-brand disabled:opacity-60"
-              >
-                <Sparkles className="size-4" />
-                Demo hesabıyla hızlı giriş
-              </button>
+              {demoEnabled && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void demo()}
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border-strong py-2.5 text-sm font-semibold text-muted transition-colors hover:border-brand hover:text-brand disabled:opacity-60"
+                >
+                  <Sparkles className="size-4" />
+                  Demo hesabıyla hızlı giriş
+                </button>
+              )}
 
               <p className="mt-5 text-center text-xs leading-relaxed text-muted">
                 Devam ederek{" "}

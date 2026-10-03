@@ -4,7 +4,9 @@ import { LogOut, Power } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import {
+  IDLE_LOCATION_PING_MS,
   LOCATION_PING_MS,
+  PRESENCE_HEARTBEAT_MS,
   formatPrice,
   type Courier,
   type DeliveryOffer,
@@ -73,11 +75,16 @@ export default function CourierBoardScreen() {
 
   const watcher = useRef<Location.LocationSubscription | null>(null);
   const lastSent = useRef(0);
+  const lastPoint = useRef<LatLng | null>(null);
+  const hasActive = Boolean(activeOrder);
+  const hasActiveRef = useRef(hasActive);
+  hasActiveRef.current = hasActive;
 
-  const pushLocation = useCallback(async (point: LatLng) => {
-    // Sunucuyu boğmamak için en fazla `LOCATION_PING_MS` sıklığında.
+  const pushLocation = useCallback(async (point: LatLng, force = false) => {
+    // Teslimatta 3 sn'de, beklerken 15 sn'de bir; varlık sinyali beklemeden gönderir
+    const interval = hasActiveRef.current ? LOCATION_PING_MS : IDLE_LOCATION_PING_MS;
     const now = Date.now();
-    if (now - lastSent.current < LOCATION_PING_MS) return;
+    if (!force && now - lastSent.current < interval) return;
     lastSent.current = now;
     try {
       await courierApi.post("/courier/location", { point });
@@ -99,20 +106,29 @@ export default function CourierBoardScreen() {
           timeInterval: LOCATION_PING_MS,
           distanceInterval: 10,
         },
-        (position) =>
-          void pushLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          })
+        (position) => {
+          const point = { lat: position.coords.latitude, lng: position.coords.longitude };
+          lastPoint.current = point;
+          void pushLocation(point);
+        }
       );
     }
 
     if (online) void start();
 
+    // Kurye dururken konum olayı gelmez: dakikada bir "buradayım" sinyali.
+    // Sunucu konumu 5 dk gelmeyen kuryeye teklif göndermez, 15 dk'da mesaiden düşürür.
+    const heartbeat = online
+      ? setInterval(() => {
+          if (lastPoint.current) void pushLocation(lastPoint.current, true);
+        }, PRESENCE_HEARTBEAT_MS)
+      : null;
+
     return () => {
       cancelled = true;
       watcher.current?.remove();
       watcher.current = null;
+      if (heartbeat) clearInterval(heartbeat);
     };
   }, [online, pushLocation]);
 
@@ -123,9 +139,24 @@ export default function CourierBoardScreen() {
   async function toggleShift() {
     setShiftBusy(true);
     try {
+      // Mesai konumla başlar: en yakın kurye seçimi bu konuma göre yapılır
+      let point: LatLng | undefined;
+      if (!online) {
+        const permission = await Location.requestForegroundPermissionsAsync();
+        if (permission.status !== "granted") {
+          Alert.alert(
+            "Konum izni gerekli",
+            "Mesaiye başlamak için konum iznini açmalısın; konumu bilinmeyen kuryeye sipariş teklif edilmez."
+          );
+          return;
+        }
+        const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        point = { lat: position.coords.latitude, lng: position.coords.longitude };
+        lastPoint.current = point;
+      }
       const result = await courierApi.post<{ courier: Courier }>(
         "/courier/shift",
-        { online: !online }
+        { online: !online, point }
       );
       setCourier(result.courier);
       await refresh();

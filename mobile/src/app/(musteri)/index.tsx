@@ -20,6 +20,7 @@ import {
   type SortKey,
 } from "@sofra/core";
 import { CartBar } from "@/components/customer/cart-bar";
+import { PartnerBanner } from "@/components/customer/partner-banner";
 import { RestaurantCard } from "@/components/customer/restaurant-card";
 import { Header, Screen } from "@/components/ui/screen";
 import { Badge, Card, EmptyState, Skeleton } from "@/components/ui/surfaces";
@@ -176,6 +177,9 @@ export default function DiscoverScreen() {
                 <View style={{ width: t.spacing.lg }} />
               </ScrollView>
             ) : null}
+
+            {/* Restoran başvurusu — kalıcı afiş */}
+            <PartnerBanner />
 
             {/* Öne çıkanlar — yalnızca kategori seçilmemişken */}
             {category === null && featured.length ? (

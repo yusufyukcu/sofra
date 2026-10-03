@@ -34,9 +34,9 @@ npm run dev                  # http://localhost:3000
 
 | Giriş | Adres | Nasıl |
 |---|---|---|
-| Müşteri | `/giris` | **“Demo hesabıyla hızlı giriş”** (demo modu açıkken) — kayıtlı adres, 2 kart, 450 ₺ cüzdan. Ya da telefon/e-posta + doğrulama kodu |
-| Restoran | `/isletme/giris` | `<restoran-adresi>@sofra.app` + demo parolası (ör. `kasap-burger-co@sofra.app`). Geliştirmede ekrandaki listeden tek dokunuşla |
-| Kurye | `/kurye/giris` | Telefon **532 111 00 01–04** + doğrulama kodu (05 onay bekleyen kurye) |
+| Müşteri | `/giris` | Telefon + doğrulama kodu. Hazır demo hesabı: **555 111 22 33** (kayıtlı adres, 2 kart, 450 ₺ cüzdan) |
+| Restoran | `/isletme/giris` | `<restoran-adresi>@sofra.app` + demo parolası (ör. `kasap-burger-co@sofra.app`) |
+| Kurye | `/kurye/giris` | Telefon **532 111 00 01–04** + doğrulama kodu (05 onay bekleyen kurye). Mesaiye başlamak **konum izni** ister |
 | Yönetici | `/yonetim/giris` | `yonetim@sofra.app` + demo parolası |
 
 **Demo parolası** README'de durmaz: `npm run db:seed` rastgele üretir ve
@@ -78,6 +78,7 @@ Ayrıntılar: [`mobile/README.md`](mobile/README.md)
 - Kullanıcının konumuna göre teslimat bölgesi filtresi — restoranın
   **yarıçapı ya da çizdiği poligon**
 - Dinamik kampanya afişleri, yönetimin seçtiği **“Öne çıkanlar”** şeridi
+- Kalıcı **“Sofra'da restoranın olsun”** afişi — başvuru ve durum sorgusu
 - 16 mutfak kategorisi
 - Filtreler: **minimum sepet tutarı, teslimat süresi, puan, mesafe**,
   “şu an açık”, “ücretsiz teslimat”; URL'e yazılır (`/?kategori=burger&sirala=eta`)
@@ -159,6 +160,12 @@ Telefonda tek elle kullanım: tek sütun, büyük birincil düğme, her ekranda
 mesai anahtarı.
 
 - **Telefon + doğrulama koduyla giriş**; onaysız kurye mesai açamaz
+- **Mesai konumla başlar:** konum izni olmadan mesai açılmaz; mesaideyken
+  cihazın gerçek konumu paylaşılır (teslimatta 3 sn, beklerken 15 sn'de bir,
+  dururken de dakikada bir "buradayım" sinyali)
+- **Gerçek atama:** siparişi yalnızca mesaideki, konumu son 5 dakikada
+  gelmiş kuryeler alır; 15 dakikadır sinyal gelmeyen kurye (elinde teslimat
+  yoksa) otomatik olarak mesaiden düşer — "hayalet" kurye kalmaz
 - **Mesai başlatma / bitirme** (açık teslimat varken kapatılamaz)
 - **Teklif:** en yakın boş kuryeye 45 saniyelik teklif, geri sayım cihazda;
   reddeden ya da süresi dolan kurye 2 dk tekrar teklif almaz. Dağıtımı
@@ -166,8 +173,8 @@ mesai anahtarı.
 - **Aşamalar:** Restorana vardım → Teslim aldım (müşteride “Yolda”) →
   Teslim ettim (kazanç ve hakediş yazılır)
 - **Maskeli arama** — müşterinin numarası kuryeye hiç gönderilmez
-- **Konum bildirimi** — müşterinin haritasına Realtime ile gider (simüle
-  sürüş ya da cihaz GPS'i); aynı nokta tekrar gönderilirse yayın yapılmaz
+- **Konum** — müşterinin haritasına Realtime ile gider; aynı nokta tekrar
+  gönderilirse yayın yapılmaz
 - **Kazanç, bahşiş, hakediş** ve **performans** (süre, kabul oranı, puan)
 
 ---
@@ -325,12 +332,13 @@ npm run db:seed -- --reset      # tüm uygulama verisini silip yeniden doldurur
 > çıkmadan önce geliştirme için ayrı bir Supabase projesi (ya da Supabase
 > branching) açman, testleri ve `--reset`'i yalnızca orada çalıştırman önerilir.
 
-### Demo modu
+### Demo (sunum) modu
 
-Yönetici panelindeki **Canlı operasyon → Demo modu** anahtarı:
-- **Açık:** mesaide kurye yoksa sipariş simülasyonla ilerler, süreler seçilen
-  kat (1×–30×) hızlı akar, müşteri “demo ile giriş” yapabilir
-- **Kapalı:** siparişler yalnızca gerçek kuryelerle, gerçek sürede ilerler
+Uygulama **gerçek çalışır**: siparişi yalnızca mesaideki kuryeler üstlenir,
+süreler gerçektir, giriş ekranında demo düğmesi yoktur. Yönetici panelindeki
+**Canlı operasyon → Demo modu (sunum)** anahtarı yalnızca kuryesiz bir
+tanıtım içindir: açıkken mesaide kurye yoksa sipariş simülasyonla ilerler,
+süreler seçilen kat (1×–30×) hızlı akar ve “demo hesabıyla giriş” görünür.
 
 ---
 
@@ -340,10 +348,11 @@ Dört sekmeyi yan yana aç — dört oturum aynı tarayıcıda birlikte çalış
 
 1. **Yönetici:** `/yonetim/giris` → *Restoranlar*'da onay bekleyen başvuruları,
    *Kullanıcılar → Kuryeler*'de aktivasyon bekleyen kuryeyi gör
-2. **Kurye:** `/kurye/giris` → *Elif Şahin* (532 111 00 02) → ekrandaki kod → **mesaiyi başlat**
+2. **Kurye:** `/kurye/giris` → *Elif Şahin* (532 111 00 02) → ekrandaki kod →
+   **mesaiyi başlat** (tarayıcı konum izni ister — izin ver)
 3. **Restoran:** `/isletme/giris` → *Kasap Burger Co.* → Mağaza'dan
    **otomatik onayı kapat**, üst bardan **zili aç**
-4. **Müşteri:** `/giris` → demo hesabıyla gir → Kasap Burger Co.'dan sipariş ver
+4. **Müşteri:** `/giris` → 555 111 22 33 → ekrandaki kod → Kasap Burger Co.'dan sipariş ver
 5. Restoran panelinde zil çalar → **Onayla** → kuryeye 45 sn'lik teklif →
    **Siparişi al** → **Restorana vardım / Teslim aldım / Teslim ettim**
 6. Müşteri takip ekranında kuryeyi **maskeli hattan ara** (simülasyon),
@@ -352,8 +361,9 @@ Dört sekmeyi yan yana aç — dört oturum aynı tarayıcıda birlikte çalış
 8. Yönetici → **Finans**: hakedişleri **Onayla** → **Ödendi**; restoran ve
    kurye ekranlarında aynı anda görünür
 
-> Mesaide kurye yoksa ve demo modu açıksa sipariş akışı simülasyonla
-> tamamlanır; müşteri uygulaması tek başına da denenebilir.
+> Mesaide kurye yoksa sipariş "kurye aranıyor" durumunda bekler ve ilk
+> müsait kuryeye teklif edilir; yönetici ekranı bunu "kurye bekleniyor"
+> olarak işaretler.
 
 ### Testler
 

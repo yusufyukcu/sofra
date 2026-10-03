@@ -12,7 +12,7 @@ export interface AppSettings {
   simSpeed: number;
 }
 
-const DEFAULTS: AppSettings = { demoMode: true, simSpeed: 12 };
+const DEFAULTS: AppSettings = { demoMode: false, simSpeed: 12 };
 const TTL_MS = 5_000;
 
 let cache: { at: number; value: AppSettings } | null = null;

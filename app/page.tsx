@@ -2,7 +2,6 @@ import { connection } from "next/server";
 import { activeBanners, publishedRestaurantBases } from "@/lib/db/queries";
 import { filtersFromParams } from "@/lib/discovery";
 import { DiscoveryClient } from "@/components/discovery/discovery-client";
-import { PartnerPopup } from "@/components/partner/partner-popup";
 
 /**
  * Anasayfa (Keşif).
@@ -28,14 +27,10 @@ export default async function HomePage(props: PageProps<"/">) {
   const [restaurants, banners] = await Promise.all([publishedRestaurantBases(), activeBanners()]);
 
   return (
-    <>
-      <DiscoveryClient
-        restaurants={restaurants}
-        banners={banners}
-        initialFilters={filtersFromParams(params)}
-      />
-      {/* Restoran katılım daveti — ilk ziyarette bir kez görünür */}
-      <PartnerPopup />
-    </>
+    <DiscoveryClient
+      restaurants={restaurants}
+      banners={banners}
+      initialFilters={filtersFromParams(params)}
+    />
   );
 }

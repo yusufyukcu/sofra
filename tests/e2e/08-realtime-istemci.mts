@@ -78,7 +78,7 @@ try {
   const b = sub("admin", ["admin:ops", "admin:support"]);
   check("B canlı (aynı bağlantıda sonradan eklenen admin:support dahil)", await until(() => b.status === "live"), b.status);
 
-  await call("courier", "POST", "/api/v1/courier/shift", { online: true });
+  await call("courier", "POST", "/api/v1/courier/shift", { online: true, point: { lat: 40.9906, lng: 29.0291 } });
   check("A olayı aldı", await until(() => a.events.some((e) => e.event === "courier_changed")), a.events);
   check("B olayı aldı", await until(() => b.events.some((e) => e.event === "courier_changed")), b.events);
   check("olay bir kez geldi (tek abonelik)", a.events.filter((e) => e.event === "courier_changed").length === 1, a.events);

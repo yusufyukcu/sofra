@@ -145,14 +145,18 @@ try {
   check("hız 0 reddedildi", badSpeed.status === 400, badSpeed);
   const badFlag = await admin.patch("/api/v1/admin/settings", { demoMode: "evet" });
   check("demoMode metin reddedildi", badFlag.status === 400, badFlag);
-  must(await admin.patch("/api/v1/admin/settings", { demoMode: false }), "demo modu kapatıldı");
+  const demoButton = async () => (await fetch(BASE + "/giris").then((r) => r.text())).includes("Demo hesabıyla hızlı giriş");
+  must(await admin.patch("/api/v1/admin/settings", { demoMode: false }), "demo modu kapalı");
   await sleep(5500); // sunucudaki ayar önbelleği (5 sn)
-  const demoOff = await new Client().post("/api/v1/auth/demo");
-  check(`demo kapalıyken demo girişi reddedildi (${demoOff.status})`, !demoOff.ok, demoOff.error);
-  must(await admin.patch("/api/v1/admin/settings", { demoMode: true, simSpeed: settings.settings.simSpeed }), "demo modu geri açıldı");
+  const offConfig = await new Client().get("/api/v1/config");
+  check("kapalıyken /config demoMode=false", offConfig.ok && offConfig.data.demoMode === false, offConfig.data);
+  check("kapalıyken giriş ekranında demo düğmesi yok", !(await demoButton()));
+  must(await admin.patch("/api/v1/admin/settings", { demoMode: true, simSpeed: settings.settings.simSpeed }), "demo modu açıldı");
   await sleep(5500);
-  const demoOn = await new Client().post("/api/v1/auth/demo");
-  check("demo açıkken giriş çalışıyor", demoOn.ok, demoOn.error);
+  const onConfig = await new Client().get("/api/v1/config");
+  check("açıkken /config demoMode=true", onConfig.ok && onConfig.data.demoMode === true, onConfig.data);
+  check("açıkken giriş ekranında demo düğmesi var", await demoButton());
+  must(await admin.patch("/api/v1/admin/settings", { demoMode: settings.settings.demoMode }), `demo modu eski hâline döndü (${settings.settings.demoMode ? "açık" : "kapalı"})`);
   const audit = must(await admin.get("/api/v1/admin/overview"), "iz kaydı");
   check("ayar değişikliği iz kaydında", audit.audit.some((a) => a.action === "Platform ayarını değiştirdi"));
 

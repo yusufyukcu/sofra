@@ -6,6 +6,7 @@ import type { Route } from "next";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, errorMessage } from "@/lib/api-client";
+import { currentPosition } from "@/lib/courier-location";
 import { useCourier } from "@/lib/store/courier";
 import type { CourierSummaryStats } from "@/lib/services/courier";
 import type { PublicCourier } from "@/lib/store/courier";
@@ -96,10 +97,13 @@ function CourierTopBar({ courier }: { courier: PublicCourier }) {
   async function toggleShift() {
     setBusy(true);
     try {
+      // Mesai konumla başlar: en yakın kurye seçimi bu konuma göre yapılır
+      const goingOnline = !courier.online;
+      const point = goingOnline ? await currentPosition() : undefined;
       const data = await api.post<{
         courier: PublicCourier;
         stats: CourierSummaryStats;
-      }>("/courier/shift", { online: !courier.online });
+      }>("/courier/shift", { online: goingOnline, point });
       setCourier(data.courier);
       applyBoardCourier(data.courier);
       toast.success(

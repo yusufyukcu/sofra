@@ -1,16 +1,17 @@
 "use client";
 
-import { Crosshair, Radio, Satellite } from "lucide-react";
+import { MapPinOff, Radio } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
 import { useRealtime } from "@/lib/realtime";
 import {
-  ARRIVAL_THRESHOLD_KM,
+  IDLE_LOCATION_PING_MS,
   LOCATION_PING_MS,
+  PRESENCE_HEARTBEAT_MS,
 } from "@/lib/courier-constants";
 import { useCourier, type PublicCourier } from "@/lib/store/courier";
 import type { LatLng } from "@/lib/types";
-import { cn, distanceKm, formatPrice, lerpPoint } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/primitives";
 import { ActiveDelivery } from "./active-delivery";
 import { OfferCard } from "./offer-card";
@@ -20,11 +21,12 @@ import { OfferCard } from "./offer-card";
  *
  * Pano kuryenin Realtime kanalındaki teklif/sipariş olaylarıyla tazelenir;
  * yeni teklif tarayıcıda saniye saniye geri sayar.
- * Konum bildirimi iki kaynaktan gelebilir:
- *   simulated → kurye rota üzerinde ilerletilir (cihaz GPS'inin yerine geçer)
- *   device    → tarayıcının konum servisi
- * Her iki durumda da konum `POST /courier/location` ile sunucuya yazılır ve
- * müşterinin takip haritasını besler.
+ *
+ * Mesaideyken cihazın gerçek konumu paylaşılır (`POST /courier/location`):
+ * teslimatta 3 sn'de, beklerken 15 sn'de bir; konum değişmese de dakikada
+ * bir "buradayım" sinyali gider. Sunucu konumu 5 dakikadır gelmeyen kuryeye
+ * teklif göndermez — en yakın kurye seçimi bu konuma göre yapılır ve
+ * müşterinin takip haritası buradan beslenir.
  */
 export function CourierOperations() {
   const courier = useCourier((s) => s.courier);
@@ -32,8 +34,6 @@ export function CourierOperations() {
   const offer = useCourier((s) => s.offer);
   const activeOrder = useCourier((s) => s.activeOrder);
   const applyBoard = useCourier((s) => s.applyBoard);
-  const locationSource = useCourier((s) => s.locationSource);
-  const setLocationSource = useCourier((s) => s.setLocationSource);
   const tickOffer = useCourier((s) => s.tickOffer);
   const setActivePoint = useCourier((s) => s.setActivePoint);
 
@@ -98,17 +98,20 @@ export function CourierOperations() {
     return () => clearInterval(timer);
   }, [offerId, tickOffer, refresh]);
 
-  /* ---------------- Konum bildirimi ---------------- */
+  /* ---------------- Konum paylaşımı (mesaideyken) ---------------- */
 
+  const [location, setLocation] = useState<"waiting" | "ok" | "denied" | "unavailable">("waiting");
   const sending = useRef(false);
-  const lastSent = useRef<LatLng | null>(null);
+  const lastSentAt = useRef(0);
+  const lastPoint = useRef<LatLng | null>(null);
 
-  const pushLocation = useCallback(async (point: LatLng) => {
-    if (sending.current) return;
+  const pushLocation = useCallback(async (point: LatLng, force = false) => {
+    const interval = useCourier.getState().activeOrder ? LOCATION_PING_MS : IDLE_LOCATION_PING_MS;
+    if (sending.current || (!force && Date.now() - lastSentAt.current < interval)) return;
     sending.current = true;
+    lastSentAt.current = Date.now();
     try {
       await api.post<{ courier: PublicCourier }>("/courier/location", { point });
-      lastSent.current = point;
     } catch {
       /* geçici hata — bir sonraki bildirimde düzelir */
     } finally {
@@ -116,60 +119,36 @@ export function CourierOperations() {
     }
   }, []);
 
-  /*
-   * Simüle edilen sürüş: hedefe doğru kademeli ilerleme. Konum mağazada
-   * tutulur ve her adımda hemen güncellenir; pano yeniden çekilmeden de
-   * sürüş kesintisiz devam eder. Hedefe varınca bildirim durur.
-   */
-  const activeId = activeOrder?.id;
-  const activeStage = activeOrder?.courierStage;
+  const online = Boolean(courier?.online);
   useEffect(() => {
-    if (locationSource !== "simulated" || !activeId) return;
+    if (!online) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocation("unavailable");
+      return;
+    }
+    setLocation("waiting");
 
-    const timer = setInterval(() => {
-      const { activeOrder: order, courier: me } = useCourier.getState();
-      if (!order || !me) return;
-
-      const target =
-        order.courierStage === "picked_up" ? order.address.point : order.restaurantLocation;
-      const current = order.courierPoint ?? me.point;
-      if (current.lat === target.lat && current.lng === target.lng) {
-        // Hedefteyiz: son nokta sunucuya ulaşmadıysa bir kez daha gönder
-        const sent = lastSent.current;
-        if (!sent || sent.lat !== target.lat || sent.lng !== target.lng) void pushLocation(target);
-        return;
-      }
-
-      const next =
-        distanceKm(current, target) <= ARRIVAL_THRESHOLD_KM
-          ? target
-          : lerpPoint(current, target, 0.16);
-      setActivePoint(next);
-      void pushLocation(next);
-    }, LOCATION_PING_MS);
-
-    return () => clearInterval(timer);
-  }, [locationSource, activeId, activeStage, setActivePoint, pushLocation]);
-
-  /* Cihaz konumu */
-  useEffect(() => {
-    if (locationSource !== "device") return;
-    if (typeof navigator === "undefined" || !navigator.geolocation) return;
-
-    const id = navigator.geolocation.watchPosition(
+    const watchId = navigator.geolocation.watchPosition(
       (position) => {
-        const point = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        };
+        const point = { lat: position.coords.latitude, lng: position.coords.longitude };
+        lastPoint.current = point;
+        setLocation("ok");
         setActivePoint(point);
         void pushLocation(point);
       },
-      () => undefined,
-      { enableHighAccuracy: true, maximumAge: 5000 }
+      (error) => setLocation(error.code === error.PERMISSION_DENIED ? "denied" : "unavailable"),
+      { enableHighAccuracy: true, maximumAge: 10_000, timeout: 30_000 }
     );
-    return () => navigator.geolocation.clearWatch(id);
-  }, [locationSource, setActivePoint, pushLocation]);
+    // Kurye dururken konum olayı gelmez: varlık sinyali son konumu yeniden gönderir
+    const heartbeat = setInterval(() => {
+      if (lastPoint.current) void pushLocation(lastPoint.current, true);
+    }, PRESENCE_HEARTBEAT_MS);
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+      clearInterval(heartbeat);
+    };
+  }, [online, setActivePoint, pushLocation]);
 
   /* ---------------- Görünüm ---------------- */
 
@@ -184,6 +163,20 @@ export function CourierOperations() {
 
   return (
     <div className="space-y-4">
+      {online && (location === "denied" || location === "unavailable") && (
+        <div className="flex items-start gap-3 rounded-2xl border border-danger/30 bg-danger-soft p-4">
+          <MapPinOff className="mt-0.5 size-5 shrink-0 text-danger" />
+          <div className="text-sm">
+            <p className="font-bold text-ink">Konumun paylaşılamıyor</p>
+            <p className="mt-0.5 text-muted">
+              {location === "denied"
+                ? "Tarayıcı konum iznini engelledi. Adres çubuğundaki konum simgesinden izin ver; konumu bilinmeyen kuryeye sipariş teklif edilmez."
+                : "Konumun alınamıyor. Cihazın konum servislerini açıp sayfayı yenile; konumu bilinmeyen kuryeye sipariş teklif edilmez."}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Günün özeti */}
       {stats && (
         <div className="grid grid-cols-3 gap-2">
@@ -198,49 +191,17 @@ export function CourierOperations() {
       {activeOrder && !offer && <ActiveDelivery order={activeOrder} />}
 
       {!offer && !activeOrder && (
-        <IdleState online={courier.online} live={live} />
+        <IdleState online={courier.online} live={live} locationOk={location === "ok"} />
       )}
 
-      {/* Konum kaynağı */}
-      {activeOrder && (
-        <div className="card p-3">
-          <p className="mb-2 text-xs font-semibold text-muted">Konum kaynağı</p>
-          <div className="flex gap-1 rounded-xl bg-surface-2 p-1">
-            {(
-              [
-                ["simulated", "Simüle sürüş", Satellite],
-                ["device", "Cihaz konumu", Crosshair],
-              ] as const
-            ).map(([id, label, Icon]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setLocationSource(id)}
-                className={cn(
-                  "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition-colors",
-                  locationSource === id
-                    ? "bg-surface text-ink shadow-sm"
-                    : "text-muted hover:text-ink"
-                )}
-              >
-                <Icon className="size-3.5" />
-                {label}
-              </button>
-            ))}
-          </div>
-          <p className="mt-2 text-[11px] leading-relaxed text-muted">
-            Prototipte cihaz GPS&apos;i yerine simüle sürüş kullanılır: konumun
-            hedefe doğru ilerletilir ve müşterinin takip haritasına yansır.
-          </p>
-        </div>
-      )}
+
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
 
-function IdleState({ online, live }: { online: boolean; live: boolean }) {
+function IdleState({ online, live, locationOk }: { online: boolean; live: boolean; locationOk: boolean }) {
   if (!online) {
     return (
       <div className="card flex flex-col items-center px-6 py-12 text-center">
@@ -278,6 +239,8 @@ function IdleState({ online, live }: { online: boolean; live: boolean }) {
           className={cn("size-3.5", live ? "animate-pulse text-pistachio" : "")}
         />
         {live ? "Canlı bağlantı açık" : "Bağlantı kuruluyor…"}
+        {" · "}
+        {locationOk ? "Konumun paylaşılıyor" : "Konum bekleniyor…"}
       </p>
     </div>
   );

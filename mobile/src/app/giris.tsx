@@ -56,6 +56,15 @@ export default function LoginScreen() {
   const [remaining, setRemaining] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Demo hesabı yalnızca demo (sunum) modunda gösterilir
+  const [demoEnabled, setDemoEnabled] = useState(false);
+
+  useEffect(() => {
+    api
+      .get<{ demoMode: boolean }>("/config")
+      .then((config) => setDemoEnabled(config.demoMode))
+      .catch(() => setDemoEnabled(false));
+  }, []);
 
   const codeRef = useRef<string>("");
   codeRef.current = code;
@@ -265,6 +274,7 @@ export default function LoginScreen() {
                 fullWidth
               />
 
+              {demoEnabled ? (
               <Card
                 style={{
                   backgroundColor: t.colors.brandSoft,
@@ -288,6 +298,7 @@ export default function LoginScreen() {
                   fullWidth
                 />
               </Card>
+              ) : null}
             </View>
           )}
         </ScrollView>

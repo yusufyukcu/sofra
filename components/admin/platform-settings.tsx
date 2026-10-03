@@ -10,7 +10,8 @@ import { useToast } from "@/components/ui/toast";
 const SPEEDS = [1, 6, 12, 30];
 
 /**
- * Demo modu anahtarı (canlı operasyon ekranının üstünde).
+ * Demo (sunum) modu anahtarı — canlı operasyon ekranının üstünde. Gerçek
+ * işletmede kapalı kalır; yalnızca kuryesiz bir tanıtım için açılır.
  *
  * Açıkken: vardiyada kurye yoksa teslimatı simülasyon üstlenir, süreler
  * seçilen kat hızlı akar, müşteri "demo ile giriş" yapabilir.
@@ -64,7 +65,7 @@ export function PlatformSettings({ onChanged }: { onChanged?: () => void }) {
           onChange={(e) => void update({ demoMode: e.target.checked })}
           className="size-4 accent-[var(--brand)]"
         />
-        Demo modu
+        Demo modu (sunum)
       </label>
       {settings.demoMode && (
         <div className="flex gap-1" role="group" aria-label="Simülasyon hızı">
@@ -86,8 +87,8 @@ export function PlatformSettings({ onChanged }: { onChanged?: () => void }) {
       )}
       <span className="w-full text-[11px] leading-snug text-muted sm:w-auto sm:max-w-64">
         {settings.demoMode
-          ? "Kurye yokken siparişler simülasyonla ilerler; demo girişi açık."
-          : "Siparişler yalnızca gerçek kuryelerle, gerçek sürede ilerler."}
+          ? "Sunum: kurye yokken siparişler simülasyonla ilerler, demo girişi açık."
+          : "Gerçek çalışma: siparişi yalnızca mesaideki kuryeler üstlenir."}
       </span>
     </div>
   );

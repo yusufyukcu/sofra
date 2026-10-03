@@ -134,7 +134,7 @@ async function main() {
   for (const l of stale.live) await admin.post(`/api/v1/admin/orders/${l.order.id}`, { action: "cancel", reason: "Realtime testi temizliği" });
   await courier.post("/api/v1/courier/shift", { online: false });
   must(await vendor.patch("/api/v1/vendor/settings", { autoAccept: false, workingHours: { open: "00:00", close: "23:59" }, breakHours: null, temporarilyClosed: false }), "Kasap: elle onay, 24 saat açık");
-  must(await courier.post("/api/v1/courier/shift", { online: true }), "kurye mesaide");
+  must(await courier.post("/api/v1/courier/shift", { online: true, point: { lat: 40.9906, lng: 29.0291 } }), "kurye mesaide (konumla)");
   await sleep(1500);
   vendorCh.events.length = 0; adminCh.events.length = 0; courierCh.events.length = 0;
 

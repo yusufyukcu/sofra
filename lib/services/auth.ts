@@ -288,9 +288,14 @@ export async function socialTestLogin(provider: "google" | "apple"): Promise<Cus
 }
 
 /** Demo hesabı — yalnızca demo modu açıkken. */
+/**
+ * Demo hesabıyla giriş. Canlıda yalnızca demo modu açıkken; geliştirme
+ * ortamında otomatik testler için her zaman (giriş ekranında düğme yine
+ * yalnızca demo modunda görünür).
+ */
 export async function demoLogin(): Promise<User> {
   const settings = await appSettings();
-  if (!settings.demoMode) {
+  if (!settings.demoMode && process.env.NODE_ENV === "production") {
     throw new DomainError("demo_disabled", "Demo girişi kapalı.", 403);
   }
   const demo = await findUser("usr_demo");

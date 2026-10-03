@@ -130,7 +130,7 @@ async function main() {
   check("yükleme defterde görünüyor", topped.transactions[0]?.kind === "topup" && topped.transactions[0]?.direction === "in", topped.transactions[0]);
 
   console.log("\n▶ Kurye mesaisi ve teklif");
-  must(await courier.post("/api/v1/courier/shift", { online: true }), "kurye mesaiye başladı");
+  must(await courier.post("/api/v1/courier/shift", { online: true, point: { lat: 40.9906, lng: 29.0291 } }), "kurye mesaiye başladı (konumla)");
   const before = must(await customer.get("/api/v1/wallet"), "cüzdan");
   const o1 = await placeOrder("kasap-burger-co", "wallet");
   check("otomatik onay → Hazırlanıyor", o1.order.status === "preparing", o1.order.status);
@@ -148,7 +148,7 @@ async function main() {
   check("kuryenin üzerinde açık teslimat kalmadı", board.activeOrder === null, board.activeOrder?.status);
   const off = await courier.post("/api/v1/courier/shift", { online: false });
   check("kurye mesaiyi kapatabiliyor", off.ok, off.error);
-  must(await courier.post("/api/v1/courier/shift", { online: true }), "kurye tekrar mesaide");
+  must(await courier.post("/api/v1/courier/shift", { online: true, point: { lat: 40.9906, lng: 29.0291 } }), "kurye tekrar mesaide");
 
   console.log("\n▶ Tam teslimat akışı");
   const o2 = await placeOrder("kasap-burger-co", "online_card");
