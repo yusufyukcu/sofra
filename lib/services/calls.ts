@@ -51,6 +51,8 @@ interface CallOrderRow {
   status: string;
   courierId: string | null;
   courierStage: string | null;
+  /** Demo simülasyonunda teslimatı simüle kurye yapar (gerçek kurye kaydı yok) */
+  simulated: boolean;
   courierName: string | null;
   courierMaskedPhone: string | null;
   customerName: string;
@@ -93,8 +95,9 @@ function toSession(row: SessionRow, calleeLabel: string): CallSession {
  */
 export async function startCall(role: CallerRole, actorId: string, orderId: string): Promise<CallSession> {
   const [order] = await sql<CallOrderRow[]>`
-    select o.id, o.user_id, o.status, o.courier_id, o.courier_stage,
-           c.name as courier_name, c.masked_phone as courier_masked_phone,
+    select o.id, o.user_id, o.status, o.courier_id, o.courier_stage, o.simulated,
+           coalesce(c.name, o.courier ->> 'name') as courier_name,
+           coalesce(c.masked_phone, o.courier ->> 'maskedPhone') as courier_masked_phone,
            p.name as customer_name
       from public.orders o
       join public.profiles p on p.id = o.user_id
@@ -106,7 +109,8 @@ export async function startCall(role: CallerRole, actorId: string, orderId: stri
   if (order.status === "delivered" || order.status === "cancelled") {
     throw new DomainError("order_closed", "Sipariş kapandı; maskeli hat artık kullanılamaz.");
   }
-  if (!order.courierId || !order.courierStage || !ACTIVE_STAGES.includes(order.courierStage)) {
+  const hasCourier = Boolean(order.courierId) || (order.simulated && Boolean(order.courierName));
+  if (!hasCourier || !order.courierStage || !ACTIVE_STAGES.includes(order.courierStage)) {
     throw new DomainError("no_courier", "Siparişe henüz kurye atanmadı.");
   }
 

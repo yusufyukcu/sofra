@@ -61,6 +61,8 @@ const id = created.data.order.id;
 console.log("sipariş:", created.data.order.code, created.data.order.status, "· travel", created.data.order.travelMinutes, "dk");
 
 const seen = [];
+let callChecked = false;
+let callOk = false;
 const started = Date.now();
 while (Date.now() - started < 150_000) {
   const { data } = await call("GET", `/api/v1/orders/${id}`);
@@ -69,6 +71,13 @@ while (Date.now() - started < 150_000) {
     seen.push({ key, at: Math.round((Date.now() - started) / 1000) });
     console.log(`  +${seen.at(-1).at}s  ${key}  kurye=${data.order.courier?.name ?? "-"}  sim=${Boolean(data.order.simulated)}  ilerleme=${data.progress.toFixed(2)}`);
   }
+  // Simüle teslimatta da müşteri kuryeyi maskeli hattan arayabilmeli
+  if (!callChecked && data.order.status === "on_the_way") {
+    callChecked = true;
+    const callRes = await call("POST", `/api/v1/orders/${id}/call`, { action: "start" });
+    callOk = Boolean(callRes.ok && callRes.data.call.testMode && /^0850/.test(callRes.data.call.proxyNumber));
+    console.log(callOk ? `  ✓ simüle kuryeye maskeli arama: ${callRes.data.call.proxyNumber} / ${callRes.data.call.extension}` : `  ✗ simüle kuryeye arama başarısız: ${JSON.stringify(callRes.error)}`);
+  }
   if (data.order.status === "delivered") {
     console.log("  zaman çizelgesi:", data.order.timeline.map((t) => t.note).join(" → "));
     break;
@@ -76,7 +85,7 @@ while (Date.now() - started < 150_000) {
   await sleep(3000);
 }
 const final = (await call("GET", `/api/v1/orders/${id}`)).data.order;
-const passed = final.status === "delivered" && final.simulated;
+const passed = final.status === "delivered" && final.simulated && callOk;
 console.log(passed ? "✓ Demo simülasyonu siparişi teslim etti" : "✗ Teslim edilmedi: " + final.status);
 if (!passed && final.status !== "cancelled") {
   await admin("POST", `/api/v1/admin/orders/${id}`, { action: "cancel", reason: "Test temizliği" });
