@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   MEAL_CARD_BRANDS,
   PAYMENT_METHODS,
+  PAYMENT_METHOD_ICONS,
   PAYMENT_ORDER,
   formatPrice,
   type DeliveryPreferences,
@@ -223,7 +224,8 @@ export default function CheckoutScreen() {
                 return (
                   <Option
                     key={id}
-                    title={`${m.emoji}  ${m.name}`}
+                    title={m.name}
+                    icon={PAYMENT_METHOD_ICONS[id]}
                     subtitle={
                       id === "wallet"
                         ? `Bakiye ${formatPrice(user?.walletBalance ?? 0)}`

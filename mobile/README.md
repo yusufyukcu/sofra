@@ -39,8 +39,24 @@ EXPO_PUBLIC_SOFRA_API=http://192.168.1.42:3000 npx expo start
 Bağlı olduğun adresi **Hesabım → Bağlı sunucu** altında görebilirsin.
 
 **Giriş:** müşteri telefon + kod (hazır demo hesabı 555 111 22 33; demo
-düğmesi yalnızca sunum modunda görünür); kurye telefon (532 111 00 01–04) +
+düğmesi yalnızca demo girişleri açıkken görünür); kurye telefon (532 111 00 01–04) +
 kod. SMS test modundayken kod ekranda gösterilir.
+
+### Kurye konumu arka planda: geliştirme derlemesi
+
+Expo Go arka plan konumunu desteklemez; orada kurye konumu yalnızca uygulama
+açıkken paylaşılır (ekran bunu söyler ve teslimatta ekranı açık tutar).
+Kilit ekranında ve navigasyondayken de akması için geliştirme derlemesi kur:
+
+```bash
+npx expo run:android        # ya da: npx expo run:ios (macOS)
+# veya EAS ile: eas build --profile development --platform android
+```
+
+Derlemede mesai açılınca Android "Sofra Kurye · mesaidesin" bildirimiyle bir
+ön plan servisi, iOS konum arka plan modunu (durum çubuğunda mavi gösterge)
+başlatır; yalnızca "uygulamayı kullanırken" konum izni gerekir. Mesai
+kapanınca, çıkışta ya da oturum düşünce durur.
 
 ## Ne var
 
@@ -63,7 +79,7 @@ canlı destek sohbeti, giriş.
 
 | Ekran | İçerik |
 |---|---|
-| Teslimat | Mesai anahtarı (konum izni zorunlu), 45 sn'lik teklif, aktif teslimat, aşama bildirimi, **maskeli arama** |
+| Teslimat | Mesai anahtarı (konum izni zorunlu, konum **arka planda da** paylaşılır), 45 sn'lik teklif, aktif teslimat (**gerçek yol rotası**, kalan mesafe ve süre), aşama bildirimi, **maskeli arama** |
 | Kazanç | Günlük kırılım, son teslimatlar, hakediş defteri |
 | Performans | Puan, kabul oranı, süre ve teklif dağılımı |
 
@@ -87,6 +103,14 @@ alan modeli, fiyat ve kupon hesabı, keşif filtreleri, sepet kuralları,
 biçimlendiriciler, kart numarası denetimi, API istemcisi ve **tasarım
 jetonları**. Palet tutarlılığı: `cd .. && npm run check:theme`.
 
+Marka ve görseller de ortak: logo geometrisi (`brand.ts`), ikon adları
+(`icons.ts`) ve yemek fotoğrafları. Fotoğraflar web sunucusundan
+(`/images/food/…`) `expo-image` ile disk önbelleğine alınarak gösterilir
+(`src/components/ui/food-photo.tsx`); fotoğrafı olmayan ürünlerde mutfağa
+göre renklenen degrade ve mutfak ikonu çizilir. Arayüzde emoji yok; Lucide
+ikonları ve baş harfli avatarlar kullanılır. Yazı tipleri web'le aynı:
+Bricolage Grotesque + Figtree.
+
 ## Mobile özgü olanlar
 
 | Konu | Web | Mobil |
@@ -94,9 +118,10 @@ jetonları**. Palet tutarlılığı: `cd .. && npm run check:theme`.
 | Kimlik | `httpOnly` çerez | Bearer + yenileme token'ı, cihazın güvenli alanı |
 | Canlı veri | Supabase Realtime | Aynı GET uçlarını yoklama (takip 2 sn, kurye 3 sn) |
 | Harita | Leaflet | OpenStreetMap karoları + `react-native-svg` katmanı |
-| Kurye konumu | Tarayıcı konum servisi | Cihazın GPS akışı (`expo-location`); dururken dakikada bir varlık sinyali |
+| Kurye konumu | Tarayıcı konum servisi (sekme açıkken) | Cihazın GPS akışı (`expo-location` + `expo-task-manager`): derlemede arka planda da, Expo Go'da yalnızca açıkken; dururken dakikada bir varlık sinyali |
 | Geri bildirim | Görsel | Görsel + haptik |
-| Yol tarifi | Google Haritalar bağlantısı | Cihazın harita uygulaması |
+| Yol tarifi | Google Haritalar bağlantısı | Cihazın navigasyonu (Android: Google Haritalar, iOS: Apple Haritalar) |
+| Haritadaki çizgi | Sunucunun yol tarifi rotası (OSRM) | Aynı rota, `react-native-svg` ile |
 
 Uygulama arka plana alındığında yoklama durur, öne geldiğinde kaldığı
 yerden devam eder. Realtime'ın mobile taşınması yalnızca
@@ -119,5 +144,7 @@ npx expo export --platform android   # native paket üretimi (doğrulama)
   cihaza push için Expo Notifications + EAS gerekir (sunucu tarafında
   `push_subscriptions.kind = 'expo'` hazır).
 - **Canlı veri yoklamayla** gelir (web Realtime kullanır).
+- **Expo Go'da kurye konumu yalnızca uygulama açıkken** akar; arka plan
+  için geliştirme ya da mağaza derlemesi gerekir (yukarıya bak).
 - **Maskeli arama ve ödeme test modunda:** arama simüle edilir, yalnızca
   test kartları kabul edilir.

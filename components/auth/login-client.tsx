@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowLeft, Mail, Smartphone, Sparkles } from "lucide-react";
+import { ArrowLeft, Bike, Headset, House, Mail, Smartphone, Sparkles, TicketPercent } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -8,6 +9,7 @@ import { api, errorMessage } from "@/lib/api-client";
 import { useSession } from "@/lib/store/session";
 import type { Address, User } from "@/lib/types";
 import { cn, formatPhone } from "@/lib/utils";
+import { LogoTile } from "@/components/brand/logo";
 import { Button, Field, Input } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 
@@ -53,7 +55,7 @@ export function LoginClient({ next, demoEnabled = false }: { next: string; demoE
     applyAuth({ user: data.user, addresses: data.addresses ?? [] });
     toast.success(
       data.isNewUser
-        ? `Aramıza hoş geldin ${data.user.name.split(" ")[0]}! 🎉`
+        ? `Aramıza hoş geldin ${data.user.name.split(" ")[0]}!`
         : `Tekrar hoş geldin ${data.user.name.split(" ")[0]}!`
     );
     router.replace(next as never);
@@ -127,9 +129,7 @@ export function LoginClient({ next, demoEnabled = false }: { next: string; demoE
     <div className="mx-auto grid min-h-[calc(100dvh-4rem)] max-w-6xl items-center gap-12 px-4 py-10 lg:grid-cols-2 lg:px-6">
       {/* Tanıtım tarafı */}
       <section className="hidden lg:block">
-        <span className="flex size-14 items-center justify-center rounded-2xl bg-brand text-2xl shadow-soft">
-          🍽️
-        </span>
+        <LogoTile className="size-14 rounded-2xl" />
         <h1 className="mt-6 text-4xl font-extrabold leading-tight tracking-tight text-text">
           Mahallendeki en iyi lezzetler,
           <br />
@@ -140,20 +140,41 @@ export function LoginClient({ next, demoEnabled = false }: { next: string; demoE
           et. Tek hesapla hem web hem de yakında mobil uygulamada.
         </p>
         <ul className="mt-8 space-y-3">
-          {[
-            ["🛵", "Kuryeni haritadan canlı takip et"],
-            ["🎟️", "Kampanya kodları ve cüzdan bakiyesi"],
-            ["🏠", "Birden fazla adres, tek dokunuşla sipariş"],
-            ["💬", "7/24 canlı destek ve anında iptal"],
-          ].map(([emoji, text]) => (
+          {(
+            [
+              [Bike, "Kuryeni haritadan canlı takip et"],
+              [TicketPercent, "Kampanya kodları ve cüzdan bakiyesi"],
+              [House, "Birden fazla adres, tek dokunuşla sipariş"],
+              [Headset, "7/24 canlı destek ve anında iptal"],
+            ] as const
+          ).map(([FeatureIcon, text]) => (
             <li key={text} className="flex items-center gap-3 text-[15px] text-text">
-              <span className="flex size-9 items-center justify-center rounded-xl bg-surface-2 text-lg">
-                {emoji}
+              <span className="flex size-9 items-center justify-center rounded-xl bg-brand-soft text-brand">
+                <FeatureIcon className="size-[18px]" aria-hidden />
               </span>
               {text}
             </li>
           ))}
         </ul>
+
+        {/* İştah açan bir şerit: mutfaklardan üç tabak */}
+        <div aria-hidden className="mt-10 grid max-w-md grid-cols-3 gap-3">
+          {[
+            "/images/food/lahmacun.webp",
+            "/images/food/burger-classic.webp",
+            "/images/food/kunefe.webp",
+          ].map((src, i) => (
+            <span
+              key={src}
+              className={cn(
+                "relative aspect-square overflow-hidden rounded-2xl shadow-soft",
+                i === 1 ? "-translate-y-3" : ""
+              )}
+            >
+              <Image src={src} alt="" fill sizes="140px" className="object-cover" />
+            </span>
+          ))}
+        </div>
       </section>
 
       {/* Form tarafı */}

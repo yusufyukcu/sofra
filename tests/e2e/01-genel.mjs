@@ -119,6 +119,12 @@ async function main() {
   console.log("\n▶ Keşif ve güvenlik");
   const list = must(await customer.get(`/api/v1/restaurants?lat=${POINT.lat}&lng=${POINT.lng}`), "restoran listesi");
   check(`listede ${list.restaurants.length} restoran, öne çıkan ${list.featured?.length}`, list.restaurants.length > 5 && list.featured?.length === 3);
+  const allCount = list.categories?.find((c) => c.id === "all")?.count;
+  check(
+    "mutfak sayıları listede (mobil raf bunlarla çizilir)",
+    allCount === list.restaurants.length && list.categories.every((c) => typeof c.count === "number"),
+    list.categories?.slice(0, 3)
+  );
   const pending = await customer.get("/api/v1/restaurants/bogaz-manti-evi");
   check("onaysız restoran API'den 404 (hata #6)", pending.status === 404, pending.status);
   const noAuth = await new Client("anon").get("/api/v1/auth/me");

@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react-native";
 import type { ReactNode } from "react";
 import {
   Pressable,
@@ -180,12 +181,12 @@ export function Row({
 /* ------------------------------------------------------------------ */
 
 export function EmptyState({
-  emoji,
+  icon: IconComponent,
   title,
   description,
   action,
 }: {
-  emoji: string;
+  icon: LucideIcon;
   title: string;
   description?: string;
   action?: ReactNode;
@@ -193,7 +194,9 @@ export function EmptyState({
   const t = useTheme();
   return (
     <View style={[styles.empty, { paddingVertical: t.spacing.xxxl }]}>
-      <Text style={styles.emptyEmoji}>{emoji}</Text>
+      <View style={[styles.emptyIcon, { backgroundColor: t.colors.brandSoft }]}>
+        <IconComponent size={30} color={t.colors.brand} strokeWidth={1.9} />
+      </View>
       <Text variant="title" center>
         {title}
       </Text>
@@ -255,6 +258,13 @@ const styles = StyleSheet.create({
   },
   rowLabel: { flex: 1, gap: 1 },
   empty: { alignItems: "center", gap: 8, paddingHorizontal: 24 },
-  emptyEmoji: { fontSize: 44, lineHeight: 52 },
+  emptyIcon: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
   emptyText: { maxWidth: 280 },
 });

@@ -1,4 +1,5 @@
 import { router } from "expo-router";
+import { BellRing } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { relativeTime, type AppNotification } from "@sofra/core";
@@ -62,7 +63,7 @@ export default function NotificationsScreen() {
           </>
         ) : items.length === 0 ? (
           <EmptyState
-            emoji="🔔"
+            icon={BellRing}
             title="Henüz bildirim yok"
             description={error ?? "Sipariş verdiğinde durum değişiklikleri burada görünür."}
           />

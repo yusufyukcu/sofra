@@ -1,6 +1,7 @@
 "use client";
 
-import { BarChart3, Bike, LogOut, Power, Wallet } from "lucide-react";
+import { BarChart3, Bike, LogOut, Power, Star, Wallet } from "lucide-react";
+import { Avatar } from "@/components/ui/avatar";
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname, useRouter } from "next/navigation";
@@ -119,15 +120,14 @@ function CourierTopBar({ courier }: { courier: PublicCourier }) {
   return (
     <header className="band-deep sticky top-0 z-30">
       <div className="flex items-center gap-3 px-4 py-3">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/12 text-xl">
-          {courier.emoji}
-        </span>
+        <Avatar name={courier.name} className="size-10 text-sm ring-2 ring-white/15" />
         <div className="min-w-0 flex-1">
           <p className="font-display truncate text-[15px] font-extrabold leading-tight text-on-deep">
             {courier.name}
           </p>
           <p className="tabular truncate text-xs text-on-deep-muted">
-            ⭐ {courier.rating.toFixed(1)} ·{" "}
+            <Star className="inline size-3 -translate-y-px fill-saffron text-saffron" aria-hidden />{" "}
+            {courier.rating.toFixed(1)} ·{" "}
             {courier.vehicle === "moto"
               ? "Motosiklet"
               : courier.vehicle === "bisiklet"

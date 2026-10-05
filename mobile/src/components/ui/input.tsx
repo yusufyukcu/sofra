@@ -8,7 +8,9 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from "react-native";
+import type { IconName } from "@sofra/core";
 import { useTheme } from "@/theme";
+import { Icon } from "./icon";
 import { Text } from "./text";
 
 /**
@@ -119,6 +121,7 @@ export function Option({
   onPress,
   disabled,
   left,
+  icon,
   trailing,
 }: {
   title: string;
@@ -127,6 +130,8 @@ export function Option({
   onPress: () => void;
   disabled?: boolean;
   left?: ReactNode;
+  /** Soldaki yuvarlatılmış kutuda gösterilen ikon */
+  icon?: IconName;
   trailing?: string;
 }) {
   const t = useTheme();
@@ -148,6 +153,20 @@ export function Option({
       ]}
     >
       {left}
+      {icon ? (
+        <View
+          style={[
+            styles.optionIcon,
+            { backgroundColor: selected ? t.colors.brand : t.colors.surface2 },
+          ]}
+        >
+          <Icon
+            name={icon}
+            size={19}
+            color={selected ? t.colors.brandContrast : t.colors.muted}
+          />
+        </View>
+      ) : null}
       <View style={styles.optionBody}>
         <Text variant="body" weight="semibold" tone="ink">
           {title}
@@ -281,6 +300,7 @@ const styles = StyleSheet.create({
   multiline: { minHeight: 84, textAlignVertical: "top" },
   option: { flexDirection: "row", alignItems: "center", gap: 12 },
   optionBody: { flex: 1, gap: 1 },
+  optionIcon: { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   radio: {
     width: 20,
     height: 20,

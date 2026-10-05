@@ -1,5 +1,6 @@
 "use client";
 
+import { Heart } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, errorMessage } from "@/lib/api-client";
@@ -46,7 +47,7 @@ export function FavoritesList() {
         </div>
       ) : items.length === 0 ? (
         <EmptyState
-          emoji="🤍"
+          icon={Heart}
           title="Henüz favorin yok"
           description="Beğendiğin restoranların kartındaki kalbe dokunarak buraya ekleyebilirsin."
           action={

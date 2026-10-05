@@ -1,5 +1,6 @@
 import Image from "next/image";
-import { foodArtwork } from "@sofra/core";
+import { cuisineIcon, foodArtwork } from "@sofra/core";
+import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 
 /**
@@ -8,41 +9,46 @@ import { cn } from "@/lib/utils";
  * `src` varsa gerçek fotoğraf gösterilir; `next/image` kullanılan alanın
  * genişliğine (`sizes`) göre küçültülmüş WebP üretir, kart başına koca
  * dosya inmez. Fotoğraf yüklenene kadar — ya da hiç yoksa — mutfağa göre
- * renklenen katmanlı degrade görünür: kebapçı sıcak kırmızı, sağlıklı
- * mutfak yeşil, balıkçı mavi. Böylece satıcının sonradan eklediği,
- * fotoğrafı olmayan ürünler de listede kırık görsel bırakmaz.
+ * renklenen katmanlı degrade ve ortasında mutfağın ikonu görünür: kebapçı
+ * sıcak kırmızı, sağlıklı mutfak yeşil, balıkçı mavi. Böylece satıcının
+ * sonradan eklediği, fotoğrafı olmayan ürünler de listede kırık görsel
+ * bırakmaz.
  *
  * Renkler ve geometri `@sofra/core`'daki `foodArtwork` ile üretilir; mobil
  * uygulama aynı fonksiyonu SVG ile çizdiği için yer tutucu iki istemcide
  * birebir aynıdır.
+ *
+ * `zoom`: kart üzerine gelince fotoğraf hafifçe yaklaşır — kartın kendisi
+ * `group` sınıfını taşımalı.
  */
 export function FoodImage({
   seed,
-  emoji,
   tone,
   src,
   alt,
   className,
   rounded = "rounded-xl",
-  emojiClassName,
+  iconClassName,
   sizes = "100vw",
   eager = false,
+  zoom = false,
 }: {
   seed: string;
-  emoji: string;
-  /** Mutfak etiketi; verilmezse tohumdan deterministik olarak seçilir */
+  /** Mutfak etiketi; renk ve ikon buna göre seçilir */
   tone?: string;
   src?: string;
   alt?: string;
   className?: string;
   rounded?: string;
-  emojiClassName?: string;
+  /** Yer tutucu ikonunun boyutu, ör. `size-8` */
+  iconClassName?: string;
   /** Görselin ekranda kapladığı genişlik — `next/image` buna göre boyut seçer */
   sizes?: string;
   /** Sayfanın ilk ekranındaki ana görsel (LCP) için hemen yükle */
   eager?: boolean;
+  zoom?: boolean;
 }) {
-  const { blobs, base, centers, angle, rotate } = foodArtwork(seed, tone);
+  const { blobs, base, centers, angle } = foodArtwork(seed, tone);
   const [b1, b2, b3] = blobs;
   const [base1, base2] = base;
 
@@ -75,7 +81,10 @@ export function FoodImage({
           sizes={sizes}
           loading={eager ? "eager" : "lazy"}
           fetchPriority={eager ? "high" : undefined}
-          className="object-cover"
+          className={cn(
+            "object-cover",
+            zoom && "transition-transform duration-500 ease-out group-hover:scale-[1.045]"
+          )}
         />
       ) : (
         <>
@@ -88,19 +97,15 @@ export function FoodImage({
                 "linear-gradient(to bottom, rgba(255,255,255,.16) 0%, transparent 42%, rgba(0,0,0,.28) 100%)",
             }}
           />
-
           <span
             aria-hidden
-            className={cn(
-              "relative select-none leading-none",
-              emojiClassName ?? "text-[2.75rem]"
-            )}
-            style={{
-              transform: `rotate(${rotate}deg)`,
-              filter: "drop-shadow(0 6px 14px rgba(0,0,0,.38))",
-            }}
+            className="relative flex items-center justify-center rounded-full bg-white/15 p-[0.7rem] ring-1 ring-white/25"
           >
-            {emoji}
+            <Icon
+              name={cuisineIcon(tone)}
+              className={cn("text-white drop-shadow-[0_3px_8px_rgba(0,0,0,.35)]", iconClassName ?? "size-9")}
+              strokeWidth={1.7}
+            />
           </span>
         </>
       )}

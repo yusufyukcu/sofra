@@ -23,11 +23,6 @@ import {
 import { useToast } from "@/components/ui/toast";
 import { PhotoRequestField, sendPhoto } from "./photo-request";
 
-const EMOJI_CHOICES = [
-  "🍔", "🍕", "🥙", "🍗", "🌯", "🍜", "🍣", "🥗", "🍰", "☕",
-  "🥪", "🫓", "🍲", "🐟", "🍳", "🍟", "🥤", "🍫", "🥟", "🍚",
-];
-
 interface Draft {
   id?: string;
   categoryId: string;
@@ -272,7 +267,6 @@ export function ProductEditor({
             shape="product"
             currentImage={product?.image}
             seed={draft.id ?? "yeni-urun"}
-            emoji={draft.emoji}
             requests={requests}
             onRequestsChange={onRequestsChange}
             deferredFile={photo}
@@ -281,32 +275,7 @@ export function ProductEditor({
         </section>
 
         {/* Temel bilgiler */}
-        <div className="grid gap-4 sm:grid-cols-[auto_1fr]">
-          <div>
-            <p className="mb-2 text-sm font-semibold text-ink">
-              Simge
-              <span className="font-normal text-muted"> · fotoğraf yokken</span>
-            </p>
-            <div className="grid w-44 grid-cols-5 gap-1.5">
-              {EMOJI_CHOICES.map((emoji) => (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => patch({ emoji })}
-                  aria-label={`Simge ${emoji}`}
-                  className={cn(
-                    "flex size-8 items-center justify-center rounded-lg border text-base transition-colors",
-                    draft.emoji === emoji
-                      ? "border-brand bg-brand-soft"
-                      : "border-border bg-surface hover:bg-surface-2"
-                  )}
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          </div>
-
+        <div>
           <div className="space-y-4">
             <Field label="Ürün adı" required>
               <Input
@@ -614,10 +583,9 @@ export function ProductEditor({
           <div className="flex items-center gap-3 rounded-xl border border-border bg-surface p-3">
             <FoodImage
               seed={draft.id ?? "yeni-urun"}
-              emoji={draft.emoji}
               src={product?.image}
               className="size-12 shrink-0"
-              emojiClassName="text-2xl"
+              iconClassName="size-4"
               sizes="48px"
             />
             <div className="min-w-0 flex-1">

@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { Star } from "lucide-react-native";
+import { Avatar } from "@/components/ui/avatar";
 import { useEffect, useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -103,7 +104,7 @@ export default function RateScreen() {
           {order?.courier ? (
             <Card style={{ gap: t.spacing.md }}>
               <View style={styles.courierHead}>
-                <Text style={styles.avatar}>{order.courier.emoji}</Text>
+                <Avatar name={order.courier.name} size={46} />
                 <View style={{ flex: 1 }}>
                   <Text variant="title">Kurye nasıldı?</Text>
                   <Text variant="caption">{order.courier.name}</Text>
@@ -244,7 +245,6 @@ function Stars({
 const styles = StyleSheet.create({
   stars: { flexDirection: "row", gap: 8, alignSelf: "center" },
   courierHead: { flexDirection: "row", alignItems: "center", gap: 10 },
-  avatar: { fontSize: 30, lineHeight: 36 },
   tipHead: {
     flexDirection: "row",
     alignItems: "baseline",

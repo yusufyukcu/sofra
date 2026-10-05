@@ -2,7 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Circle,
   MapContainer,
@@ -13,7 +13,10 @@ import {
   useMap,
   useMapEvents,
 } from "react-leaflet";
-import type { LatLng } from "@/lib/types";
+import { BRAND_COLORS, projectOnPath, remainingPath } from "@sofra/core";
+import type { LatLng, RouteLeg } from "@/lib/types";
+import { distanceKm } from "@/lib/utils";
+import { pinSvg, type PinIconName } from "./pin-icons";
 
 /**
  * Leaflet tabanlı haritalar (yalnızca istemcide çalışır).
@@ -27,8 +30,11 @@ const TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
-/** Emoji tabanlı özel işaretçi. */
-function pinIcon(emoji: string, tone = "#e2452b", pulse = false) {
+const BRAND = BRAND_COLORS.red;
+const RESTAURANT_TONE = BRAND_COLORS.deep;
+
+/** Yuvarlak, beyaz çerçeveli, ortasında ikon taşıyan işaretçi. */
+function pinIcon(icon: PinIconName, tone: string = BRAND, pulse = false) {
   return L.divIcon({
     className: "sofra-pin",
     html: `
@@ -38,7 +44,7 @@ function pinIcon(emoji: string, tone = "#e2452b", pulse = false) {
             ? `<span style="position:absolute;inset:4px;border-radius:9999px;background:${tone};opacity:.35" class="animate-pulse-ring"></span>`
             : ""
         }
-        <span style="position:relative;display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:9999px;background:${tone};box-shadow:0 4px 12px rgba(0,0,0,.35);font-size:18px;line-height:1;border:2px solid #fff">${emoji}</span>
+        <span style="position:relative;display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:9999px;background:${tone};box-shadow:0 4px 12px rgba(0,0,0,.35);border:2.5px solid #fff">${pinSvg(icon, 18)}</span>
       </div>`,
     iconSize: [44, 44],
     iconAnchor: [22, 22],
@@ -99,9 +105,12 @@ export function PickerMap({
         <Recenter point={value} />
       </MapContainer>
 
-      {/* Sabit merkez pini */}
-      <div
+      {/* Sabit merkez pini — ucu tam merkezde */}
+      <svg
         aria-hidden
+        width="40"
+        height="50"
+        viewBox="0 0 40 50"
         style={{
           position: "absolute",
           left: "50%",
@@ -109,12 +118,17 @@ export function PickerMap({
           transform: "translate(-50%, -100%)",
           pointerEvents: "none",
           zIndex: 400,
-          fontSize: 38,
-          filter: "drop-shadow(0 4px 6px rgba(0,0,0,.4))",
+          filter: "drop-shadow(0 6px 8px rgba(0,0,0,.35))",
         }}
       >
-        📍
-      </div>
+        <path
+          d="M20 48.5C18.6 48.5 3 31.8 3 19.5a17 17 0 0 1 34 0C37 31.8 21.4 48.5 20 48.5z"
+          fill={BRAND}
+          stroke="#fff"
+          strokeWidth="3"
+        />
+        <circle cx="20" cy="19.5" r="6.5" fill="#fff" />
+      </svg>
     </div>
   );
 }
@@ -123,61 +137,135 @@ export function PickerMap({
 /* Sipariş takip haritası                                              */
 /* ------------------------------------------------------------------ */
 
-function FitBounds({ points }: { points: LatLng[] }) {
-  const map = useMap();
-  const done = useRef(false);
+const COURIER_TONE = "#2563eb";
+const STALE_TONE = "#94a3b8";
+const ROUTE_ATTRIBUTION = `${TILE_ATTRIBUTION} · Yol: <a href="https://project-osrm.org">OSRM</a> · <a href="https://www.openstreetmap.org/fixthemap">Haritayı düzelt</a>`;
+
+/** Bu kadar uzağa sıçrayan konum kaydırılmadan yerine konur (km) */
+const GLIDE_MAX_JUMP_KM = 0.5;
+
+/**
+ * İşaretçiyi iki konum arasında yumuşakça kaydırır. Kurye konumu birkaç
+ * saniyede bir geldiği için işaretçi zıplamaz, yolda akar.
+ */
+function useGlidingPoint(target: LatLng | undefined, durationMs = 2_400): LatLng | undefined {
+  const [shown, setShown] = useState(target);
+  const current = useRef(target);
+
   useEffect(() => {
-    if (done.current || points.length < 2) return;
-    done.current = true;
+    const from = current.current;
+    const glide = Boolean(from && target && distanceKm(from, target) < GLIDE_MAX_JUMP_KM);
+    const started = performance.now();
+    let frame = 0;
+
+    const step = (now: number) => {
+      const k = glide ? Math.min(1, (now - started) / durationMs) : 1;
+      const point =
+        glide && from && target
+          ? { lat: from.lat + (target.lat - from.lat) * k, lng: from.lng + (target.lng - from.lng) * k }
+          : target;
+      current.current = point;
+      setShown(point);
+      if (k < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [target, durationMs]);
+
+  return shown;
+}
+
+/**
+ * Haritayı ayağa göre çerçeveler (ayak değişince yeniden) ve kurye görünüm
+ * dışına çıkarsa haritayı ona kaydırır.
+ */
+function FollowDelivery({
+  frame,
+  frameKey,
+  courier,
+}: {
+  frame: LatLng[];
+  frameKey: string;
+  courier?: LatLng;
+}) {
+  const map = useMap();
+  const framed = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (framed.current === frameKey || frame.length === 0) return;
+    framed.current = frameKey;
     map.fitBounds(
-      points.map((p) => [p.lat, p.lng] as [number, number]),
-      { padding: [56, 56], maxZoom: 16 }
+      frame.map((p) => [p.lat, p.lng] as [number, number]),
+      { padding: [48, 48], maxZoom: 16 }
     );
-  }, [map, points]);
+  }, [map, frame, frameKey]);
+
+  useEffect(() => {
+    if (!courier) return;
+    if (!map.getBounds().pad(-0.12).contains([courier.lat, courier.lng])) {
+      map.panTo([courier.lat, courier.lng], { animate: true });
+    }
+  }, [map, courier]);
+
   return null;
 }
 
 /**
- * Kurye canlı takibi: restoran → müşteri rotası, kat edilen kısım dolu,
- * kalan kısım kesikli çizgiyle gösterilir.
+ * Kurye canlı takibi.
+ *
+ * Çizgi, yol tarifi servisinden gelen gerçek yoldur ve yalnızca kuryenin
+ * önündeki kısmı çizilir: restorana giderken kurye → restoran, sonra
+ * kurye → adres. Rota henüz yoksa (ya da yol tarifi kapalıysa) çizgi
+ * çizilmez; uydurma bir hat yerine yalnızca işaretçiler kalır. Konumu bir
+ * süredir gelmeyen kurye soluk gösterilir.
  */
 export function TrackingMap({
   restaurant,
   destination,
   courier,
-  route = [],
+  route,
+  leg,
+  stale = false,
   className,
-  restaurantEmoji = "🏪",
 }: {
   restaurant: LatLng;
   destination: LatLng;
+  /** Kuryenin canlı konumu (kurye atanmadıysa yok) */
   courier?: LatLng;
-  route?: LatLng[];
+  /** Kuryenin şu anki ayağının yol çizgisi */
+  route?: LatLng[] | null;
+  /** Şu anki ayak: restorana gidiş ya da müşteriye götürüş */
+  leg?: RouteLeg | null;
+  /** Kurye konumu bir süredir gelmiyor */
+  stale?: boolean;
   className?: string;
-  restaurantEmoji?: string;
 }) {
-  const path = useMemo(
-    () => (route.length ? route : [restaurant, destination]),
-    [route, restaurant, destination]
+  const shownCourier = useGlidingPoint(courier);
+
+  // Yalnızca kuryenin önündeki yol
+  const ahead = useMemo(() => {
+    if (!route || route.length < 2) return null;
+    if (!shownCourier) return route;
+    const projection = projectOnPath(route, shownCourier);
+    return projection ? remainingPath(route, projection) : route;
+  }, [route, shownCourier]);
+
+  // Çerçeve ayak değişince kurulur; kuryenin her adımında değil
+  const hasCourier = Boolean(courier);
+  const frameKey = `${leg ?? "-"}:${hasCourier ? 1 : 0}`;
+  const frame = useMemo(() => {
+    if (!courier) return [restaurant, destination];
+    return leg === "pickup" ? [courier, restaurant, destination] : [courier, destination];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frameKey, restaurant, destination]);
+
+  const restaurantIcon = useMemo(() => pinIcon("Store", RESTAURANT_TONE), []);
+  const homeIcon = useMemo(() => pinIcon("House", BRAND), []);
+  const courierIcon = useMemo(
+    () => pinIcon("Bike", stale ? STALE_TONE : COURIER_TONE, !stale),
+    [stale]
   );
-
-  // Kuryenin rota üzerindeki en yakın noktasını bul → geçilen/kalan ayrımı
-  const splitIndex = useMemo(() => {
-    if (!courier) return 0;
-    let best = 0;
-    let bestDist = Infinity;
-    path.forEach((p, i) => {
-      const d = (p.lat - courier.lat) ** 2 + (p.lng - courier.lng) ** 2;
-      if (d < bestDist) {
-        bestDist = d;
-        best = i;
-      }
-    });
-    return best;
-  }, [courier, path]);
-
-  const travelled = path.slice(0, splitIndex + 1);
-  const remaining = path.slice(splitIndex);
+  const positions = ahead?.map((p) => [p.lat, p.lng] as [number, number]);
 
   return (
     <div className={className}>
@@ -187,50 +275,48 @@ export function TrackingMap({
         scrollWheelZoom={false}
         style={{ height: "100%", width: "100%" }}
       >
-        <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
-        <FitBounds points={[restaurant, destination]} />
+        <TileLayer url={TILE_URL} attribution={ROUTE_ATTRIBUTION} />
+        <FollowDelivery frame={frame} frameKey={frameKey} courier={courier} />
 
-        {remaining.length > 1 && (
-          <Polyline
-            positions={remaining.map((p) => [p.lat, p.lng])}
-            pathOptions={{
-              color: "#94a3b8",
-              weight: 4,
-              dashArray: "8 10",
-              opacity: 0.9,
-            }}
-          />
-        )}
-        {courier && travelled.length > 1 && (
-          <Polyline
-            positions={travelled.map((p) => [p.lat, p.lng])}
-            pathOptions={{ color: "#e2452b", weight: 5, opacity: 0.95 }}
-          />
+        {positions && (
+          <>
+            {/* Beyaz kontur: çizgi karoların üstünde okunur kalsın */}
+            <Polyline
+              positions={positions}
+              pathOptions={{ color: "#ffffff", weight: 9, opacity: 0.9, lineCap: "round", lineJoin: "round" }}
+              interactive={false}
+            />
+            <Polyline
+              positions={positions}
+              pathOptions={{
+                color: stale ? STALE_TONE : COURIER_TONE,
+                weight: 5,
+                opacity: 0.95,
+                lineCap: "round",
+                lineJoin: "round",
+              }}
+              interactive={false}
+            />
+          </>
         )}
 
         <Circle
           center={[destination.lat, destination.lng]}
           radius={120}
           pathOptions={{
-            color: "#e2452b",
-            fillColor: "#e2452b",
+            color: BRAND,
+            fillColor: BRAND,
             fillOpacity: 0.08,
             weight: 1,
           }}
         />
 
-        <Marker
-          position={[restaurant.lat, restaurant.lng]}
-          icon={pinIcon(restaurantEmoji, "#f59e0b")}
-        />
-        <Marker
-          position={[destination.lat, destination.lng]}
-          icon={pinIcon("🏠", "#e2452b")}
-        />
-        {courier && (
+        <Marker position={[restaurant.lat, restaurant.lng]} icon={restaurantIcon} />
+        <Marker position={[destination.lat, destination.lng]} icon={homeIcon} />
+        {shownCourier && (
           <Marker
-            position={[courier.lat, courier.lng]}
-            icon={pinIcon("🛵", "#2563eb", true)}
+            position={[shownCourier.lat, shownCourier.lng]}
+            icon={courierIcon}
             zIndexOffset={1000}
           />
         )}
@@ -240,8 +326,8 @@ export function TrackingMap({
 }
 
 const ZONE_STYLE = {
-  color: "#e2452b",
-  fillColor: "#e2452b",
+  color: BRAND,
+  fillColor: BRAND,
   fillOpacity: 0.07,
   weight: 1.5,
 };
@@ -254,13 +340,11 @@ export function StaticMap({
   point,
   radiusKm,
   zone,
-  emoji = "🏪",
   className,
 }: {
   point: LatLng;
   radiusKm?: number;
   zone?: LatLng[] | null;
-  emoji?: string;
   className?: string;
 }) {
   const polygon = zone && zone.length >= 3 ? zone : null;
@@ -286,7 +370,7 @@ export function StaticMap({
             <Circle center={[point.lat, point.lng]} radius={radiusKm * 1000} pathOptions={ZONE_STYLE} />
           )
         )}
-        <Marker position={[point.lat, point.lng]} icon={pinIcon(emoji, "#e2452b")} />
+        <Marker position={[point.lat, point.lng]} icon={pinIcon("Store", BRAND)} />
       </MapContainer>
     </div>
   );
@@ -299,7 +383,7 @@ export function StaticMap({
 function vertexIcon(index: number) {
   return L.divIcon({
     className: "sofra-vertex",
-    html: `<span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:9999px;background:#fff;border:2px solid #e2452b;box-shadow:0 2px 6px rgba(0,0,0,.3);font:800 10px/1 system-ui,sans-serif;color:#e2452b;cursor:grab">${index + 1}</span>`,
+    html: `<span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:9999px;background:#fff;border:2px solid ${BRAND};box-shadow:0 2px 6px rgba(0,0,0,.3);font:800 10px/1 system-ui,sans-serif;color:${BRAND};cursor:grab">${index + 1}</span>`,
     iconSize: [24, 24],
     iconAnchor: [12, 12],
   });
@@ -324,14 +408,12 @@ export function ZoneEditorMap({
   radiusKm,
   zone,
   onChange,
-  emoji = "🏪",
   className,
 }: {
   center: LatLng;
   radiusKm: number;
   zone: LatLng[];
   onChange: (zone: LatLng[]) => void;
-  emoji?: string;
   className?: string;
 }) {
   const positions = zone.map((p) => [p.lat, p.lng] as [number, number]);
@@ -378,7 +460,7 @@ export function ZoneEditorMap({
           />
         ))}
 
-        <Marker position={[center.lat, center.lng]} icon={pinIcon(emoji, "#e2452b")} interactive={false} />
+        <Marker position={[center.lat, center.lng]} icon={pinIcon("Store", BRAND)} interactive={false} />
       </MapContainer>
     </div>
   );
@@ -391,7 +473,7 @@ export function ZoneEditorMap({
 export interface OpsMarker {
   id: string;
   point: LatLng;
-  emoji: string;
+  icon: PinIconName;
   /** İşaretçi rengi — durum bilgisini taşır */
   tone: string;
   label: string;
@@ -450,7 +532,7 @@ export function OpsMap({
           <Marker
             key={marker.id}
             position={[marker.point.lat, marker.point.lng]}
-            icon={pinIcon(marker.emoji, marker.tone, marker.pulse)}
+            icon={pinIcon(marker.icon, marker.tone, marker.pulse)}
             title={marker.label}
           />
         ))}

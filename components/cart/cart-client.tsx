@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Store, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, ShoppingBag, Store, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { SERVICE_FEE } from "@/lib/constants";
 import { useMounted } from "@/lib/hooks";
@@ -40,7 +40,7 @@ export function CartClient() {
           Sepetim
         </h1>
         <EmptyState
-          emoji="🛒"
+          icon={ShoppingBag}
           title="Sepetin henüz boş"
           description="Çevrendeki restoranları keşfet, favori lezzetlerini sepete ekle."
           action={
@@ -85,7 +85,6 @@ export function CartClient() {
             >
               <RestaurantThumb
                 image={restaurant.image}
-                emoji={restaurant.emoji}
                 className="size-11 rounded-xl"
               />
               <span className="min-w-0 flex-1">

@@ -1,5 +1,5 @@
 import { useFocusEffect } from "expo-router";
-import { Check, Clock, Star, X, Zap } from "lucide-react-native";
+import { Check, Clock, Star, WifiOff, X, Zap } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { useCallback, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
@@ -82,7 +82,7 @@ export default function PerformanceScreen() {
       >
         {!report ? (
           error ? (
-            <EmptyState emoji="📡" title="Yüklenemedi" description={error} />
+            <EmptyState icon={WifiOff} title="Yüklenemedi" description={error} />
           ) : (
             <View style={{ gap: t.spacing.md }}>
               <Skeleton height={110} radius={t.radius.lg} />

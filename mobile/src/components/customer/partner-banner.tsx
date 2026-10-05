@@ -1,5 +1,5 @@
 import * as WebBrowser from "expo-web-browser";
-import { ArrowRight, Store } from "lucide-react-native";
+import { ArrowRight, ChefHat, Store } from "lucide-react-native";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/ui/text";
 import { API_BASE_URL } from "@/lib/api";
@@ -22,7 +22,9 @@ export function PartnerBanner() {
         { backgroundColor: t.colors.deep, borderRadius: t.radius.xl, opacity: pressed ? 0.9 : 1 },
       ]}
     >
-      <Text style={styles.watermark}>🏪</Text>
+      <View style={styles.watermark} pointerEvents="none">
+        <ChefHat size={130} color={t.colors.onDeep} strokeWidth={1.2} />
+      </View>
       <View style={[styles.icon, { backgroundColor: t.colors.brand }]}>
         <Store size={24} color={t.colors.brandContrast} />
       </View>
@@ -46,7 +48,7 @@ export function PartnerBanner() {
 
 const styles = StyleSheet.create({
   card: { flexDirection: "row", alignItems: "center", gap: 14, padding: 18, overflow: "hidden" },
-  watermark: { position: "absolute", right: -12, top: -18, fontSize: 96, opacity: 0.12 },
+  watermark: { position: "absolute", right: -18, top: -22, opacity: 0.08, transform: [{ rotate: "12deg" }] },
   icon: { width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   cta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
 });

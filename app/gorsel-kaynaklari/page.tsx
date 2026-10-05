@@ -13,7 +13,8 @@ export const metadata: Metadata = {
  *
  * Yemek fotoğrafları Creative Commons lisanslıdır (CC BY, CC BY-SA, CC0).
  * BY lisansları kullanımda yazara ve lisansa atıf yapılmasını şart koşar;
- * bu sayfa o şartı karşılar. Fotoğraflar boyutlandırılıp kırpılmıştır.
+ * bu sayfa o şartı karşılar. Fotoğraflar boyutlandırılmış, kırpılmış ve
+ * renk/kontrast düzeltmesinden geçirilmiştir (BY-SA'nın istediği değişiklik notu).
  */
 export default function ImageCreditsPage() {
   return (
@@ -24,9 +25,10 @@ export default function ImageCreditsPage() {
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
           Restoran ve menü fotoğrafları Wikimedia Commons ve Flickr&apos;daki
-          Creative Commons lisanslı görsellerden seçildi; boyutlandırılıp
-          kırpılarak kullanılıyor. Her fotoğrafın yazarı, lisansı ve özgün
-          kaynağı aşağıda.
+          Creative Commons lisanslı görsellerden seçildi; boyutlandırıldı,
+          kırpıldı ve renk, kontrast ve keskinlik düzeltmesi yapılarak
+          kullanılıyor. Görseller temsilidir. Her fotoğrafın yazarı, lisansı
+          ve özgün kaynağı aşağıda.
         </p>
       </header>
 

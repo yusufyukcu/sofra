@@ -46,9 +46,8 @@ export function CartSummaryCard({ minBasket }: { minBasket: number }) {
           {restaurant && (
             <RestaurantThumb
               image={restaurant.image}
-              emoji={restaurant.emoji}
               className="size-8 rounded-lg"
-              emojiClassName="text-base"
+              iconClassName="size-4"
             />
           )}
           <h3 className="truncate text-sm font-bold text-text">

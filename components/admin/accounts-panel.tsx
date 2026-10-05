@@ -1,6 +1,7 @@
 "use client";
 
-import { Ban, Check, PlusCircle, Search, ShieldOff } from "lucide-react";
+import { Ban, Check, PlusCircle, Search, ShieldOff, Star, UserRoundSearch } from "lucide-react";
+import { Avatar } from "@/components/ui/avatar";
 import { useEffect, useState } from "react";
 import { api, errorMessage } from "@/lib/api-client";
 import type { AdminCourierRow, AdminUserRow } from "@/lib/services/admin";
@@ -177,7 +178,7 @@ export function AccountsPanel() {
         (!users ? (
           <Skeleton className="h-64 w-full" />
         ) : users.length === 0 ? (
-          <EmptyState emoji="👤" title="Eşleşen kullanıcı yok" />
+          <EmptyState icon={UserRoundSearch} title="Eşleşen kullanıcı yok" />
         ) : (
           <ul className="space-y-2.5">
             {users.map((row) => {
@@ -191,9 +192,7 @@ export function AccountsPanel() {
                     u.blocked && "border-danger/40 bg-danger-soft/40"
                   )}
                 >
-                  <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-xl">
-                    {u.avatarEmoji}
-                  </span>
+                  <Avatar name={u.name} className="size-11 text-sm" />
 
                   <div className="min-w-0 flex-1">
                     <p className="flex flex-wrap items-center gap-2">
@@ -291,9 +290,7 @@ export function AccountsPanel() {
                     c.status === "pending" && "border-saffron/40"
                   )}
                 >
-                  <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-xl">
-                    {c.emoji}
-                  </span>
+                  <Avatar name={c.name} className="size-11 text-sm" />
 
                   <div className="min-w-0 flex-1">
                     <p className="flex flex-wrap items-center gap-2">
@@ -315,7 +312,9 @@ export function AccountsPanel() {
                       )}
                     </p>
                     <p className="tabular truncate text-xs text-muted">
-                      {formatPhone(c.phone)} · ⭐ {c.rating.toFixed(1)} ·{" "}
+                      {formatPhone(c.phone)} ·{" "}
+                      <Star className="inline size-3 -translate-y-px fill-saffron text-saffron" aria-hidden />{" "}
+                      {c.rating.toFixed(1)} ·{" "}
                       {c.vehicle === "moto"
                         ? "Motosiklet"
                         : c.vehicle === "bisiklet"

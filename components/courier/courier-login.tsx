@@ -1,6 +1,8 @@
 "use client";
 
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft, Sparkles, Star } from "lucide-react";
+import { LogoTile } from "@/components/brand/logo";
+import { Avatar } from "@/components/ui/avatar";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -114,7 +116,7 @@ export function CourierLogin() {
       <div className="flex min-h-dvh w-full max-w-md flex-col bg-paper shadow-float">
         <header className="band-deep px-5 pb-8 pt-10">
           <div className="flex items-center gap-2.5">
-            <span className="flex size-10 items-center justify-center rounded-xl bg-brand text-xl">🛵</span>
+            <LogoTile />
             <span className="font-display text-xl font-extrabold tracking-tight text-on-deep">Sofra Kurye</span>
           </div>
           <h1 className="font-display mt-6 text-[1.8rem] font-extrabold leading-tight text-on-deep">
@@ -226,13 +228,13 @@ export function CourierLogin() {
                           : "border-border bg-surface hover:bg-surface-2"
                       )}
                     >
-                      <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-xl">
-                        {item.emoji}
-                      </span>
+                      <Avatar name={item.name} className="size-11 text-sm" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[15px] font-bold text-ink">{item.name}</span>
                         <span className="tabular block text-xs text-muted">
-                          {item.phone ? formatPhone(item.phone) : ""} · ⭐ {item.rating.toFixed(1)} ·{" "}
+                          {item.phone ? formatPhone(item.phone) : ""} ·{" "}
+                          <Star className="inline size-3 -translate-y-px fill-saffron text-saffron" aria-hidden />{" "}
+                          {item.rating.toFixed(1)} ·{" "}
                           {VEHICLE_LABEL[item.vehicle]}
                           {item.status === "pending" && (
                             <span className="ml-1.5 font-semibold text-saffron">· onay bekliyor</span>

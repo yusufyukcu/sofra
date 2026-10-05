@@ -9,12 +9,14 @@ import {
   LogOut,
   MapPin,
   Plus,
+  UserRound,
   Wallet,
 } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { formatPhone, formatPrice } from "@sofra/core";
 import { CartBar } from "@/components/customer/cart-bar";
+import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Header, SectionTitle, Screen } from "@/components/ui/screen";
 import { Badge, Card, Divider, EmptyState } from "@/components/ui/surfaces";
@@ -52,13 +54,13 @@ export default function AccountScreen() {
         <Header title="Hesabım" large />
         <ScrollView contentContainerStyle={{ padding: t.spacing.lg, gap: t.spacing.lg }}>
           <EmptyState
-            emoji="👋"
+            icon={UserRound}
             title="Hesabına gir"
             description="Adreslerin, cüzdanın ve sipariş geçmişin bir arada."
             action={<Button label="Giriş yap" onPress={() => router.push("/giris")} />}
           />
           <CourierCard />
-          <ServerCard />
+          {__DEV__ ? <ServerCard /> : null}
         </ScrollView>
       </Screen>
     );
@@ -78,7 +80,7 @@ export default function AccountScreen() {
         {/* Profil + cüzdan */}
         <Card style={{ gap: t.spacing.md }}>
           <View style={styles.profile}>
-            <Text style={styles.avatar}>{user.avatarEmoji}</Text>
+            <Avatar name={user.name} size={52} />
             <View style={{ flex: 1, gap: 2 }}>
               <Text variant="title">{user.name}</Text>
               <Text variant="caption" tabular>
@@ -200,7 +202,7 @@ export default function AccountScreen() {
         ) : null}
 
         <CourierCard />
-        <ServerCard />
+        {__DEV__ ? <ServerCard /> : null}
 
         <Button
           label="Çıkış yap"
@@ -279,7 +281,7 @@ function CourierCard() {
   );
 }
 
-/** Hangi sunucuya bağlı olduğumuz — geliştirirken en çok sorulan soru. */
+/** Hangi sunucuya bağlı olduğumuz — geliştirirken en çok sorulan soru; yalnızca geliştirme derlemesinde görünür. */
 function ServerCard() {
   const t = useTheme();
   return (
@@ -298,7 +300,6 @@ function ServerCard() {
 const styles = StyleSheet.create({
   linkRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 4 },
   profile: { flexDirection: "row", alignItems: "center", gap: 12 },
-  avatar: { fontSize: 38, lineHeight: 46 },
   wallet: {
     flexDirection: "row",
     alignItems: "center",

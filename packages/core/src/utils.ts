@@ -150,33 +150,6 @@ function toRad(deg: number) {
   return (deg * Math.PI) / 180;
 }
 
-export function lerpPoint(a: LatLng, b: LatLng, t: number): LatLng {
-  return { lat: a.lat + (b.lat - a.lat) * t, lng: a.lng + (b.lng - a.lng) * t };
-}
-
-/**
- * Restorandan adrese doğru, düz çizgi yerine hafif kırılmalı bir "yol"
- * üretir. Gerçek uygulamada bu rota bir directions servisinden gelir.
- */
-export function buildRoute(from: LatLng, to: LatLng, steps = 28): LatLng[] {
-  const route: LatLng[] = [];
-  // Kontrol noktasını dik eksende kaydırarak yumuşak bir eğri elde ediyoruz.
-  const midLat = (from.lat + to.lat) / 2;
-  const midLng = (from.lng + to.lng) / 2;
-  const dLat = to.lat - from.lat;
-  const dLng = to.lng - from.lng;
-  const control = { lat: midLat - dLng * 0.18, lng: midLng + dLat * 0.18 };
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const inv = 1 - t;
-    route.push({
-      lat: inv * inv * from.lat + 2 * inv * t * control.lat + t * t * to.lat,
-      lng: inv * inv * from.lng + 2 * inv * t * control.lng + t * t * to.lng,
-    });
-  }
-  return route;
-}
-
 /** Nokta çokgenin içinde mi (ışın atma; enlem = y, boylam = x). */
 export function pointInPolygon(point: LatLng, polygon: LatLng[]): boolean {
   let inside = false;

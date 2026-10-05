@@ -4,7 +4,9 @@ import { ChevronDown, Crosshair, MapPin, Plus } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { errorMessage } from "@/lib/api-client";
-import { ADDRESS_LABELS, DEFAULT_CENTER } from "@/lib/constants";
+import { addressLabelIcon } from "@sofra/core";
+import { DEFAULT_CENTER } from "@/lib/constants";
+import { Icon } from "@/components/ui/icon";
 import { QUICK_LOCATIONS, currentPosition, reverseGeocode } from "@/lib/geocode";
 import {
   deliveryLabel,
@@ -26,14 +28,7 @@ import { useToast } from "@/components/ui/toast";
  * ekler; misafir kullanıcı haritadan bir konum işaretler (restoranlar yine
  * de konuma göre filtrelenebilsin diye).
  */
-export function AddressSelector({
-  compact = false,
-  onDeep = false,
-}: {
-  compact?: boolean;
-  /** Koyu patlıcan bandın üzerinde kullanılıyorsa renkleri çevirir */
-  onDeep?: boolean;
-}) {
+export function AddressSelector({ compact = false }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const label = useSession(deliveryLabel);
   const status = useSession((s) => s.status);
@@ -44,19 +39,17 @@ export function AddressSelector({
         type="button"
         onClick={() => setOpen(true)}
         className={cn(
-          "group flex min-w-0 items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-left transition-colors",
-          onDeep ? "hover:bg-white/10" : "hover:bg-surface-2",
+          "group flex min-w-0 items-center gap-2 rounded-full py-1.5 pl-2 pr-3 text-left transition-colors hover:bg-surface-2",
           compact ? "max-w-[46vw]" : "max-w-xs"
         )}
       >
-        <MapPin
-          className={cn("size-4 shrink-0", onDeep ? "text-brand" : "text-brand")}
-        />
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-soft text-brand">
+          <MapPin className="size-4" />
+        </span>
         <span className="min-w-0">
           <span
             className={cn(
-              "block text-[10px] font-semibold uppercase tracking-wide",
-              onDeep ? "text-on-deep-muted" : "text-muted",
+              "block text-xs leading-tight text-muted",
               compact && "hidden sm:block"
             )}
           >
@@ -64,8 +57,7 @@ export function AddressSelector({
           </span>
           <span
             className={cn(
-              "block truncate text-sm font-semibold",
-              onDeep ? "text-on-deep" : "text-text"
+              "block truncate text-sm font-bold leading-tight text-ink"
             )}
           >
             {status === "loading" ? "Yükleniyor…" : label}
@@ -73,8 +65,7 @@ export function AddressSelector({
         </span>
         <ChevronDown
           className={cn(
-            "size-4 shrink-0 transition-transform group-hover:translate-y-0.5",
-            onDeep ? "text-on-deep-muted" : "text-muted"
+            "size-4 shrink-0 text-muted transition-transform group-hover:translate-y-0.5"
           )}
         />
       </button>
@@ -138,7 +129,6 @@ function AddressSelectorModal({
       ) : (
         <div className="space-y-2">
           {addresses.map((address) => {
-            const meta = ADDRESS_LABELS.find((l) => l.id === address.label);
             const active = address.id === selectedId;
             return (
               <button
@@ -155,8 +145,14 @@ function AddressSelectorModal({
                     : "border-border bg-surface hover:bg-surface-2"
                 )}
               >
-                <span className="text-xl" aria-hidden>
-                  {meta?.emoji ?? "📍"}
+                <span
+                  className={cn(
+                    "flex size-9 shrink-0 items-center justify-center rounded-lg",
+                    active ? "bg-brand text-brand-contrast" : "bg-surface-2 text-muted"
+                  )}
+                  aria-hidden
+                >
+                  <Icon name={addressLabelIcon(address.label)} className="size-[18px]" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2">

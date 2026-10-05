@@ -1,7 +1,10 @@
 import { MapPin, Navigation, Phone, StickyNote } from "lucide-react-native";
-import { Alert, Linking, Pressable, StyleSheet, View } from "react-native";
+import { Alert, Linking, Platform, Pressable, StyleSheet, View } from "react-native";
 import {
+  currentRoute,
+  formatDistance,
   formatPrice,
+  liveLeg,
   type CourierStage,
   type Order,
 } from "@sofra/core";
@@ -20,8 +23,10 @@ import { useTheme } from "@/theme";
  * vermesin diye. Aşama sırası sunucuda zorunlu: sırasız bildirim
  * `invalid_stage` ile reddedilir.
  *
- * "Yol tarifi" cihazın harita uygulamasını açar; bu, mobilin webde olmayan
- * gerçek bir kazancı.
+ * Haritadaki çizgi, sunucunun yol tarifi servisinden aldığı gerçek yoldur
+ * (yalnızca önündeki kısmı); kalan mesafe ve süre o yoldan hesaplanır.
+ * "Yol tarifi" cihazın navigasyon uygulamasını açar (Android'de Google
+ * Haritalar navigasyonu, iOS'ta Apple Haritalar).
  */
 
 const NEXT: Record<
@@ -74,11 +79,26 @@ export function ActiveDelivery({
       ? `${order.address.title} · ${order.address.district}`
       : order.restaurantName;
 
+  // Kuryenin önündeki gerçek yol ve kalan mesafe/süre
+  const live = liveLeg(order);
+  const path = live?.path ?? currentRoute(order);
+  const remaining =
+    live && stage !== "at_restaurant"
+      ? `${formatDistance(live.remainingM / 1000)} · ~${Math.max(1, Math.ceil(live.remainingS / 60))} dk`
+      : null;
+
   function openDirections() {
-    const url = `https://www.openstreetmap.org/directions?to=${heading.lat},${heading.lng}`;
-    Linking.openURL(url).catch(() =>
-      Alert.alert("Açılamadı", "Cihazda harita uygulaması bulunamadı.")
-    );
+    const { lat, lng } = heading;
+    const bike = order.courier?.vehicle === "bisiklet";
+    const web = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=${bike ? "bicycling" : "driving"}`;
+    const native = Platform.select({
+      android: `google.navigation:q=${lat},${lng}&mode=${bike ? "b" : "d"}`,
+      ios: `http://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`,
+      default: web,
+    });
+    Linking.openURL(native)
+      .catch(() => Linking.openURL(web))
+      .catch(() => Alert.alert("Açılamadı", "Cihazda harita uygulaması bulunamadı."));
   }
 
   return (
@@ -97,18 +117,18 @@ export function ActiveDelivery({
 
       <MapView
         height={190}
-        route={{ from: order.restaurantLocation, to: order.address.point }}
+        path={path}
         markers={[
           {
             point: order.restaurantLocation,
-            emoji: "🏪",
+            icon: "Store" as const,
             color: stage === "picked_up" ? t.colors.muted : t.colors.deep,
           },
           ...(order.courierPoint
             ? [
                 {
                   point: order.courierPoint,
-                  emoji: "🛵",
+                  icon: "Bike" as const,
                   color: t.colors.brand,
                   size: 38,
                 },
@@ -116,7 +136,7 @@ export function ActiveDelivery({
             : []),
           {
             point: order.address.point,
-            emoji: "🏠",
+            icon: "House" as const,
             color:
               stage === "picked_up" ? t.colors.pistachio : t.colors.muted,
           },
@@ -127,7 +147,9 @@ export function ActiveDelivery({
       <View style={styles.target}>
         <Navigation size={17} color={t.colors.brand} />
         <View style={{ flex: 1, gap: 1 }}>
-          <Text variant="caption">Sıradaki durak</Text>
+          <Text variant="caption" tabular>
+            {remaining ? `Sıradaki durak · ${remaining}` : "Sıradaki durak"}
+          </Text>
           <Text variant="body" weight="semibold" tone="ink" numberOfLines={2}>
             {headingLabel}
           </Text>

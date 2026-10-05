@@ -1,6 +1,6 @@
 "use client";
 
-import { Headset, Send, Sparkles } from "lucide-react";
+import { Headset, LockKeyhole, Send, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "@/lib/api-client";
@@ -118,7 +118,7 @@ export function ChatPanel({
     return (
       <div className={className}>
         <EmptyState
-          emoji="🔐"
+          icon={LockKeyhole}
           title="Destek için giriş yap"
           description="Siparişlerini görebilmemiz ve sana özel yardım edebilmemiz için hesabına giriş yapmalısın."
           action={

@@ -1,6 +1,15 @@
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { ChevronDown, Filter, MapPin, SlidersHorizontal, Sparkles } from "lucide-react-native";
+import {
+  ChevronDown,
+  Filter,
+  MapPin,
+  SlidersHorizontal,
+  Sparkles,
+  UtensilsCrossed,
+  WifiOff,
+} from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FlatList,
@@ -12,6 +21,7 @@ import {
 } from "react-native";
 import {
   CATEGORIES,
+  cuisineIcon,
   FILTER_PARAM_KEYS,
   SORT_OPTIONS,
   type Banner,
@@ -22,8 +32,10 @@ import {
 import { CartBar } from "@/components/customer/cart-bar";
 import { PartnerBanner } from "@/components/customer/partner-banner";
 import { RestaurantCard } from "@/components/customer/restaurant-card";
+import { FoodPhoto, photoUrl } from "@/components/ui/food-photo";
+import { Icon } from "@/components/ui/icon";
 import { Header, Screen } from "@/components/ui/screen";
-import { Badge, Card, EmptyState, Skeleton } from "@/components/ui/surfaces";
+import { EmptyState, Skeleton } from "@/components/ui/surfaces";
 import { Text } from "@/components/ui/text";
 import { api, errorMessage, isOffline } from "@/lib/api";
 import { deliveryLabel, deliveryPoint, useSession } from "@/store/session";
@@ -115,7 +127,11 @@ export default function DiscoverScreen() {
 
   return (
     <Screen>
-      <Header title="Sofra" large subtitle={`${data?.total ?? 0} restoran`}>
+      <Header
+        title="Sofra"
+        logo
+        subtitle={data ? `${counts.get("all") ?? data.restaurants.length} restoran adresine teslim ediyor` : " "}
+      >
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Teslimat konumunu değiştir"
@@ -125,22 +141,24 @@ export default function DiscoverScreen() {
           style={({ pressed }) => [
             styles.location,
             {
-              backgroundColor: t.colors.deep2,
-              borderRadius: t.radius.md,
+              backgroundColor: t.colors.surface2,
+              borderRadius: t.radius.pill,
               opacity: pressed ? 0.8 : 1,
             },
           ]}
         >
-          <MapPin size={16} color={t.colors.onDeepMuted} />
-          <Text
-            variant="small"
-            weight="semibold"
-            numberOfLines={1}
-            style={{ color: t.colors.onDeep, flex: 1 }}
-          >
-            {label}
-          </Text>
-          <ChevronDown size={16} color={t.colors.onDeepMuted} />
+          <View style={[styles.locationIcon, { backgroundColor: t.colors.brandSoft }]}>
+            <MapPin size={15} color={t.colors.brand} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text variant="caption" tone="muted">
+              Teslimat adresi
+            </Text>
+            <Text variant="small" weight="semibold" tone="ink" numberOfLines={1}>
+              {label}
+            </Text>
+          </View>
+          <ChevronDown size={16} color={t.colors.muted} />
         </Pressable>
       </Header>
 
@@ -172,7 +190,15 @@ export default function DiscoverScreen() {
               >
                 <View style={{ width: t.spacing.lg }} />
                 {data.banners.map((banner) => (
-                  <BannerCard key={banner.id} banner={banner} />
+                  <BannerCard
+                    key={banner.id}
+                    banner={banner}
+                    onPress={() => {
+                      const params = new URLSearchParams(banner.href.split("?")[1] ?? "");
+                      const target = params.get(FILTER_PARAM_KEYS.category);
+                      if (target && target !== "all") setCategory(target);
+                    }}
+                  />
                 ))}
                 <View style={{ width: t.spacing.lg }} />
               </ScrollView>
@@ -205,32 +231,36 @@ export default function DiscoverScreen() {
               </View>
             ) : null}
 
-            {/* Kategoriler */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: t.spacing.sm }}
-              style={{ marginHorizontal: -t.spacing.lg }}
-            >
-              <View style={{ width: t.spacing.lg }} />
-              {/* "Tümü" listenin kendi ilk maddesi; ayrıca eklenmiyor. */}
-              {CATEGORIES.map((c) => {
-                const isAll = c.id === "all";
-                const active = isAll ? category === null : category === c.id;
-                return (
-                  <Chip
-                    key={c.id}
-                    label={`${c.emoji} ${c.name}`}
-                    count={isAll ? undefined : counts.get(c.id)}
-                    active={active}
-                    onPress={() =>
-                      setCategory(isAll || active ? null : c.id)
-                    }
-                  />
-                );
-              })}
-              <View style={{ width: t.spacing.lg }} />
-            </ScrollView>
+            {/* Mutfaklar — fotoğraflı raf */}
+            <View style={{ gap: t.spacing.sm }}>
+              <Text variant="title">Mutfaklar</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: t.spacing.md }}
+                style={{ marginHorizontal: -t.spacing.lg }}
+              >
+                <View style={{ width: t.spacing.lg - t.spacing.md }} />
+                {/* "Tümü" listenin kendi ilk maddesi; ayrıca eklenmiyor. */}
+                {CATEGORIES.map((c) => {
+                  const isAll = c.id === "all";
+                  const active = isAll ? category === null : category === c.id;
+                  const count = isAll ? undefined : counts.get(c.id);
+                  if (!isAll && c.id !== "top-rated" && !count && !active) return null;
+                  return (
+                    <CategoryTile
+                      key={c.id}
+                      id={c.id}
+                      name={c.name}
+                      image={c.image}
+                      active={active}
+                      onPress={() => setCategory(isAll || active ? null : c.id)}
+                    />
+                  );
+                })}
+                <View style={{ width: t.spacing.lg - t.spacing.md }} />
+              </ScrollView>
+            </View>
 
             {/* Sıralama */}
             <View style={styles.sortRow}>
@@ -288,13 +318,13 @@ export default function DiscoverScreen() {
             </View>
           ) : error ? (
             <EmptyState
-              emoji="📡"
+              icon={WifiOff}
               title="Liste yüklenemedi"
               description={error}
             />
           ) : (
             <EmptyState
-              emoji="🍽️"
+              icon={UtensilsCrossed}
               title="Bu filtrelerle restoran yok"
               description="Kategoriyi ya da filtreleri kaldırmayı dene."
             />
@@ -331,8 +361,8 @@ function Chip({
       style={({ pressed }) => [
         styles.chip,
         {
-          backgroundColor: active ? t.colors.deep : t.colors.surface,
-          borderColor: active ? t.colors.deep : t.colors.border,
+          backgroundColor: active ? t.colors.brand : t.colors.surface,
+          borderColor: active ? t.colors.brand : t.colors.border,
           borderRadius: t.radius.pill,
           paddingVertical: small ? 6 : 9,
           opacity: pressed ? 0.8 : 1,
@@ -342,7 +372,7 @@ function Chip({
       <Text
         variant="small"
         weight="semibold"
-        style={{ color: active ? t.colors.onDeep : t.colors.text }}
+        style={{ color: active ? t.colors.brandContrast : t.colors.text }}
       >
         {label}
       </Text>
@@ -350,7 +380,7 @@ function Chip({
         <Text
           variant="caption"
           tabular
-          style={{ color: active ? t.colors.onDeepMuted : t.colors.muted }}
+          style={{ color: active ? t.colors.brandContrast : t.colors.muted }}
         >
           {count}
         </Text>
@@ -359,40 +389,125 @@ function Chip({
   );
 }
 
-function BannerCard({ banner }: { banner: Banner }) {
+/** Mutfak kutusu: fotoğraf (ya da ikon) ve altında adı — web'deki rafla aynı. */
+function CategoryTile({
+  id,
+  name,
+  image,
+  active,
+  onPress,
+}: {
+  id: string;
+  name: string;
+  image?: string;
+  active: boolean;
+  onPress: () => void;
+}) {
   const t = useTheme();
   return (
-    <Card
-      padded={false}
-      elevation="sm"
-      style={{ width: 268, overflow: "hidden" }}
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={name}
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      style={({ pressed }) => [styles.tile, { opacity: pressed ? 0.85 : 1 }]}
     >
-      {/* Afişin kendi degradesi — web vitriniyle aynı iki durak */}
-      <LinearGradient
-        colors={banner.gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.bannerArt}
+      <View
+        style={[
+          styles.tileArt,
+          {
+            borderRadius: t.radius.lg,
+            borderColor: active ? t.colors.brand : t.colors.border,
+            borderWidth: active ? 2.5 : StyleSheet.hairlineWidth * 2,
+          },
+        ]}
       >
-        <Text style={styles.bannerEmoji}>{banner.emoji}</Text>
-      </LinearGradient>
+        {image ? (
+          <FoodPhoto src={image} seed={id} tone={id} radius={0} iconSize={22} style={StyleSheet.absoluteFill} />
+        ) : (
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              styles.tileIcon,
+              { backgroundColor: active ? t.colors.brand : t.colors.brandSoft },
+            ]}
+          >
+            <Icon
+              name={cuisineIcon(id)}
+              size={26}
+              color={active ? t.colors.brandContrast : t.colors.brand}
+              strokeWidth={1.9}
+            />
+          </View>
+        )}
+      </View>
+      <Text
+        variant="caption"
+        weight="semibold"
+        center
+        numberOfLines={2}
+        style={{ color: active ? t.colors.brand : t.colors.text }}
+      >
+        {name}
+      </Text>
+    </Pressable>
+  );
+}
 
-      <View style={{ padding: t.spacing.md, gap: 3 }}>
-        <Text variant="body" weight="semibold" tone="ink" numberOfLines={1}>
+/**
+ * Kampanya afişi — web vitriniyle aynı dil: sol tarafta afişin degradesi ve
+ * yazı, sağda degradeye karışan yemek fotoğrafı.
+ */
+function BannerCard({ banner, onPress }: { banner: Banner; onPress: () => void }) {
+  const t = useTheme();
+  const [from, to] = banner.gradient;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={banner.title}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.banner,
+        { borderRadius: t.radius.xl, transform: [{ scale: pressed ? 0.985 : 1 }] },
+        t.shadow.md,
+      ]}
+    >
+      <LinearGradient colors={[from, to]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+      {banner.image ? (
+        <>
+          <Image
+            source={{ uri: photoUrl(banner.image) }}
+            style={styles.bannerPhoto}
+            contentFit="cover"
+            transition={220}
+            cachePolicy="memory-disk"
+          />
+          {/* Fotoğraf soldan degradeye karışsın; yazı düz renk üstünde okunur kalsın */}
+          <LinearGradient
+            colors={[from, `${from}00`]}
+            start={{ x: 0.42, y: 0.5 }}
+            end={{ x: 0.72, y: 0.5 }}
+            style={StyleSheet.absoluteFill}
+          />
+        </>
+      ) : null}
+
+      <View style={styles.bannerBody}>
+        <Text variant="title" numberOfLines={2} style={styles.bannerTitle}>
           {banner.title}
         </Text>
-        <Text variant="caption" numberOfLines={2}>
+        <Text variant="caption" numberOfLines={2} style={styles.bannerSubtitle}>
           {banner.subtitle}
         </Text>
         {banner.code ? (
-          <Badge
-            label={banner.code}
-            tone="brand"
-            style={{ alignSelf: "flex-start", marginTop: 4 }}
-          />
+          <View style={styles.bannerCode}>
+            <Text variant="caption" weight="bold" style={{ color: "#ffffff", letterSpacing: 0.5 }}>
+              {banner.code}
+            </Text>
+          </View>
         ) : null}
       </View>
-    </Card>
+    </Pressable>
   );
 }
 
@@ -400,9 +515,33 @@ const styles = StyleSheet.create({
   location: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    gap: 10,
+    paddingLeft: 6,
+    paddingRight: 14,
+    paddingVertical: 6,
+  },
+  locationIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tile: { width: 76, alignItems: "center", gap: 6 },
+  tileArt: { width: 72, height: 72, overflow: "hidden" },
+  tileIcon: { alignItems: "center", justifyContent: "center" },
+  banner: { width: 300, height: 148, overflow: "hidden" },
+  bannerPhoto: { position: "absolute", right: 0, top: 0, bottom: 0, width: "58%" },
+  bannerBody: { width: "64%", padding: 16, gap: 4, flex: 1, justifyContent: "center" },
+  bannerTitle: { color: "#ffffff" },
+  bannerSubtitle: { color: "rgba(255,255,255,0.88)" },
+  bannerCode: {
+    alignSelf: "flex-start",
+    marginTop: 6,
+    backgroundColor: "rgba(255,255,255,0.22)",
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
   },
   chip: {
     flexDirection: "row",
@@ -412,11 +551,4 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth * 2,
   },
   sortRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  bannerArt: {
-    height: 92,
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bannerEmoji: { fontSize: 38, lineHeight: 46 },
 });

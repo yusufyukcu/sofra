@@ -154,12 +154,12 @@ function ProductModalInner({
       >
         <FoodImage
           seed={product.id}
-          emoji={product.emoji}
           tone={tone}
           src={product.image}
           alt={product.name}
-          className="aspect-[2/1] w-full"
-          emojiClassName="text-6xl"
+          className="aspect-[16/10] w-full"
+          rounded="rounded-2xl"
+          iconClassName="size-14"
           sizes="(min-width: 640px) 472px, 100vw"
           eager
         />

@@ -172,7 +172,7 @@ export function ReviewsPanel() {
 
       {filtered.length === 0 ? (
         <EmptyState
-          emoji="💬"
+          icon={MessageSquare}
           title="Bu filtrede yorum yok"
           description="Müşteriler siparişlerini değerlendirdikçe burada görünecek."
         />

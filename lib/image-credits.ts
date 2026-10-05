@@ -1,7 +1,9 @@
 /**
  * Yemek fotoğraflarının atıfları — Creative Commons lisansının şartı.
- * Fotoğraflar Wikimedia Commons ve Openverse (Flickr) üzerinden seçildi,
- * boyutlandırılıp kırpılarak `public/images/food` altına konuldu.
+ * Fotoğraflar Wikimedia Commons ve Openverse (Flickr, Rawpixel) üzerinden
+ * seçildi; boyutlandırılıp kırpıldı, hepsine aynı renk işlemesi uygulandı
+ * (sıcaklık, doygunluk, kontrast, yerel kontrast, keskinlik, hafif vinyet)
+ * ve `public/images/food` altına konuldu.
  * `/gorsel-kaynaklari` sayfası bu listeyi gösterir.
  */
 
@@ -40,21 +42,21 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Quinoa Salad (140491457)",
-    "creator": "J Doll",
-    "license": "CC BY 3.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/3.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Quinoa_Salad_(140491457).jpeg",
+    "title": "Fried grain bowl from NQ (think it was a mixture of amaranth and quinoa)",
+    "creator": "wonderyort",
+    "license": "CC BY-SA 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
+    "source": "https://www.flickr.com/photos/11112304@N00/5003784809",
     "files": [
       "/images/food/akdeniz-bowl.webp"
     ]
   },
   {
-    "title": "Ribeye steak and asparagus",
-    "creator": "danielhallpresentsdotcom",
-    "license": "CC BY 3.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/3.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Ribeye_steak_and_asparagus.jpg",
+    "title": "Ribeye Steak",
+    "creator": "naotakem",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/12832970@N00/5095540074",
     "files": [
       "/images/food/antrikot.webp"
     ]
@@ -80,11 +82,11 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Ayvalık tostu in Ankara - 2018",
-    "creator": "E4024",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Ayval%C4%B1k_tostu_in_Ankara_-_2018.jpg",
+    "title": "Mozarella and Tomato Toasted Sandwich",
+    "creator": "avlxyz",
+    "license": "CC BY-SA 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
+    "source": "https://www.flickr.com/photos/10559879@N00/564790685",
     "files": [
       "/images/food/ayvalik-tostu.webp"
     ]
@@ -107,6 +109,16 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     "source": "https://commons.wikimedia.org/wiki/File:Baklava_-_Turkish_special,_80-ply.JPEG",
     "files": [
       "/images/food/baklava.webp"
+    ]
+  },
+  {
+    "title": "Burger",
+    "creator": "DBduo Photography",
+    "license": "CC BY-SA 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
+    "source": "https://www.flickr.com/photos/61926883@N00/2890901257",
+    "files": [
+      "/images/food/banner-burger.webp"
     ]
   },
   {
@@ -170,51 +182,51 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Oak-Grilled Filet Mignon @ Jiko - Animal Kingdom Lodge | Disney Food",
-    "creator": "JeffChristiansen",
-    "license": "CC BY 2.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
-    "source": "https://www.flickr.com/photos/7256454@N05/5959134033",
+    "title": "Beef Tenderloin - Guillaume at Bennelong - By Julia",
+    "creator": "avlxyz",
+    "license": "CC BY-SA 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
+    "source": "https://www.flickr.com/photos/10559879@N00/3646086909",
     "files": [
       "/images/food/bonfile.webp"
     ]
   },
   {
-    "title": "Fudgy Chocolate Brownies with Macadamia Nuts",
-    "creator": "Kelly Hunter",
+    "title": "brownies...yawn...boooring",
+    "creator": "jeffreyw",
     "license": "CC BY 2.0",
     "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
-    "source": "https://www.flickr.com/photos/47149893@N07/15410404930",
+    "source": "https://www.flickr.com/photos/7927684@N03/4448807631",
     "files": [
       "/images/food/brownie.webp"
     ]
   },
   {
-    "title": "Bruschetta at The Bar at MacArthur Place - Sarah Stierch",
-    "creator": "Missvain",
-    "license": "CC BY 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Bruschetta_at_The_Bar_at_MacArthur_Place_-_Sarah_Stierch.jpg",
+    "title": "Bruschetta [243/366]",
+    "creator": "timsackton",
+    "license": "CC BY-SA 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
+    "source": "https://www.flickr.com/photos/43581314@N08/7906679222",
     "files": [
       "/images/food/bruschetta.webp"
     ]
   },
   {
-    "title": "BuddhaBowlLot",
-    "creator": "PizzaMan",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:BuddhaBowlLot.jpg",
+    "title": "Receta de buddha bowl",
+    "creator": "Mumumío",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/66491748@N05/41695870932",
     "files": [
       "/images/food/buddha-bowl.webp"
     ]
   },
   {
-    "title": "Buffalo wings-01",
-    "creator": "Clotee Pridgen Allochuku",
-    "license": "CC BY 2.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Buffalo_wings-01.jpg",
+    "title": "garlic parmesan buffalo wings",
+    "creator": "ginnerobot",
+    "license": "CC BY-SA 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
+    "source": "https://www.flickr.com/photos/78011127@N00/4399553931",
     "files": [
       "/images/food/buffalo-wings.webp"
     ]
@@ -230,14 +242,13 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Cheeseburger",
-    "creator": "Renee Comet (photographer)",
-    "license": "Public domain",
-    "licenseUrl": "",
-    "source": "https://commons.wikimedia.org/wiki/File:Cheeseburger.jpg",
+    "title": "Burger",
+    "creator": "mdid",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/58246614@N00/5615767469",
     "files": [
-      "/images/food/burger-classic.webp",
-      "/images/food/banner-burger.webp"
+      "/images/food/burger-classic.webp"
     ]
   },
   {
@@ -311,11 +322,11 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Caprese-1",
-    "creator": "Rainer Zenz",
-    "license": "CC BY-SA 3.0",
-    "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
-    "source": "https://commons.wikimedia.org/wiki/File:Caprese-1.jpg",
+    "title": "Caprese Salad with Blue Bay Goat Suluguni Cheese",
+    "creator": "avlxyz",
+    "license": "CC BY-SA 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
+    "source": "https://www.flickr.com/photos/10559879@N00/3042662667",
     "files": [
       "/images/food/caprese.webp"
     ]
@@ -342,10 +353,10 @@ export const IMAGE_CREDITS: ImageCredit[] = [
   },
   {
     "title": "chicken sandwich",
-    "creator": "stu_spivack",
+    "creator": "ginnerobot",
     "license": "CC BY-SA 2.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
-    "source": "https://www.flickr.com/photos/35034346243@N01/8712425260",
+    "source": "https://www.flickr.com/photos/78011127@N00/3499123837",
     "files": [
       "/images/food/chicken-sandwich.webp"
     ]
@@ -361,11 +372,11 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Chicken Wing Skewers - close-up - Ayiguli 323 Fast Food AUD2 each",
-    "creator": "avlxyz",
-    "license": "CC BY-SA 2.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
-    "source": "https://www.flickr.com/photos/10559879@N00/4407962493",
+    "title": "Caribbean Jerk Buffalo Wings",
+    "creator": "larryjh1234",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/83886716@N00/13897004465",
     "files": [
       "/images/food/chicken-wings.webp"
     ]
@@ -421,11 +432,11 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Çökertme kebabı (cropped)",
-    "creator": "Jwslubbock",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:%C3%87%C3%B6kertme_kebab%C4%B1_(cropped).jpg",
+    "title": "Cokertme Beef Short Rib - Megan's Clapham Old Town",
+    "creator": "Haydn Blackey",
+    "license": "CC BY-SA 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
+    "source": "https://www.flickr.com/photos/54549113@N00/52688799812",
     "files": [
       "/images/food/cokertme.webp"
     ]
@@ -481,21 +492,21 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Meal in Turkey",
-    "creator": "E4024",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Meal_in_Turkey.jpg",
+    "title": "turkish food forevah!",
+    "creator": "roland",
+    "license": "CC0 1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://www.flickr.com/photos/35034347371@N01/16706724454",
     "files": [
       "/images/food/cover-anneeli.webp"
     ]
   },
   {
-    "title": "Hamsi tava and salad",
-    "creator": "E4024",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Hamsi_tava_and_salad.jpg",
+    "title": "Grilled Fish, Ristorante Atrium, Palaca Cindro, Diocletian's Palace, Split, Croatia",
+    "creator": "brownpau",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/44124483743@N01/7176159319",
     "files": [
       "/images/food/cover-balikci.webp"
     ]
@@ -511,11 +522,11 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Tchi Kofte from Carousel Restaurant Hollywood July 2022",
-    "creator": "Benoît Prieur",
-    "license": "CC0",
-    "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
-    "source": "https://commons.wikimedia.org/wiki/File:Tchi_Kofte_from_Carousel_Restaurant_Hollywood_July_2022.JPG",
+    "title": "Cig Kofte",
+    "creator": "leyla.a",
+    "license": "CC BY-SA 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
+    "source": "https://www.flickr.com/photos/53532723@N00/6196471300",
     "files": [
       "/images/food/cover-cigkofte.webp"
     ]
@@ -561,21 +572,21 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "2019-07-27 Turkish pide with cheese at Istanbul restaurant",
-    "creator": "Maksym Kozlenko",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:2019-07-27_Turkish_pide_with_cheese_at_Istanbul_restaurant.jpg",
+    "title": "Pide",
+    "creator": "secretlondon123",
+    "license": "CC BY-SA 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
+    "source": "https://www.flickr.com/photos/25834786@N03/7062430307",
     "files": [
       "/images/food/cover-pideci.webp"
     ]
   },
   {
-    "title": "Kadayıf Taksim (4)",
-    "creator": "Benreis",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Kaday%C4%B1f_Taksim_(4).JPG",
+    "title": "Cake Dessert",
+    "creator": "JESHOOTS.com",
+    "license": "CC0 1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://stocksnap.io/photo/cake-dessert-BE2C443638",
     "files": [
       "/images/food/cover-sekerli.webp"
     ]
@@ -631,21 +642,21 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Healthy Vegan Buddha Bowl - 49859044753",
-    "creator": "FitTasteTic",
-    "license": "CC BY-SA 2.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Healthy_Vegan_Buddha_Bowl_-_49859044753.jpg",
+    "title": "Free healthy salad cubed salmon",
+    "creator": "Bilinmiyor",
+    "license": "CC0 1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://www.rawpixel.com/image/5928181/photo-image-public-domain-plant-food",
     "files": [
       "/images/food/cover-yesilkase.webp"
     ]
   },
   {
-    "title": "Deniz börülcesi salatası (glasswort salad)",
-    "creator": "E4024",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Deniz_b%C3%B6r%C3%BClcesi_salatas%C4%B1_(glasswort_salad).jpg",
+    "title": "Fresh Samphire",
+    "creator": "Denna Jones",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/95267793@N00/2732304307",
     "files": [
       "/images/food/deniz-borulcesi.webp"
     ]
@@ -741,31 +752,31 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Garlic Bread",
-    "creator": "mdid",
-    "license": "CC BY 2.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
-    "source": "https://www.flickr.com/photos/58246614@N00/3008052276",
+    "title": "Christina's Garlic Bread",
+    "creator": "avlxyz",
+    "license": "CC BY-SA 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
+    "source": "https://www.flickr.com/photos/10559879@N00/815661431",
     "files": [
       "/images/food/garlic-bread.webp"
     ]
   },
   {
-    "title": "やまだの青汁",
-    "creator": "Ugawa",
-    "license": "CC BY-SA 3.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
-    "source": "https://commons.wikimedia.org/wiki/File:%E3%82%84%E3%81%BE%E3%81%A0%E3%81%AE%E9%9D%92%E6%B1%81.jpg",
+    "title": "Breville's Green Juice Fave Juice",
+    "creator": "Breville USA",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/38102750@N06/8804036525",
     "files": [
       "/images/food/green-juice.webp"
     ]
   },
   {
-    "title": "Gyoza - Tora",
-    "creator": "Francesc Fort",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Gyoza_-_Tora.jpg",
+    "title": "Chicken and prawn gyoza wiith chickpea, lemongrass and coriander - Momotaro Rahmen",
+    "creator": "avlxyz",
+    "license": "CC BY-SA 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
+    "source": "https://www.flickr.com/photos/10559879@N00/2620981136",
     "files": [
       "/images/food/gyoza.webp"
     ]
@@ -781,21 +792,21 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Carrot cake slice and latte - Saltmarsh Farmhouse & Cafe 2024-12-19",
-    "creator": "Andy Li",
-    "license": "CC0",
-    "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
-    "source": "https://commons.wikimedia.org/wiki/File:Carrot_cake_slice_and_latte_-_Saltmarsh_Farmhouse_%26_Cafe_2024-12-19.jpg",
+    "title": "Carrot Cake",
+    "creator": "feserc",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/42602676@N00/4991062521",
     "files": [
       "/images/food/havuclu-kek.webp"
     ]
   },
   {
-    "title": "Haydari in a square plate",
-    "creator": "E4024",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Haydari_in_a_square_plate.jpg",
+    "title": "Yogurt Dip made 1/4 cup",
+    "creator": "U.S. Department of Agriculture",
+    "license": "CC0 1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://www.rawpixel.com/image/8735059/photo-image-public-domain-food",
     "files": [
       "/images/food/haydari.webp"
     ]
@@ -861,11 +872,11 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Fried Calamari at Kapp's Pizza Bar & Grill",
-    "creator": "pointnshoot",
+    "title": "Fried Calamari Rings",
+    "creator": "coolmikeol",
     "license": "CC BY 2.0",
     "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
-    "source": "https://www.flickr.com/photos/18244673@N00/464819704",
+    "source": "https://www.flickr.com/photos/44094498@N03/6632175159",
     "files": [
       "/images/food/kalamar.webp"
     ]
@@ -911,11 +922,11 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Künefe 20230904",
-    "creator": "Basak",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:K%C3%BCnefe_20230904.jpg",
+    "title": "Kunefe",
+    "creator": "Sudharsan.Narayanan",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/42119274@N08/8031644882",
     "files": [
       "/images/food/kunefe.webp"
     ]
@@ -1011,21 +1022,21 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Menemen in pan",
-    "creator": "FakirNL",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Menemen_in_pan.jpg",
+    "title": "breakfast: menemen",
+    "creator": "Paul Keller",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/18259771@N00/5153426633",
     "files": [
       "/images/food/menemen.webp"
     ]
   },
   {
-    "title": "Mercimek çorbası in Ankara, Turkey",
-    "creator": "E4024",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Mercimek_%C3%A7orbas%C4%B1_in_Ankara,_Turkey.jpg",
+    "title": "Red Lentil Soup - Creamy",
+    "creator": "bobjudge",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/8286199@N08/3210281474",
     "files": [
       "/images/food/mercimek.webp"
     ]
@@ -1051,11 +1062,11 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Blueberry muffin - Cosy Cottage 2025-04-21",
-    "creator": "Andy Li",
-    "license": "CC0",
-    "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
-    "source": "https://commons.wikimedia.org/wiki/File:Blueberry_muffin_-_Cosy_Cottage_2025-04-21.jpg",
+    "title": "Muffin - IMG_0246",
+    "creator": "Nicola since 1972",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/15216811@N06/5398771984",
     "files": [
       "/images/food/muffin.webp"
     ]
@@ -1071,21 +1082,21 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Beer Battered Onion Rings - RV90 - 20241107-133409",
-    "creator": "RegionVisitor90",
-    "license": "CC0",
-    "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
-    "source": "https://commons.wikimedia.org/wiki/File:Beer_Battered_Onion_Rings_-_RV90_-_20241107-133409.jpg",
+    "title": "Mmm... onion rings and shrimp",
+    "creator": "jeffreyw",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/7927684@N03/7713056594",
     "files": [
       "/images/food/onion-rings.webp"
     ]
   },
   {
-    "title": "orange juice",
-    "creator": "Mervi Emilia",
+    "title": "Orange Juice",
+    "creator": "Yu. Samoilov",
     "license": "CC BY 2.0",
     "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
-    "source": "https://www.flickr.com/photos/14394039@N00/5563590861",
+    "source": "https://www.flickr.com/photos/110751683@N02/13638538444",
     "files": [
       "/images/food/orange-juice.webp"
     ]
@@ -1101,11 +1112,11 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Panna Cotta with Balsamic Strawberries - Mr Wolf",
-    "creator": "avlxyz",
+    "title": "greek yogurt panna cotta",
+    "creator": "stu_spivack",
     "license": "CC BY-SA 2.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
-    "source": "https://www.flickr.com/photos/10559879@N00/538270946",
+    "source": "https://www.flickr.com/photos/35034346243@N01/84610490",
     "files": [
       "/images/food/panna-cotta.webp"
     ]
@@ -1151,11 +1162,11 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Liat Portal for Foodie Disorder – Lamb chops with asparagus",
-    "creator": "HaJunkiyada",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Liat_Portal_for_Foodie_Disorder_%E2%80%93_Lamb_chops_with_asparagus.jpg",
+    "title": "Herb-Brined Lamb Chops",
+    "creator": "manguzmo",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/55711655@N08/5674634678",
     "files": [
       "/images/food/pirzola.webp"
     ]
@@ -1171,11 +1182,11 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Pepperoni Pizza - Pizza e Cucina AUD18 large",
-    "creator": "avlxyz",
-    "license": "CC BY-SA 2.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
-    "source": "https://www.flickr.com/photos/10559879@N00/2738662382",
+    "title": "Pepperoni Pizza",
+    "creator": "Happy Tummy",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/29198474@N05/15471774628",
     "files": [
       "/images/food/pizza-diavola.webp"
     ]
@@ -1221,11 +1232,11 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Chargrilled Vegetable Pizza - Sugo AUD16.90",
-    "creator": "avlxyz",
+    "title": "Dodo Pizza Vegetables Grill SMM",
+    "creator": "dodopizzastory",
     "license": "CC BY-SA 2.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
-    "source": "https://www.flickr.com/photos/10559879@N00/4602835745",
+    "source": "https://www.flickr.com/photos/133117136@N05/51940415610",
     "files": [
       "/images/food/pizza-vegetariana.webp"
     ]
@@ -1241,11 +1252,11 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Profiteroles with chocolate and caramel sauce, February 2007",
-    "creator": "Katy",
+    "title": "Profiteroles",
+    "creator": "ralph and jenny",
     "license": "CC BY 2.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Profiteroles_with_chocolate_and_caramel_sauce,_February_2007.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/92269745@N00/16412094846",
     "files": [
       "/images/food/profiterol.webp"
     ]
@@ -1281,21 +1292,21 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Caesar salad (2)",
-    "creator": "Geoff Peters from Vancouver, BC, Canada",
+    "title": "Caesar Salad & Grilled Shrimps",
+    "creator": "Prayitno / Thank you for (12 millions +) view",
     "license": "CC BY 2.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Caesar_salad_(2).jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/34128007@N04/19461199606",
     "files": [
       "/images/food/sezar-salata.webp"
     ]
   },
   {
-    "title": "Simit (rectangular)",
-    "creator": "E4024",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Simit_(rectangular).jpg",
+    "title": "Istanbul - Simit",
+    "creator": "drivoit",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/28395560@N06/4000871434",
     "files": [
       "/images/food/simit.webp"
     ]
@@ -1351,11 +1362,11 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "DFC 4623 Sweet and savory stir-fried chicken with colorful bell peppers onion…",
-    "creator": "PattayaPatrol",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:DFC_4623_Sweet_and_savory_stir-fried_chicken_with_colorful_bell_peppers_onions_and_a_side_salad_-_a_perfect_Thai_comfort_meal_in_Pattaya.jpg",
+    "title": "Chicken Stir-Fry",
+    "creator": "Rusty Clark ~ 100K Photos",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/23206546@N04/8320024006",
     "files": [
       "/images/food/tavuk-sote.webp"
     ]
@@ -1371,11 +1382,11 @@ export const IMAGE_CREDITS: ImageCredit[] = [
     ]
   },
   {
-    "title": "Chicken noodles with sauce",
-    "creator": "AdhiRajamanickam",
-    "license": "CC BY-SA 4.0",
-    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
-    "source": "https://commons.wikimedia.org/wiki/File:Chicken_noodles_with_sauce.jpg",
+    "title": "Singapore Noodles - Global Vegetarian AUD9.80",
+    "creator": "avlxyz",
+    "license": "CC BY-SA 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
+    "source": "https://www.flickr.com/photos/10559879@N00/4091977889",
     "files": [
       "/images/food/teriyaki-noodle.webp"
     ]

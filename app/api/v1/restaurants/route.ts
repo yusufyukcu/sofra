@@ -38,12 +38,25 @@ export async function GET(request: Request) {
     const decorated = decorate(restaurants, point, user?.favoriteRestaurantIds ?? []);
     const filters = filtersFromParams(params);
 
+    // Mutfak sayıları seçili mutfaktan bağımsız: diğer filtreler uygulanmış
+    // listede her mutfaktan kaç restoran var (web'deki raf da aynı hesabı yapar)
+    const base = filterAndSort(decorated, { ...filters, category: "all" });
+    const categories = CATEGORIES.map((category) => ({
+      ...category,
+      count:
+        category.id === "all"
+          ? base.length
+          : category.id === "top-rated"
+            ? base.filter((r) => r.rating >= 4.5).length
+            : base.filter((r) => (r.tags as string[]).includes(category.id)).length,
+    }));
+
     return ok({
       restaurants: filterAndSort(decorated, filters),
       total: decorated.length,
       filters,
       point,
-      categories: CATEGORIES,
+      categories,
       banners,
       featured: decorated
         .filter((r) => r.featuredRank !== null && r.featuredRank !== undefined)

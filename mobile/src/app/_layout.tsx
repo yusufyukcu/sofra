@@ -3,11 +3,11 @@ import {
   BricolageGrotesque_700Bold,
 } from "@expo-google-fonts/bricolage-grotesque";
 import {
-  Geist_400Regular,
-  Geist_500Medium,
-  Geist_600SemiBold,
-  Geist_700Bold,
-} from "@expo-google-fonts/geist";
+  Figtree_400Regular,
+  Figtree_500Medium,
+  Figtree_600SemiBold,
+  Figtree_700Bold,
+} from "@expo-google-fonts/figtree";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -15,6 +15,9 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { View, useColorScheme } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+// Arka plan konum görevi açılışta tanımlanmalı (uygulama arka planda uyanınca da)
+import "@/lib/courier-tracking";
+import { BRAND_COLORS } from "@sofra/core";
 import { hydrateTokens } from "@/lib/token-store";
 import { useSession } from "@/store/session";
 import { themeFor } from "@/theme";
@@ -23,7 +26,7 @@ import { themeFor } from "@/theme";
  * Kök yerleşim.
  *
  * Üç şey yapar: web'le aynı yazı tiplerini yükler (Bricolage Grotesque +
- * Geist), cihazın güvenli alanındaki oturum token'larını okur ve oturumu
+ * Figtree), cihazın güvenli alanındaki oturum token'larını okur ve oturumu
  * sunucudan doğrular. Üçü de bitmeden açılış ekranı kapanmaz, böylece
  * kullanıcı hiçbir zaman yarı yüklü bir ekran görmez.
  */
@@ -39,10 +42,10 @@ export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     BricolageGrotesque_600SemiBold,
     BricolageGrotesque_700Bold,
-    Geist_400Regular,
-    Geist_500Medium,
-    Geist_600SemiBold,
-    Geist_700Bold,
+    Figtree_400Regular,
+    Figtree_500Medium,
+    Figtree_600SemiBold,
+    Figtree_700Bold,
   });
 
   // Önce diskteki token, sonra sunucu doğrulaması.
@@ -57,7 +60,8 @@ export default function RootLayout() {
   }, [ready]);
 
   if (!ready) {
-    return <View style={{ flex: 1, backgroundColor: theme.colors.deep }} />;
+    // Açılış ekranıyla aynı zemin: yazı tipleri yüklenirken renk sıçramasın
+    return <View style={{ flex: 1, backgroundColor: BRAND_COLORS.red }} />;
   }
 
   return (

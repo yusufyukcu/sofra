@@ -167,6 +167,17 @@ async function main() {
   await sleep(2500);
   check("kuryeye order_changed (atandı)", has(courierCh, "order_changed", (p) => p.id === orderId && p.courierId === courierId), courierCh.events.map((e) => [e.event, e.payload.courierId]));
 
+  // Kabulden sonra yol rotası yanıttan sonra hesaplanır ve order_changed üretir;
+  // konum olayları ondan sonra ölçülsün (yol tarifi kapalıysa beklenmez)
+  if ((process.env.SOFRA_ROUTING_URL ?? "").trim().toLowerCase() !== "off") {
+    for (let i = 0; i < 12; i++) {
+      const t = await customer.get(`/api/v1/orders/${orderId}`);
+      if (t.data?.order?.courierRouteLeg) break;
+      await sleep(1000);
+    }
+    await sleep(1500);
+  }
+
   const counts = () => ({ order: orderCh.events.length, vendor: vendorCh.events.length, courier: courierCh.events.length, admin: adminCh.events.length });
   const point = { lat: 40.99 + Math.random() / 100, lng: 29.03 + Math.random() / 100 };
   let before = counts();
@@ -174,6 +185,7 @@ async function main() {
   await sleep(2500);
   const movedEvents = orderCh.events.slice(before.order);
   check("müşteriye courier_moved geldi", movedEvents.some((e) => e.event === "courier_moved" && Math.abs(e.payload.courierPoint.lat - point.lat) < 1e-9), movedEvents);
+  check("courier_moved konumun zamanını taşıyor", movedEvents.some((e) => e.event === "courier_moved" && typeof e.payload.courierLocatedAt === "string"), movedEvents.map((e) => e.payload.courierLocatedAt));
   check("müşteriye konum için order_changed gelmedi", !movedEvents.some((e) => e.event === "order_changed"), movedEvents.map((e) => e.event));
   check("işletmeye konum olayı gitmedi", vendorCh.events.length === before.vendor, vendorCh.events.slice(before.vendor));
   check("kuryeye yalnızca courier_changed gitti", courierCh.events.slice(before.courier).every((e) => e.event === "courier_changed"), courierCh.events.slice(before.courier).map((e) => e.event));

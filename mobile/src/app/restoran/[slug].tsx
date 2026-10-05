@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { Bike, Clock, Heart, MapPin, Star } from "lucide-react-native";
+import { Bike, Clock, Heart, MapPin, Plus, SearchX, Star } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -10,7 +10,9 @@ import {
   View,
 } from "react-native";
 import {
+  CATEGORIES,
   formatPrice,
+  restaurantPhoto,
   toCartMeta,
   type MenuCategory,
   type Product,
@@ -19,8 +21,8 @@ import {
 } from "@sofra/core";
 import { CartBar } from "@/components/customer/cart-bar";
 import { ProductSheet } from "@/components/customer/product-sheet";
-import { FoodArt } from "@/components/ui/food-art";
-import { Header, Screen } from "@/components/ui/screen";
+import { FoodPhoto } from "@/components/ui/food-photo";
+import { Header, HeaderButton, Screen } from "@/components/ui/screen";
 import { Badge, Card, Divider, EmptyState, Skeleton } from "@/components/ui/surfaces";
 import { Text } from "@/components/ui/text";
 import { api, errorMessage } from "@/lib/api";
@@ -94,7 +96,7 @@ export default function RestaurantScreen() {
     return (
       <Screen>
         <Header title="Restoran" back />
-        <EmptyState emoji="🔍" title="Restoran bulunamadı" description={error} />
+        <EmptyState icon={SearchX} title="Restoran bulunamadı" description={error} />
       </Screen>
     );
   }
@@ -176,22 +178,12 @@ export default function RestaurantScreen() {
         subtitle={`${r.district} · ${data.delivery.etaText}`}
         back
         right={
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={favorite ? "Favorilerden çıkar" : "Favorilere ekle"}
+          <HeaderButton
+            icon={Heart}
+            label={favorite ? "Favorilerden çıkar" : "Favorilere ekle"}
             onPress={onToggleFavorite}
-            hitSlop={10}
-            style={({ pressed }) => [
-              styles.fav,
-              { backgroundColor: t.colors.deep2, opacity: pressed ? 0.7 : 1 },
-            ]}
-          >
-            <Heart
-              size={18}
-              color={favorite ? t.colors.brand : t.colors.onDeepMuted}
-              fill={favorite ? t.colors.brand : "transparent"}
-            />
-          </Pressable>
+            active={favorite}
+          />
         }
       />
 
@@ -208,13 +200,14 @@ export default function RestaurantScreen() {
         viewabilityConfig={{ itemVisiblePercentThreshold: 40 }}
         ListHeaderComponent={
           <View>
-            <FoodArt
+            <FoodPhoto
+              src={restaurantPhoto(r)}
               seed={r.coverSeed}
-              emoji={r.emoji}
               tone={r.tags[0]}
               radius={0}
-              emojiSize={62}
-              style={{ height: 170, width: "100%" }}
+              iconSize={48}
+              priority
+              style={{ height: 210, width: "100%" }}
             />
 
             <View style={{ padding: t.spacing.lg, gap: t.spacing.md }}>
@@ -266,7 +259,8 @@ export default function RestaurantScreen() {
               <View style={styles.tags}>
                 <MapPin size={13} color={t.colors.muted} />
                 <Text variant="caption">
-                  {r.district} · {r.tags.join(" · ")}
+                  {r.district} ·{" "}
+                  {r.tags.map((tag) => CATEGORIES.find((c) => c.id === tag)?.name ?? tag).join(", ")}
                 </Text>
               </View>
             </View>
@@ -289,9 +283,9 @@ export default function RestaurantScreen() {
                     styles.tab,
                     {
                       backgroundColor:
-                        active === section.id ? t.colors.deep : t.colors.surface,
+                        active === section.id ? t.colors.brand : t.colors.surface,
                       borderColor:
-                        active === section.id ? t.colors.deep : t.colors.border,
+                        active === section.id ? t.colors.brand : t.colors.border,
                       borderRadius: t.radius.pill,
                       opacity: pressed ? 0.8 : 1,
                     },
@@ -302,7 +296,7 @@ export default function RestaurantScreen() {
                     weight="semibold"
                     style={{
                       color:
-                        active === section.id ? t.colors.onDeep : t.colors.text,
+                        active === section.id ? t.colors.brandContrast : t.colors.text,
                     }}
                   >
                     {section.name}
@@ -331,6 +325,7 @@ export default function RestaurantScreen() {
         renderItem={({ item }) => (
           <ProductRow
             product={item}
+            tone={r.tags[0]}
             disabled={unavailable}
             onPress={() => setSelected(item)}
           />
@@ -397,10 +392,12 @@ export default function RestaurantScreen() {
 
 function ProductRow({
   product,
+  tone,
   disabled,
   onPress,
 }: {
   product: Product;
+  tone?: string;
   disabled?: boolean;
   onPress: () => void;
 }) {
@@ -447,13 +444,26 @@ function ProductRow({
         </View>
       </View>
 
-      <FoodArt
-        seed={product.id}
-        emoji={product.emoji}
-        radius={t.radius.md}
-        emojiSize={28}
-        style={{ width: 72, height: 72 }}
-      />
+      <View>
+        <FoodPhoto
+          src={product.image}
+          seed={product.id}
+          tone={tone}
+          radius={t.radius.md}
+          iconSize={24}
+          style={{ width: 96, height: 96 }}
+        />
+        {!disabled ? (
+          <View
+            style={[
+              styles.addBadge,
+              { backgroundColor: t.colors.brand, borderColor: t.colors.surface },
+            ]}
+          >
+            <Plus size={16} color={t.colors.brandContrast} strokeWidth={3} />
+          </View>
+        ) : null}
+      </View>
     </Pressable>
   );
 }
@@ -482,19 +492,23 @@ function Stat({
   );
 }
 
-const styles = StyleSheet.create({
-  fav: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+const styles = StyleSheet.create({
   stats: { flexDirection: "row", alignItems: "center", gap: 12 },
   stat: { flex: 1, gap: 1 },
   statTop: { flexDirection: "row", alignItems: "center", gap: 5 },
   vline: { width: StyleSheet.hairlineWidth, height: 28 },
   tags: { flexDirection: "row", alignItems: "center", gap: 5 },
+  addBadge: {
+    position: "absolute",
+    right: 6,
+    bottom: 6,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   tab: { paddingHorizontal: 14, paddingVertical: 8, borderWidth: StyleSheet.hairlineWidth * 2 },
   product: {
     flexDirection: "row",

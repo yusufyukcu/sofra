@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CircleCheck, Hourglass, ReceiptText } from "lucide-react";
+import { Avatar } from "@/components/ui/avatar";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -64,8 +65,8 @@ export function RatingForm({ orderId }: { orderId: string }) {
 
   const [saving, setSaving] = useState(false);
 
-  // Demo simülasyonunda gerçek kurye yok: kurye puanı ve bahşiş sorulmaz
-  const realCourier = Boolean(order?.courier && !order.simulated);
+  // Restoranın kendi kuryesiyle gelen siparişte platform kuryesi yok: kurye puanı ve bahşiş sorulmaz
+  const realCourier = Boolean(order?.courier);
 
   useEffect(() => {
     api
@@ -100,8 +101,8 @@ export function RatingForm({ orderId }: { orderId: string }) {
 
       toast.success(
         tip > 0
-          ? `Teşekkürler! ${formatPrice(tip)} bahşiş kuryene iletildi. 🧡`
-          : "Değerlendirmen için teşekkürler! 🧡"
+          ? `Teşekkürler! ${formatPrice(tip)} bahşiş kuryene iletildi.`
+          : "Değerlendirmen için teşekkürler!"
       );
       router.replace(`/siparis/${orderId}`);
     } catch (err) {
@@ -124,7 +125,7 @@ export function RatingForm({ orderId }: { orderId: string }) {
     return (
       <div className="mx-auto max-w-2xl px-4 pt-8 lg:px-6 lg:pt-12">
         <EmptyState
-          emoji="🧾"
+          icon={ReceiptText}
           title="Sipariş bulunamadı"
           description={error ?? undefined}
           action={
@@ -141,7 +142,7 @@ export function RatingForm({ orderId }: { orderId: string }) {
     return (
       <div className="mx-auto max-w-2xl px-4 pt-8 lg:px-6 lg:pt-12">
         <EmptyState
-          emoji="⏳"
+          icon={Hourglass}
           title="Sipariş henüz teslim edilmedi"
           description="Teslimat tamamlandığında bu sayfadan puan verebilirsin."
           action={
@@ -158,7 +159,7 @@ export function RatingForm({ orderId }: { orderId: string }) {
     return (
       <div className="mx-auto max-w-2xl px-4 pt-8 lg:px-6 lg:pt-12">
         <EmptyState
-          emoji="✅"
+          icon={CircleCheck}
           title="Bu siparişi zaten değerlendirdin"
           description="Geri bildirimin için teşekkürler."
           action={
@@ -194,7 +195,6 @@ export function RatingForm({ orderId }: { orderId: string }) {
         <div className="flex items-center gap-3">
           <RestaurantThumb
             image={order.restaurantImage}
-            emoji={order.restaurantEmoji}
             className="size-11 rounded-xl"
           />
           <div>
@@ -235,9 +235,7 @@ export function RatingForm({ orderId }: { orderId: string }) {
       {realCourier && order.courier && (
         <section className="card mt-4 p-5">
           <div className="flex items-center gap-3">
-            <span className="flex size-11 items-center justify-center rounded-full bg-surface-2 text-xl">
-              {order.courier.emoji}
-            </span>
+            <Avatar name={order.courier.name} className="size-11 text-sm" />
             <div>
               <h2 className="font-extrabold text-text">{order.courier.name}</h2>
               <p className="text-xs text-muted">Teslimat nasıldı?</p>

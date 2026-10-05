@@ -1,5 +1,6 @@
 "use client";
 
+import { Bike } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api, errorMessage } from "@/lib/api-client";
 import type { EarningsReport } from "@/lib/services/courier";
@@ -232,7 +233,7 @@ export function EarningsPanel() {
         {recent.length === 0 ? (
           <div className="p-4">
             <EmptyState
-              emoji="🛵"
+              icon={Bike}
               title="Henüz teslimat yok"
               description="Mesaiyi başlat ve ilk siparişini al."
             />

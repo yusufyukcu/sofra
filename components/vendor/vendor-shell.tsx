@@ -13,6 +13,7 @@ import {
   Wallet,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { LogoTile } from "@/components/brand/logo";
 import type { Route } from "next";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -72,9 +73,7 @@ export function VendorShell({ children }: { children: ReactNode }) {
       {/* Yan menü (masaüstü) */}
       <aside className="band-deep hidden w-60 shrink-0 flex-col lg:flex">
         <div className="flex items-center gap-2.5 px-5 py-5">
-          <span className="flex size-9 items-center justify-center rounded-xl bg-brand text-lg">
-            🍽️
-          </span>
+          <LogoTile className="size-9" />
           <div className="min-w-0">
             <p className="font-display text-sm font-extrabold leading-tight text-on-deep">
               Sofra İşletme
@@ -206,9 +205,9 @@ function VendorTopBar({ restaurant }: { restaurant: Restaurant }) {
       <div className="flex min-w-0 items-center gap-2.5">
         <RestaurantThumb
           image={restaurant.image}
-          emoji={restaurant.emoji}
+          tone={restaurant.tags?.[0]}
           className="size-9 rounded-xl"
-          emojiClassName="text-lg"
+          iconClassName="size-4"
         />
         <div className="min-w-0">
           <p className="font-display truncate text-base font-extrabold leading-tight text-ink">

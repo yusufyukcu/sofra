@@ -1,3 +1,4 @@
+import { WifiOff } from "lucide-react-native";
 import { useCallback, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
@@ -106,7 +107,7 @@ export default function EarningsScreen() {
       >
         {!report ? (
           error ? (
-            <EmptyState emoji="📡" title="Yüklenemedi" description={error} />
+            <EmptyState icon={WifiOff} title="Yüklenemedi" description={error} />
           ) : (
             <View style={{ gap: t.spacing.md }}>
               <Skeleton height={120} radius={t.radius.lg} />

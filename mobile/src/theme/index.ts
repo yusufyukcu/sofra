@@ -26,7 +26,7 @@ export type { ThemePalette };
 /**
  * Yazı tipi aileleri — `_layout.tsx` bu adlarla yükler.
  *
- * Webde arkasına sistem yığını ekleniyor: Geist ve Bricolage'da ₺ (U+20BA)
+ * Webde arkasına sistem yığını ekleniyor: Figtree'de ₺ (U+20BA)
  * glifi yok, yığın olmadan tarayıcı rastgele bir yedekten benzeyen ama yanlış
  * bir karakter çiziyordu. Native'de işletim sistemi bu yedeklemeyi zaten
  * kendisi yapıyor, orada tek aile adı yeterli.
@@ -40,11 +40,11 @@ export const fontFamily = {
   /** Başlıklar — web'deki Bricolage Grotesque */
   display: stack("BricolageGrotesque_700Bold"),
   displaySemi: stack("BricolageGrotesque_600SemiBold"),
-  /** Arayüz metni — web'deki Geist */
-  regular: stack("Geist_400Regular"),
-  medium: stack("Geist_500Medium"),
-  semibold: stack("Geist_600SemiBold"),
-  bold: stack("Geist_700Bold"),
+  /** Arayüz metni — web'deki Figtree */
+  regular: stack("Figtree_400Regular"),
+  medium: stack("Figtree_500Medium"),
+  semibold: stack("Figtree_600SemiBold"),
+  bold: stack("Figtree_700Bold"),
 } as const;
 
 export interface Shadow {

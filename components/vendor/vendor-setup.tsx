@@ -1,6 +1,7 @@
 "use client";
 
-import { CheckCircle2, KeyRound } from "lucide-react";
+import { CheckCircle2, KeyRound, Link2Off } from "lucide-react";
+import { LogoTile } from "@/components/brand/logo";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -62,13 +63,13 @@ export function VendorSetup({ token }: { token: string }) {
     <div className="flex min-h-dvh items-center justify-center bg-paper p-5">
       <div className="w-full max-w-md">
         <div className="mb-6 flex items-center gap-2.5">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-brand text-xl">🍽️</span>
+          <LogoTile />
           <span className="font-display text-xl font-extrabold tracking-tight text-ink">Sofra İşletme</span>
         </div>
 
         {error ? (
           <EmptyState
-            emoji="🔗"
+            icon={Link2Off}
             title="Bağlantı kullanılamıyor"
             description={error}
             action={

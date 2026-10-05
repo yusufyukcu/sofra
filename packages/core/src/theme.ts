@@ -3,9 +3,11 @@ import { hashString } from "./utils";
 /**
  * Tasarım jetonları — web ve mobilin paylaştığı tek palet.
  *
- * Palet Türk mutfağından türetildi: patlıcan koyusu (başlık/alt bilgi
- * çapası), biber salçası kırmızısı (marka), safran (puan), antep fıstığı
- * (olumlu durum). Zemin nötr bej değil, neredeyse beyaz sıcak kâğıt.
+ * Palet Türk mutfağından türetildi: biber kırmızısı (marka), patlıcan koyusu
+ * (alt bilgi, koyu bantlar), safran (puan), antep fıstığı (olumlu durum).
+ * Zemin bej değil, nötr ve neredeyse beyaz: yemek fotoğrafları sararmadan
+ * kendi renkleriyle öne çıksın. Metin renkleri kendi zeminlerinde WCAG AA
+ * (4.5:1) eşiğini geçer.
  *
  * `app/globals.css` aynı değerleri CSS değişkeni olarak taşır. İkisinin
  * ayrışmaması `npm run check:theme` ile doğrulanır — betik CSS'i ayrıştırıp
@@ -92,16 +94,16 @@ export const CSS_VARIABLE_MAP: Record<keyof ThemePalette, string> = {
 };
 
 export const lightPalette: ThemePalette = {
-  paper: "#fcfaf7",
+  paper: "#f8f7f5",
   surface: "#ffffff",
-  surface2: "#f5f0ea",
-  surface3: "#eae2d9",
-  border: "#e9e1d7",
-  borderStrong: "#d4c8ba",
+  surface2: "#f3f2f0",
+  surface3: "#e8e6e3",
+  border: "#e8e5e1",
+  borderStrong: "#d3cfca",
 
-  ink: "#1c1214",
-  text: "#241a1b",
-  muted: "#7a6b66",
+  ink: "#18110f",
+  text: "#231b19",
+  muted: "#6c6460",
 
   deep: "#2e1720",
   deep2: "#3e2029",
@@ -109,25 +111,25 @@ export const lightPalette: ThemePalette = {
   onDeep: "#f8f1ec",
   onDeepMuted: "#c3a7ac",
 
-  brand: "#df4128",
-  brandHover: "#c4351e",
-  brandSoft: "#fceae5",
+  brand: "#cf2f1c",
+  brandHover: "#b02514",
+  brandSoft: "#fdeeea",
   brandContrast: "#ffffff",
 
-  saffron: "#c47f0a",
-  saffronSoft: "#fbf1dc",
+  saffron: "#a35f00",
+  saffronSoft: "#fff6e5",
 
-  pistachio: "#4b7f3e",
-  pistachioSoft: "#e8f1e4",
+  pistachio: "#3a7531",
+  pistachioSoft: "#edf6ea",
 
   danger: "#c42b1f",
   dangerSoft: "#fceae8",
   info: "#2a62c4",
   infoSoft: "#e8effc",
 
-  chartNet: "#c4351e",
+  chartNet: "#b02514",
   chartCommission: "#2f6bb5",
-  chartGrid: "#ece5dd",
+  chartGrid: "#ebe8e4",
 };
 
 /** Koyu mod adımları ayrı seçildi — açık paletin otomatik tersi değil. */

@@ -384,7 +384,7 @@
 
   <header class="ticket">
     <div class="ticket-top">
-      <span class="mark"><span>🍽️</span><span>Sofra</span></span>
+      <span class="mark"><span><svg width="22" height="22" viewBox="0 0 48 48" aria-hidden="true"><path d="M7.5 24.5h33a16.5 16.5 0 0 1-33 0z" fill="#FFF6F0"/><path d="M28.8 8.2c-2.2-1.9-7.6-1.6-8.4 1.7-.9 3.9 8.8 3.6 7.6 8.2-.8 3.1-5.6 3.9-8.4 2" fill="none" stroke="#FFF6F0" stroke-width="3.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Sofra</span></span>
       <span class="label">Sistem Analizi · Dört modül + mobil</span>
     </div>
 
@@ -481,7 +481,7 @@
         <ul>
           <li>Onay bekliyor → Hazırlanıyor → Yolda → Teslim edildi</li>
           <li>Supabase Realtime ile anında canlı güncelleme</li>
-          <li>Kurye canlı harita takibi, kat edilen/kalan rota</li>
+          <li>Kurye canlı harita takibi: konum kuryenin cihazından, çizgi gerçek yol (OSRM), kalan mesafe ve süre</li>
           <li>Maskeli hat ile kuryeyi arama (iki taraf da numarayı görmez)</li>
           <li>Bildirim kutusu + tarayıcı bildirimleri (Web Push)</li>
           <li>Restoran ve kurye için ayrı puanlama + yorum</li>
@@ -589,7 +589,7 @@
           <li>Restorana vardım → Teslim aldım → Teslim ettim</li>
           <li>“Teslim aldım” siparişi müşteride “Yolda”ya çevirir</li>
           <li>Konum bildirimi müşterinin takip haritasını besler</li>
-          <li>Simüle sürüş veya cihaz GPS’i arasında geçiş</li>
+          <li>Gerçek yol rotası: kurye → restoran, sonra → adres; sapınca yeni rota</li>
           <li>Maskelenmiş numara ile müşteriyi arama</li>
           <li>Kapıda ödemede tahsil edilecek tutar fişte</li>
         </ul>
@@ -721,7 +721,7 @@
         <span class="label">Mobile özgü</span>
         <ul>
           <li>Token cihazın güvenli alanında (Keychain · EncryptedSharedPreferences)</li>
-          <li>Kurye konumu artık simüle değil, gerçek GPS</li>
+          <li>Kurye konumu gerçek GPS; derlemede arka planda da (ekran kilitliyken)</li>
           <li>Harita: OpenStreetMap karoları + SVG katmanı, tek kod üç platform</li>
           <li>Arka plandayken yoklama durur — pil harcanmaz</li>
           <li>Ana eylemlerde haptik geri bildirim</li>
@@ -743,7 +743,7 @@
   <section>
     <div class="sec-head">
       <h2>Dört modül birbirine nasıl bağlanıyor</h2>
-      <p>Her modül devraldığı bacağın sahibi olur: restoran mutfağı, kurye teslimatı, yönetici de onay ve mutabakatı. Simülatör yalnızca panellerin hiçbiri devrede değilken çalışır.</p>
+      <p>Her modül devraldığı bacağın sahibi olur: restoran mutfağı, kurye teslimatı, yönetici de onay ve mutabakatı. Simülasyon yoktur: her adımı gerçek bir kişi atar.</p>
     </div>
 
     <div class="flow">
@@ -760,8 +760,8 @@
       <code>manual</code> doğar ve onaylanana kadar ilerlemez. Kurye teklifi
       kabul ettiği anda teslimat bacağı da <strong>tamamen kuryeye geçer</strong> —
       <code>courierStage</code> aktifken zamanlayıcı hiç devreye girmez.
-      Vardiyada kurye yoksa akışı yine simülatör tamamlar, böylece müşteri
-      uygulaması tek başına da denenebilir. Yönetim bu zincirin dışında değil
+      Vardiyada kurye yoksa sipariş “kurye bekleniyor” durumunda kalır ve ilk
+      müsait kuryeye teklif edilir. Yönetim bu zincirin dışında değil
       üstünde durur: onay, komisyon ve kara liste kararları zincirin
       <em>başlayıp başlayamayacağını</em> belirler, iptal ve iade ise akışı her
       noktasında durdurabilir.
@@ -813,12 +813,12 @@
           <tr>
             <td>Tipografi</td>
             <td>Tek aile (Geist), Türkçe karakterler yedek fontla</td>
-            <td>Bricolage Grotesque başlık + Geist arayüz; her ikisinde <code>latin-ext</code> alt kümesi</td>
+            <td>Bricolage Grotesque başlık + Figtree arayüz (web ve mobil); her ikisinde <code>latin-ext</code> alt kümesi</td>
           </tr>
           <tr>
             <td>Görseller</td>
             <td>Rastgele degrade + emoji</td>
-            <td>Mutfağa göre renklenen katmanlı degrade + gren — kebapçı kırmızı, sağlıklı yeşil, balıkçı mavi</td>
+            <td>Gerçek yemek fotoğrafları (CC lisanslı, hepsine aynı iştah açıcı renk işlemesi); fotoğrafı olmayan üründe mutfağa göre renklenen degrade ve mutfak ikonu. Arayüzde emoji yok, Lucide ikonları</td>
           </tr>
           <tr>
             <td>Yerleşim</td>
@@ -1096,7 +1096,8 @@
           <tr><td>Apple / Google girişi</td><td><span class="pill pill-sim">Test modu</span> sabit profil</td><td>Supabase Auth OAuth</td></tr>
           <tr><td>Hakediş ödemesi</td><td><span class="pill pill-sim">Simüle</span> onay → ödendi işaretlenir</td><td>Banka transferi / toplu ödeme dosyası</td></tr>
           <tr><td>Mobil push</td><td><span class="pill pill-sim">Yok</span> uygulama içi bildirim kutusu</td><td>Expo Notifications + EAS</td></tr>
-          <tr><td>Kurye konumu</td><td><span class="pill pill-ok">Gerçek</span> mobilde cihazın GPS'i (webde simüle sürüş)</td><td>Aynı</td></tr>
+          <tr><td>Kurye konumu</td><td><span class="pill pill-ok">Gerçek</span> cihazın GPS'i · mobilde arka planda da (derleme), webde sekme açıkken</td><td>Aynı</td></tr>
+          <tr><td>Yol rotası</td><td><span class="pill pill-sim">Herkese açık</span> OSRM (FOSSGIS) · saniyede 1 istek, ticari kullanım yok</td><td>Kendi OSRM sunucun ya da ticari servis (<code>SOFRA_ROUTING_URL</code>)</td></tr>
           <tr><td>Mobil harita</td><td><span class="pill pill-ok">Gerçek</span> OSM karoları · sürüklenmez</td><td>Ticari SDK ya da react-native-maps</td></tr>
           <tr><td>Mağaza dağıtımı</td><td><span class="pill pill-sim">Expo Go</span> ile denenir</td><td>EAS Build → App Store / Play Store</td></tr>
           <tr><td>Sipariş zili</td><td><span class="pill pill-ok">Gerçek</span> Web Audio sentezi</td><td>Aynı</td></tr>
@@ -1200,9 +1201,9 @@ npx expo start   <span class="c">→ w = tarayıcı · i = iOS · a = Android ·
 
     <div class="note" style="margin-top:1rem">
       <b>Gerçek çalışma:</b> siparişi yalnızca mesaideki (konumunu paylaşan)
-      kuryeler üstlenir, süreler gerçektir. Yönetici panelindeki
-      <i>Demo modu (sunum)</i> yalnızca kuryesiz tanıtım içindir: açıkken
-      süreler hızlanır ve mesaide kurye yoksa akışı simülasyon tamamlar.
+      kuryeler üstlenir, süreler gerçektir; teslimat simülasyonu yoktur.
+      Yönetici panelindeki <i>Demo girişleri (sunum)</i> yalnızca giriş
+      ekranlarında hazır demo hesaplarını gösterir.
     </div>
   </section>
 

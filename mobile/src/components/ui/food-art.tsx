@@ -1,11 +1,4 @@
-import {
-  Platform,
-  StyleSheet,
-  View,
-  type StyleProp,
-  type TextStyle,
-  type ViewStyle,
-} from "react-native";
+import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import Svg, {
   Defs,
   LinearGradient,
@@ -13,8 +6,8 @@ import Svg, {
   Rect,
   Stop,
 } from "react-native-svg";
-import { foodArtwork } from "@sofra/core";
-import { Text } from "./text";
+import { cuisineIcon, foodArtwork } from "@sofra/core";
+import { Icon } from "./icon";
 
 /**
  * Ürün/restoran görseli.
@@ -24,25 +17,27 @@ import { Text } from "./text";
  * `react-native-svg` ile kuruluyor. Aynı tohum iki istemcide aynı görseli
  * verir; kebapçı sıcak kırmızı, sağlıklı mutfak yeşil, balıkçı mavi olur.
  *
- * Ağ bağlantısı gerektirmez, kırık görsel oluşmaz. Gerçek fotoğraf geldiğinde
- * bu bileşenin yerine `expo-image` konur.
+ * Ağ bağlantısı gerektirmez, kırık görsel oluşmaz. Ortada mutfağın ikonu
+ * durur (emoji değil). Gerçek fotoğraf varsa `FoodPhoto` bunu yalnızca
+ * yükleme sırasında ve fotoğraf açılamazsa gösterir.
  */
 
 export function FoodArt({
   seed,
-  emoji,
   tone,
   style,
   radius = 14,
-  emojiSize = 44,
+  iconSize = 34,
+  showIcon = true,
 }: {
   seed: string;
-  emoji: string;
-  /** Mutfak etiketi; verilmezse tohumdan deterministik seçilir */
+  /** Mutfak etiketi; renk ve ikon buna göre seçilir */
   tone?: string;
   style?: StyleProp<ViewStyle>;
   radius?: number;
-  emojiSize?: number;
+  iconSize?: number;
+  /** Fotoğraf yüklenirken arkada sade degrade yeterli */
+  showIcon?: boolean;
 }) {
   const art = foodArtwork(seed, tone);
   const [b1, b2, b3] = art.blobs;
@@ -120,15 +115,16 @@ export function FoodArt({
         <Rect width="100%" height="100%" fill={`url(#${id}-sheen)`} />
       </Svg>
 
-      <Text
-        style={[
-          styles.emoji,
-          { fontSize: emojiSize, lineHeight: emojiSize * 1.18 },
-          { transform: [{ rotate: `${art.rotate}deg` }] },
-        ]}
-      >
-        {emoji}
-      </Text>
+      {showIcon ? (
+        <View
+          style={[
+            styles.badge,
+            { padding: iconSize * 0.36, borderRadius: iconSize },
+          ]}
+        >
+          <Icon name={cuisineIcon(tone)} size={iconSize} color="#ffffff" strokeWidth={1.7} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -139,14 +135,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  // Gölge web'de kısayol, native'de ayrı özellikler ister. `textShadow`
-  // react-native-web'e özgü olduğu için tip zorlaması gerekiyor.
-  emoji: Platform.select({
-    web: { textShadow: "0px 4px 12px rgba(0,0,0,0.38)" } as TextStyle,
-    default: {
-      textShadowColor: "rgba(0,0,0,0.38)",
-      textShadowOffset: { width: 0, height: 4 },
-      textShadowRadius: 12,
-    } as TextStyle,
-  }),
+  badge: {
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: "rgba(255,255,255,0.25)",
+  },
 });

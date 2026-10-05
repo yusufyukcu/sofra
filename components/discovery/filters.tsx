@@ -11,7 +11,9 @@ import {
 import { useScrollEdges } from "@/lib/hooks";
 import type { CategoryId, SortKey } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { cuisineIcon } from "@sofra/core";
 import { FoodImage } from "@/components/ui/food-image";
+import { Icon } from "@/components/ui/icon";
 import { Modal } from "@/components/ui/modal";
 import { Button, Chip, ScrollArrow, Switch } from "@/components/ui/primitives";
 
@@ -70,18 +72,23 @@ export function CategoryRail({
                 )}
               >
                 {generic ? (
-                  <span className="flex size-full items-center justify-center bg-surface-2 text-2xl">
-                    {category.emoji}
+                  <span
+                    className={cn(
+                      "flex size-full items-center justify-center transition-colors",
+                      active ? "bg-brand text-brand-contrast" : "bg-brand-soft text-brand"
+                    )}
+                  >
+                    <Icon name={cuisineIcon(category.id)} className="size-7" strokeWidth={1.9} />
                   </span>
                 ) : (
                   <FoodImage
                     seed={category.id}
-                    emoji={category.emoji}
                     tone={category.id}
                     src={category.image}
                     rounded="rounded-none"
                     className="size-full"
-                    emojiClassName="text-[1.75rem]"
+                    iconClassName="size-6"
+                    zoom
                     sizes="76px"
                   />
                 )}

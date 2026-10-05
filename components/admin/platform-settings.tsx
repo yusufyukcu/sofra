@@ -7,15 +7,11 @@ import type { AppSettings } from "@/lib/db/settings";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 
-const SPEEDS = [1, 6, 12, 30];
-
 /**
- * Demo (sunum) modu anahtarı — canlı operasyon ekranının üstünde. Gerçek
- * işletmede kapalı kalır; yalnızca kuryesiz bir tanıtım için açılır.
- *
- * Açıkken: vardiyada kurye yoksa teslimatı simülasyon üstlenir, süreler
- * seçilen kat hızlı akar, müşteri "demo ile giriş" yapabilir.
- * Kapalıyken: siparişler yalnızca gerçek kuryelerle, gerçek sürede ilerler.
+ * Demo girişleri (sunum) anahtarı — canlı operasyon ekranının üstünde.
+ * Gerçek işletmede kapalı kalır; açıkken giriş ekranlarında hazır demo
+ * hesapları görünür. Teslimat her durumda gerçek kuryelerle, gerçek
+ * sürede ilerler: simülasyon yok.
  */
 export function PlatformSettings({ onChanged }: { onChanged?: () => void }) {
   const toast = useToast();
@@ -36,8 +32,8 @@ export function PlatformSettings({ onChanged }: { onChanged?: () => void }) {
       setSettings(data.settings);
       toast.success(
         data.settings.demoMode
-          ? `Demo modu açık · süreler ${data.settings.simSpeed}× hızlı`
-          : "Demo modu kapalı · yalnızca gerçek kuryeler, gerçek süreler"
+          ? "Demo girişleri açık · giriş ekranlarında hazır hesaplar görünür"
+          : "Demo girişleri kapalı"
       );
       onChanged?.();
     } catch (err) {
@@ -65,30 +61,12 @@ export function PlatformSettings({ onChanged }: { onChanged?: () => void }) {
           onChange={(e) => void update({ demoMode: e.target.checked })}
           className="size-4 accent-[var(--brand)]"
         />
-        Demo modu (sunum)
+        Demo girişleri (sunum)
       </label>
-      {settings.demoMode && (
-        <div className="flex gap-1" role="group" aria-label="Simülasyon hızı">
-          {SPEEDS.map((speed) => (
-            <button
-              key={speed}
-              type="button"
-              disabled={busy}
-              onClick={() => void update({ simSpeed: speed })}
-              className={cn(
-                "tabular rounded-lg px-2 py-1 text-xs font-bold transition-colors",
-                settings.simSpeed === speed ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"
-              )}
-            >
-              {speed}×
-            </button>
-          ))}
-        </div>
-      )}
       <span className="w-full text-[11px] leading-snug text-muted sm:w-auto sm:max-w-64">
         {settings.demoMode
-          ? "Sunum: kurye yokken siparişler simülasyonla ilerler, demo girişi açık."
-          : "Gerçek çalışma: siparişi yalnızca mesaideki kuryeler üstlenir."}
+          ? "Giriş ekranlarında hazır demo hesapları görünür. Teslimatı yine gerçek kuryeler yapar."
+          : "Teslimatı yalnızca mesaideki kuryeler üstlenir; konumları cihazlarından canlı gelir."}
       </span>
     </div>
   );

@@ -42,11 +42,7 @@ export default async function CampaignsPage() {
               backgroundImage: `linear-gradient(120deg, ${banner.gradient[0]}, ${banner.gradient[1]})`,
             }}
           >
-            <BannerArt
-              banner={banner}
-              sizes="(min-width: 640px) 230px, 48vw"
-              emojiClassName="absolute -right-5 -top-6 text-[6rem] opacity-25"
-            />
+            <BannerArt banner={banner} sizes="(min-width: 640px) 240px, 50vw" />
             <span className={banner.image ? "relative pr-[34%]" : "relative"}>
               <span className="block text-lg font-extrabold">{banner.title}</span>
               <span className="mt-1 block text-sm text-white/85">

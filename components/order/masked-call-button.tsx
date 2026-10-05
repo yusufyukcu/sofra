@@ -118,11 +118,11 @@ export function MaskedCallButton({
               )}
               <span
                 className={cn(
-                  "relative flex size-20 items-center justify-center rounded-full text-3xl",
-                  phase === "connected" ? "bg-pistachio-soft" : "bg-surface-2"
+                  "relative flex size-20 items-center justify-center rounded-full",
+                  phase === "connected" ? "bg-pistachio-soft text-pistachio" : "bg-surface-2 text-ink"
                 )}
               >
-                📞
+                <Phone className="size-8" strokeWidth={1.9} aria-hidden />
               </span>
             </span>
 

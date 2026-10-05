@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Courier } from "@sofra/core";
 import { courierApi, onUnauthorized } from "@/lib/api";
+import { stopCourierTracking } from "@/lib/courier-tracking";
 import { clearToken, saveAuthPayload } from "@/lib/token-store";
 
 /**
@@ -70,6 +71,7 @@ export const useCourier = create<CourierState>()((set) => ({
     } catch {
       /* çevrimdışıyken de yerel oturum kapanmalı */
     } finally {
+      await stopCourierTracking();
       await clearToken("courier");
       set({ status: "guest", courier: null });
     }
@@ -80,6 +82,8 @@ export const useCourier = create<CourierState>()((set) => ({
 
 /** Kurye oturumu düşerse yalnızca kurye ekranı girişe döner (müşteri oturumu etkilenmez). */
 onUnauthorized("courier", () => {
+  // Oturumu düşen cihaz konum göndermeye devam etmesin (arka plan servisi dâhil)
+  void stopCourierTracking();
   if (useCourier.getState().status === "authenticated") {
     useCourier.setState({ status: "guest", courier: null });
   }

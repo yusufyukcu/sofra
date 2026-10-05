@@ -1,8 +1,9 @@
 import { router, useFocusEffect } from "expo-router";
-import { RotateCcw, Star } from "lucide-react-native";
+import { ReceiptText, RotateCcw, ShoppingBag, Star, WifiOff } from "lucide-react-native";
 import { useCallback, useState } from "react";
 import { Alert, FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import {
+  ORDER_STATUS_ICONS,
   ORDER_STATUS_META,
   formatDateTime,
   formatPrice,
@@ -12,6 +13,8 @@ import {
 } from "@sofra/core";
 import { CartBar } from "@/components/customer/cart-bar";
 import { Button } from "@/components/ui/button";
+import { FoodPhoto } from "@/components/ui/food-photo";
+import { Icon } from "@/components/ui/icon";
 import { Header, Screen } from "@/components/ui/screen";
 import { Badge, Card, EmptyState, Skeleton } from "@/components/ui/surfaces";
 import { Text } from "@/components/ui/text";
@@ -87,7 +90,7 @@ export default function OrdersScreen() {
       <Screen>
         <Header title="Siparişlerim" large />
         <EmptyState
-          emoji="🧾"
+          icon={ReceiptText}
           title="Siparişlerini görmek için giriş yap"
           description="Geçmiş siparişlerin, tekrar sipariş ve değerlendirme burada."
           action={<Button label="Giriş yap" onPress={() => router.push("/giris")} />}
@@ -155,10 +158,10 @@ export default function OrdersScreen() {
               <Skeleton height={120} radius={t.radius.lg} />
             </View>
           ) : error ? (
-            <EmptyState emoji="📡" title="Liste yüklenemedi" description={error} />
+            <EmptyState icon={WifiOff} title="Liste yüklenemedi" description={error} />
           ) : (
             <EmptyState
-              emoji="🍽️"
+              icon={ShoppingBag}
               title="Henüz siparişin yok"
               description="İlk siparişini verdiğinde burada takip edebilirsin."
               action={
@@ -205,7 +208,13 @@ function OrderCard({
       ]}
     >
       <View style={styles.head}>
-        <Text style={styles.emoji}>{order.restaurantEmoji}</Text>
+        <FoodPhoto
+          src={order.restaurantImage}
+          seed={order.restaurantId}
+          radius={12}
+          iconSize={18}
+          style={{ width: 48, height: 48 }}
+        />
         <View style={{ flex: 1, gap: 2 }}>
           <Text variant="body" weight="semibold" tone="ink" numberOfLines={1}>
             {order.restaurantName}
@@ -214,7 +223,23 @@ function OrderCard({
             {formatDateTime(order.createdAt)} · {order.code}
           </Text>
         </View>
-        <Badge label={`${meta.emoji} ${meta.label}`} tone={tone} />
+        <Badge
+          label={meta.label}
+          tone={tone}
+          icon={
+            <Icon
+              name={ORDER_STATUS_ICONS[order.status]}
+              size={12}
+              color={
+                tone === "danger"
+                  ? t.colors.danger
+                  : tone === "pistachio"
+                    ? t.colors.pistachio
+                    : t.colors.brand
+              }
+            />
+          }
+        />
       </View>
 
       <Text variant="caption" numberOfLines={2}>
@@ -255,7 +280,6 @@ function OrderCard({
 
 const styles = StyleSheet.create({
   head: { flexDirection: "row", alignItems: "center", gap: 10 },
-  emoji: { fontSize: 28, lineHeight: 34 },
   foot: {
     flexDirection: "row",
     alignItems: "center",

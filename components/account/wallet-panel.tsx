@@ -179,7 +179,7 @@ export function WalletPanel() {
         ) : transactions.length === 0 ? (
           <div className="p-5">
             <EmptyState
-              emoji="💸"
+              icon={Wallet}
               title="Henüz hareket yok"
               description="Bakiye yüklediğinde, cüzdanla ödediğinde ya da iade aldığında burada görünecek."
             />

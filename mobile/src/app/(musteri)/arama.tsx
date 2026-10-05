@@ -1,4 +1,5 @@
-import { Search, X } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { SearchX, Search, WifiOff, X } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
 import { FlatList, Pressable, StyleSheet, View } from "react-native";
 import {
@@ -8,6 +9,7 @@ import {
 } from "@sofra/core";
 import { CartBar } from "@/components/customer/cart-bar";
 import { RestaurantCard } from "@/components/customer/restaurant-card";
+import { FoodPhoto } from "@/components/ui/food-photo";
 import { Field } from "@/components/ui/input";
 import { Header, Screen } from "@/components/ui/screen";
 import { EmptyState, Skeleton } from "@/components/ui/surfaces";
@@ -126,10 +128,10 @@ export default function SearchScreen() {
               <Skeleton height={98} radius={t.radius.lg} />
             </View>
           ) : error ? (
-            <EmptyState emoji="📡" title="Arama yapılamadı" description={error} />
+            <EmptyState icon={WifiOff} title="Arama yapılamadı" description={error} />
           ) : debounced.length >= 2 ? (
             <EmptyState
-              emoji="🔍"
+              icon={SearchX}
               title={`"${debounced}" bulunamadı`}
               description="Farklı bir kelime dene ya da aşağıdaki mutfaklara göz at."
             />
@@ -141,18 +143,29 @@ export default function SearchScreen() {
                   <Pressable
                     key={c.id}
                     onPress={() => setTerm(c.name)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${c.name} ara`}
                     style={({ pressed }) => [
                       styles.suggestion,
                       {
-                        backgroundColor: t.colors.surface,
-                        borderColor: t.colors.border,
-                        borderRadius: t.radius.md,
-                        opacity: pressed ? 0.85 : 1,
+                        borderRadius: t.radius.lg,
+                        transform: [{ scale: pressed ? 0.97 : 1 }],
                       },
                     ]}
                   >
-                    <Text style={styles.suggestionEmoji}>{c.emoji}</Text>
-                    <Text variant="small" weight="semibold" tone="ink">
+                    <FoodPhoto
+                      src={c.image}
+                      seed={c.id}
+                      tone={c.id}
+                      radius={0}
+                      iconSize={26}
+                      style={StyleSheet.absoluteFill}
+                    />
+                    <LinearGradient
+                      colors={["transparent", "rgba(0,0,0,0.62)"]}
+                      style={StyleSheet.absoluteFill}
+                    />
+                    <Text variant="body" weight="bold" style={styles.suggestionName}>
                       {c.name}
                     </Text>
                   </Pressable>
@@ -169,14 +182,14 @@ export default function SearchScreen() {
 }
 
 const styles = StyleSheet.create({
-  suggestions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  suggestions: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   suggestion: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    paddingHorizontal: 13,
-    paddingVertical: 11,
-    borderWidth: StyleSheet.hairlineWidth * 2,
+    width: "48%",
+    flexGrow: 1,
+    height: 96,
+    overflow: "hidden",
+    justifyContent: "flex-end",
+    padding: 12,
   },
-  suggestionEmoji: { fontSize: 17, lineHeight: 22 },
+  suggestionName: { color: "#ffffff" },
 });

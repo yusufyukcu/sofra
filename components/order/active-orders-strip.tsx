@@ -1,6 +1,8 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
+import { ORDER_STATUS_ICONS } from "@sofra/core";
+import { Icon } from "@/components/ui/icon";
 import Link from "next/link";
 import { useEffect } from "react";
 import { ORDER_STATUS_META } from "@/lib/constants";
@@ -35,8 +37,8 @@ export function ActiveOrdersStrip() {
             href={`/siparis/${order.id}`}
             className="flex items-center gap-3 rounded-2xl border border-brand/25 bg-surface p-3.5 shadow-soft transition-colors hover:border-brand/50"
           >
-            <span className="relative flex size-11 shrink-0 items-center justify-center rounded-xl bg-surface text-xl shadow-sm">
-              {meta.emoji}
+            <span className="relative flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand">
+              <Icon name={ORDER_STATUS_ICONS[order.status]} className="size-5" />
               <span className="absolute -right-0.5 -top-0.5 size-3 rounded-full border-2 border-surface bg-brand">
                 <span className="animate-pulse-ring absolute inset-0 rounded-full bg-brand" />
               </span>

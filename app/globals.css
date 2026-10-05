@@ -6,24 +6,25 @@
 /* ==================================================================
    Jetonlar
 
-   Palet Türk mutfağından türetildi: patlıcan koyusu (başlık/alt bilgi
-   çapası), biber salçası kırmızısı (marka), safran (puan), antep fıstığı
-   (olumlu durum). Zemin nötr bej değil, neredeyse beyaz sıcak kâğıt.
+   Palet Türk mutfağından türetildi: biber kırmızısı (marka), patlıcan
+   koyusu (alt bilgi, koyu bantlar), safran (puan), antep fıstığı (olumlu
+   durum). Zemin bej değil, nötr ve neredeyse beyaz: yemek fotoğrafları
+   sararmadan kendi renkleriyle öne çıksın.
    ================================================================== */
 
 :root {
   /* Zemin & yüzeyler */
-  --paper: #fcfaf7;
+  --paper: #f8f7f5;
   --surface: #ffffff;
-  --surface-2: #f5f0ea;
-  --surface-3: #eae2d9;
-  --border: #e9e1d7;
-  --border-strong: #d4c8ba;
+  --surface-2: #f3f2f0;
+  --surface-3: #e8e6e3;
+  --border: #e8e5e1;
+  --border-strong: #d3cfca;
 
   /* Metin */
-  --ink: #1c1214;
-  --text: #241a1b;
-  --muted: #7a6b66;
+  --ink: #18110f;
+  --text: #231b19;
+  --muted: #6c6460;
 
   /* Patlıcan — başlık, alt bilgi, koyu bantlar */
   --deep: #2e1720;
@@ -33,18 +34,18 @@
   --on-deep-muted: #c3a7ac;
 
   /* Marka — biber salçası */
-  --brand: #df4128;
-  --brand-hover: #c4351e;
-  --brand-soft: #fceae5;
+  --brand: #cf2f1c;
+  --brand-hover: #b02514;
+  --brand-soft: #fdeeea;
   --brand-contrast: #ffffff;
 
   /* Safran — puan, kampanya vurgusu */
-  --saffron: #c47f0a;
-  --saffron-soft: #fbf1dc;
+  --saffron: #a35f00;
+  --saffron-soft: #fff6e5;
 
   /* Antep fıstığı — olumlu durum */
-  --pistachio: #4b7f3e;
-  --pistachio-soft: #e8f1e4;
+  --pistachio: #3a7531;
+  --pistachio-soft: #edf6ea;
 
   --danger: #c42b1f;
   --danger-soft: #fceae8;
@@ -55,13 +56,13 @@
   --shadow-sm: 0 1px 2px rgba(28, 18, 20, 0.05), 0 1px 3px rgba(28, 18, 20, 0.04);
   --shadow-md: 0 2px 6px -1px rgba(28, 18, 20, 0.07), 0 12px 28px -10px rgba(28, 18, 20, 0.16);
   --shadow-lg: 0 6px 16px -4px rgba(28, 18, 20, 0.1), 0 32px 64px -20px rgba(28, 18, 20, 0.3);
-  --shadow-brand: 0 6px 18px -6px rgba(223, 65, 40, 0.5);
+  --shadow-brand: 0 6px 18px -6px rgba(207, 47, 28, 0.45);
 
   /* Grafik serileri — dataviz dogrulayicisindan gecmis kategorik cift
      (acik mod: L bandi, kroma, CVD ayrimi ve kontrast kontrolleri PASS) */
-  --chart-net: #c4351e;
+  --chart-net: #b02514;
   --chart-commission: #2f6bb5;
-  --chart-grid: #ece5dd;
+  --chart-grid: #ebe8e4;
 
   --ring: var(--brand);
   --radius-card: 1.125rem;
@@ -156,9 +157,8 @@
   --color-chart-commission: var(--chart-commission);
   --color-chart-grid: var(--chart-grid);
 
-  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
-  --font-display: var(--font-bricolage), var(--font-geist-sans), system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), monospace;
+  --font-sans: var(--font-figtree), system-ui, sans-serif;
+  --font-display: var(--font-bricolage), var(--font-figtree), system-ui, sans-serif;
 
   --radius-card: 1.125rem;
 }
@@ -172,9 +172,13 @@
     border-color: var(--border);
   }
 
+  /* Kaydırma çubuğu payı (`scrollbar-gutter`) html'in zeminini gösterir:
+     zemin burada da verilmeli, yoksa kısa sayfalarda ve koyu temada sağ
+     kenarda beyaz bir şerit kalıyordu. */
   html {
     color-scheme: light;
     scrollbar-gutter: stable;
+    background-color: var(--paper);
   }
 
   html.dark {
@@ -184,7 +188,7 @@
   body {
     background-color: var(--paper);
     color: var(--text);
-    font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+    font-family: var(--font-figtree), system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
@@ -193,7 +197,7 @@
   h2,
   h3,
   h4 {
-    font-family: var(--font-bricolage), var(--font-geist-sans), system-ui, sans-serif;
+    font-family: var(--font-bricolage), var(--font-figtree), system-ui, sans-serif;
     color: var(--ink);
     letter-spacing: -0.02em;
     text-wrap: balance;
@@ -231,7 +235,7 @@
 
 @layer utilities {
   .font-display {
-    font-family: var(--font-bricolage), var(--font-geist-sans), system-ui, sans-serif;
+    font-family: var(--font-bricolage), var(--font-figtree), system-ui, sans-serif;
   }
 
   .no-scrollbar {

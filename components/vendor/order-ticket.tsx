@@ -10,6 +10,9 @@ import {
   Utensils,
 } from "lucide-react";
 import { useState } from "react";
+import { ORDER_STATUS_ICONS } from "@sofra/core";
+import { Avatar } from "@/components/ui/avatar";
+import { Icon } from "@/components/ui/icon";
 import { api, errorMessage } from "@/lib/api-client";
 import { ORDER_STATUS_META, PAYMENT_METHODS } from "@/lib/constants";
 import { useVendor } from "@/lib/store/vendor";
@@ -121,8 +124,9 @@ export function OrderTicket({
           {order.code}
         </span>
         <span className="text-xs text-muted">{relativeTime(order.createdAt)}</span>
-        <span className="ml-auto text-xs font-bold text-muted">
-          {meta.emoji} {meta.label}
+        <span className="ml-auto inline-flex items-center gap-1 text-xs font-bold text-muted">
+          <Icon name={ORDER_STATUS_ICONS[order.status]} className="size-3.5" />
+          {meta.label}
         </span>
       </div>
 
@@ -279,7 +283,7 @@ export function OrderTicket({
           {courierAssigned && order.courier ? (
             <div className="space-y-2.5">
               <div className="flex items-center gap-2.5 rounded-xl border border-info/30 bg-info-soft px-3 py-2.5">
-                <span className="text-lg">{order.courier.emoji}</span>
+                <Avatar name={order.courier.name} className="size-8 text-xs" />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-bold text-ink">
                     {order.courier.name}

@@ -3,20 +3,28 @@
 import {
   ArrowLeft,
   BadgeCheck,
+  Bell,
+  BellOff,
   Bike,
+  Car,
   Check,
   Headset,
   MapPin,
+  Package,
   Radio,
+  ReceiptText,
   Star,
+  Utensils,
+  WifiOff,
   XCircle,
 } from "lucide-react";
+import { ORDER_STATUS_ICONS } from "@sofra/core";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { currentRoute, legForStage, liveLeg, locationStale } from "@sofra/core/route";
 import { api, errorMessage } from "@/lib/api-client";
 import {
-  ADDRESS_LABELS,
   CANCELLABLE_STATUSES,
   CANCEL_REASONS,
   ORDER_FLOW,
@@ -25,10 +33,12 @@ import {
 import { useSession } from "@/lib/store/session";
 import { useOrderStream } from "@/lib/use-order-stream";
 import type { CourierStage, Order } from "@/lib/types";
-import { cn, formatPrice, formatTime } from "@/lib/utils";
+import { cn, formatDistance, formatPrice, formatTime } from "@/lib/utils";
 import { TrackingMap } from "@/components/map";
 import { MaskedCallButton } from "@/components/order/masked-call-button";
 import { ChatPanel } from "@/components/support/chat-panel";
+import { Avatar } from "@/components/ui/avatar";
+import { Icon } from "@/components/ui/icon";
 import { Modal } from "@/components/ui/modal";
 import { Badge, Button, EmptyState, Skeleton } from "@/components/ui/primitives";
 import { RestaurantThumb } from "@/components/ui/restaurant-thumb";
@@ -41,6 +51,9 @@ const COURIER_STAGE_LABEL: Partial<Record<CourierStage, string>> = {
   picked_up: "Sana geliyor",
 };
 
+/** Kuryenin siparişle yolda olduğu aşamalar: harita ve arama bunlarda açık. */
+const LIVE_STAGES: CourierStage[] = ["assigned", "at_restaurant", "picked_up"];
+
 /** Sipariş takip ekranı — canlı durum, kurye haritası, iptal ve destek. */
 export function OrderTracking({ orderId }: { orderId: string }) {
   const router = useRouter();
@@ -48,7 +61,7 @@ export function OrderTracking({ orderId }: { orderId: string }) {
   const refreshActiveOrders = useSession((s) => s.refreshActiveOrders);
   const user = useSession((s) => s.user);
   const setUser = useSession((s) => s.setUser);
-  const { order, progress, remainingMinutes, live, loading, error, setOrder } =
+  const { order, progress, remainingMinutes, arrivalAt, live, loading, error, setOrder } =
     useOrderStream(orderId);
 
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -70,7 +83,7 @@ export function OrderTracking({ orderId }: { orderId: string }) {
     return (
       <div className="mx-auto max-w-2xl px-4 pt-8 lg:px-6 lg:pt-12">
         <EmptyState
-          emoji="🧾"
+          icon={ReceiptText}
           title="Sipariş bulunamadı"
           description={error ?? "Bu siparişe erişim iznin yok veya silinmiş olabilir."}
           action={
@@ -87,8 +100,16 @@ export function OrderTracking({ orderId }: { orderId: string }) {
   const cancelled = order.status === "cancelled";
   const delivered = order.status === "delivered";
   const canCancel = CANCELLABLE_STATUSES.includes(order.status);
-  const showMap =
-    order.courierMode === "platform" && !cancelled && Boolean(order.courierRoute);
+  const tracked = order.courierMode === "platform" && !cancelled;
+  // Kurye işaretçisi yalnızca kurye siparişi üstlendikten sonra; konumu cihazından gelir
+  const courierActive = Boolean(
+    order.courier && order.courierStage && LIVE_STAGES.includes(order.courierStage)
+  );
+  const stale = courierActive && locationStale(order);
+  const leg = courierActive ? liveLeg(order) : null;
+  const locatedMinutesAgo = order.courierLocatedAt
+    ? Math.max(1, Math.round((Date.now() - new Date(order.courierLocatedAt).getTime()) / 60_000))
+    : null;
 
   async function cancelOrder() {
     setCancelling(true);
@@ -131,8 +152,13 @@ export function OrderTracking({ orderId }: { orderId: string }) {
             cancelled ? "bg-danger-soft" : delivered ? "bg-success-soft" : "bg-brand-soft"
           )}
         >
-          <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-surface text-2xl shadow-sm">
-            {meta.emoji}
+          <span
+            className={cn(
+              "flex size-14 shrink-0 items-center justify-center rounded-2xl bg-surface shadow-sm",
+              cancelled ? "text-danger" : delivered ? "text-success" : "text-brand"
+            )}
+          >
+            <Icon name={ORDER_STATUS_ICONS[order.status]} className="size-7" strokeWidth={1.9} />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -159,7 +185,7 @@ export function OrderTracking({ orderId }: { orderId: string }) {
               <span className="text-lg font-extrabold text-text">
                 {delivered && order.deliveredAt
                   ? formatTime(order.deliveredAt)
-                  : `${formatTime(order.etaAt)} · ${remainingMinutes} dk`}
+                  : `${formatTime(arrivalAt ?? order.etaAt)} · ${remainingMinutes} dk`}
               </span>
             </div>
 
@@ -231,22 +257,32 @@ export function OrderTracking({ orderId }: { orderId: string }) {
       </header>
 
       {/* Kurye haritası */}
-      {showMap && (
+      {tracked && (
         <section className="card mt-4 overflow-hidden">
-          <TrackingMap
-            restaurant={order.restaurantLocation}
-            destination={order.address.point}
-            courier={order.status === "pending_approval" ? undefined : order.courierPoint}
-            route={order.courierRoute}
-            restaurantEmoji={order.restaurantEmoji}
-            className="h-64 w-full sm:h-80"
-          />
+          {!delivered && (
+            <TrackingMap
+              restaurant={order.restaurantLocation}
+              destination={order.address.point}
+              courier={courierActive ? order.courierPoint : undefined}
+              route={courierActive ? currentRoute(order) : null}
+              leg={legForStage(order.courierStage)}
+              stale={stale}
+              className="h-64 w-full sm:h-80"
+            />
+          )}
+
+          {stale && (
+            <p className="flex items-start gap-2 border-t border-border bg-saffron-soft px-4 py-2.5 text-xs font-medium text-saffron">
+              <WifiOff className="mt-px size-3.5 shrink-0" />
+              {locatedMinutesAgo
+                ? `Kuryenin konumu ${locatedMinutesAgo} dk önce güncellendi; bağlantısı zayıf olabilir. Konum gelince harita kendiliğinden güncellenir.`
+                : "Kuryenin konumu henüz gelmedi. Konum gelince harita kendiliğinden güncellenir."}
+            </p>
+          )}
 
           {order.courier ? (
             <div className="flex items-center gap-3 border-t border-border p-4">
-              <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-surface-2 text-2xl">
-                {order.courier.emoji}
-              </span>
+              <Avatar name={order.courier.name} className="size-12 text-base" />
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-1.5 font-bold text-text">
                   {order.courier.name}
@@ -256,6 +292,11 @@ export function OrderTracking({ orderId }: { orderId: string }) {
                   {order.courierStage && COURIER_STAGE_LABEL[order.courierStage] && (
                     <span className="rounded-md bg-info-soft px-1.5 py-0.5 font-semibold text-info">
                       {COURIER_STAGE_LABEL[order.courierStage]}
+                    </span>
+                  )}
+                  {leg && !stale && order.courierStage !== "at_restaurant" && (
+                    <span className="tabular font-semibold text-text">
+                      {formatDistance(leg.remainingM / 1000)} · ~{Math.max(1, Math.ceil(leg.remainingS / 60))} dk uzakta
                     </span>
                   )}
                   <span className="inline-flex items-center gap-1">
@@ -272,7 +313,7 @@ export function OrderTracking({ orderId }: { orderId: string }) {
                   </span>
                 </p>
               </div>
-              {order.courierStage && ["assigned", "at_restaurant", "picked_up"].includes(order.courierStage) && (
+              {courierActive && (
                 <MaskedCallButton
                   endpoint={`/orders/${order.id}/call`}
                   className="inline-flex h-10 items-center gap-2 rounded-xl border border-border px-3 text-sm font-semibold text-text transition-colors hover:bg-surface-2 disabled:opacity-60"
@@ -300,18 +341,23 @@ export function OrderTracking({ orderId }: { orderId: string }) {
       )}
 
       {order.courierMode === "vendor" && !cancelled && (
-        <p className="card mt-4 p-4 text-sm text-muted">
-          🚗 Bu siparişi{" "}
+        <p className="card mt-4 flex items-start gap-3 p-4 text-sm text-muted">
+          <Car className="mt-0.5 size-5 shrink-0 text-muted" aria-hidden />
+          <span>
+          Bu siparişi{" "}
           <span className="font-semibold text-text">{order.restaurantName}</span>{" "}
           kendi kuryesiyle getiriyor, bu yüzden canlı harita takibi yok. Durum
           güncellemeleri restorandan anlık olarak iletilir.
+          </span>
         </p>
       )}
 
       {/* Teslim edildi → değerlendirme */}
       {delivered && !order.rating && (
         <section className="card mt-4 flex flex-col items-center gap-3 p-5 text-center sm:flex-row sm:text-left">
-          <span className="text-3xl">⭐</span>
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-saffron-soft text-saffron" aria-hidden>
+            <Star className="size-6 fill-current" />
+          </span>
           <div className="min-w-0 flex-1">
             <p className="font-bold text-text">Siparişin nasıldı?</p>
             <p className="text-sm text-muted">
@@ -363,7 +409,6 @@ export function OrderTracking({ orderId }: { orderId: string }) {
         <div className="flex items-center gap-3 border-b border-border p-4">
           <RestaurantThumb
             image={order.restaurantImage}
-            emoji={order.restaurantEmoji}
             className="size-10 rounded-xl"
           />
           <div className="min-w-0 flex-1">
@@ -443,7 +488,6 @@ export function OrderTracking({ orderId }: { orderId: string }) {
             <MapPin className="mt-0.5 size-4 shrink-0 text-brand" />
             <span>
               <span className="font-semibold text-text">
-                {ADDRESS_LABELS.find((l) => l.id === order.address.label)?.emoji}{" "}
                 {order.address.title}
               </span>
               <span className="block text-muted">{order.address.line1}</span>
@@ -454,13 +498,29 @@ export function OrderTracking({ orderId }: { orderId: string }) {
           </p>
 
           <div className="mt-3 flex flex-wrap gap-1.5">
-            {order.preferences.contactless && <Badge>📦 Temassız teslimat</Badge>}
-            {order.preferences.ringDoorbell ? (
-              <Badge>🔔 Zile bassın</Badge>
-            ) : (
-              <Badge>🔕 Zile basmasın</Badge>
+            {order.preferences.contactless && (
+              <Badge>
+                <Package className="size-3" aria-hidden />
+                Temassız teslimat
+              </Badge>
             )}
-            {order.preferences.cutlery && <Badge>🍴 Çatal-bıçak</Badge>}
+            {order.preferences.ringDoorbell ? (
+              <Badge>
+                <Bell className="size-3" aria-hidden />
+                Zile bassın
+              </Badge>
+            ) : (
+              <Badge>
+                <BellOff className="size-3" aria-hidden />
+                Zile basmasın
+              </Badge>
+            )}
+            {order.preferences.cutlery && (
+              <Badge>
+                <Utensils className="size-3" aria-hidden />
+                Çatal-bıçak
+              </Badge>
+            )}
           </div>
 
           {order.preferences.note && (

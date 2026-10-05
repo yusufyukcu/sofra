@@ -6,10 +6,9 @@ import { api, errorMessage } from "@/lib/api-client";
 import { useSession } from "@/lib/store/session";
 import type { User } from "@/lib/types";
 import { formatPhone, formatPrice } from "@/lib/utils";
+import { Avatar } from "@/components/ui/avatar";
 import { Badge, Button, Field, Input } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
-
-const AVATARS = ["🧑", "👩", "🧔", "👨‍🦰", "👩‍🦱", "🧑‍🦲", "👱", "🧑‍🍳", "🦸", "🧙"];
 
 const PROVIDER_META = {
   phone: { label: "Telefon", icon: Smartphone },
@@ -27,7 +26,6 @@ export function ProfilePanel() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [avatar, setAvatar] = useState("🧑");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -35,7 +33,6 @@ export function ProfilePanel() {
     setName(user.name);
     setEmail(user.email ?? "");
     setPhone(user.phone ?? "");
-    setAvatar(user.avatarEmoji);
   }, [user]);
 
   if (!user) return null;
@@ -43,8 +40,7 @@ export function ProfilePanel() {
   const dirty =
     name !== user.name ||
     email !== (user.email ?? "") ||
-    phone !== (user.phone ?? "") ||
-    avatar !== user.avatarEmoji;
+    phone !== (user.phone ?? "");
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -54,7 +50,6 @@ export function ProfilePanel() {
         name,
         email: email || undefined,
         phone: phone || undefined,
-        avatarEmoji: avatar,
       });
       setUser(data.user);
       toast.success("Profilin güncellendi.");
@@ -75,24 +70,13 @@ export function ProfilePanel() {
       </header>
 
       <form onSubmit={save} className="card space-y-5 p-5">
-        <div>
-          <p className="mb-2 text-sm font-semibold text-text">Avatarın</p>
-          <div className="flex flex-wrap gap-2">
-            {AVATARS.map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                onClick={() => setAvatar(emoji)}
-                aria-label={`Avatar ${emoji}`}
-                className={`flex size-11 items-center justify-center rounded-xl border text-xl transition-colors ${
-                  avatar === emoji
-                    ? "border-brand bg-brand-soft"
-                    : "border-border bg-surface hover:bg-surface-2"
-                }`}
-              >
-                {emoji}
-              </button>
-            ))}
+        <div className="flex items-center gap-4">
+          <Avatar name={name.trim() || user.name} className="size-16 text-xl" />
+          <div>
+            <p className="font-bold text-text">{name.trim() || user.name}</p>
+            <p className="mt-0.5 text-xs text-muted">
+              Avatarın adının baş harflerinden oluşur; her ekranda aynı renkte görünür.
+            </p>
           </div>
         </div>
 

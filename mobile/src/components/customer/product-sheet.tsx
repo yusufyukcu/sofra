@@ -17,7 +17,7 @@ import {
   type Product,
 } from "@sofra/core";
 import { Button } from "@/components/ui/button";
-import { FoodArt } from "@/components/ui/food-art";
+import { FoodPhoto } from "@/components/ui/food-photo";
 import { Field, Stepper } from "@/components/ui/input";
 import { Badge, Divider } from "@/components/ui/surfaces";
 import { Text } from "@/components/ui/text";
@@ -115,12 +115,13 @@ export function ProductSheet({
             contentContainerStyle={{ paddingBottom: t.spacing.lg }}
             keyboardShouldPersistTaps="handled"
           >
-            <FoodArt
+            <FoodPhoto
+              src={product.image}
               seed={product.id}
-              emoji={product.emoji}
               radius={0}
-              emojiSize={58}
-              style={{ height: 150, width: "100%" }}
+              iconSize={44}
+              priority
+              style={{ height: 220, width: "100%" }}
             />
 
             <View style={{ padding: t.spacing.lg, gap: t.spacing.md }}>

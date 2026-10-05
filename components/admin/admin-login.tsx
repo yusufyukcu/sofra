@@ -1,6 +1,7 @@
 "use client";
 
 import { ShieldCheck } from "lucide-react";
+import { LogoTile } from "@/components/brand/logo";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -55,7 +56,7 @@ export function AdminLogin({ demo }: { demo?: { email: string; password: string 
     <div className="band-deep flex min-h-dvh items-center justify-center p-5">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center gap-2.5">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-brand text-xl">🍽️</span>
+          <LogoTile />
           <span className="font-display text-xl font-extrabold tracking-tight text-on-deep">Sofra Yönetim</span>
         </div>
 

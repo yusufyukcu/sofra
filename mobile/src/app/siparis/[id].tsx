@@ -6,15 +6,22 @@ import {
   CANCELLABLE_STATUSES,
   CANCEL_REASONS,
   ORDER_FLOW,
+  ORDER_STATUS_ICONS,
   ORDER_STATUS_META,
+  currentRoute,
+  formatDistance,
   formatPrice,
   formatTime,
+  liveLeg,
+  locationStale,
   type CourierStage,
   type Order,
 } from "@sofra/core";
 import { useMaskedCall } from "@/components/call/masked-call";
 import { MapView } from "@/components/map/map-view";
+import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import { Header, Screen } from "@/components/ui/screen";
 import { Badge, Card, Divider, Row, Skeleton } from "@/components/ui/surfaces";
 import { Text } from "@/components/ui/text";
@@ -45,7 +52,12 @@ interface TrackingPayload {
   order: Order;
   progress: number;
   remainingMinutes: number;
+  /** Tahmini teslim anı — kurye yoldaysa canlı konumundan */
+  arrivalAt?: string;
 }
+
+/** Kuryenin siparişle yolda olduğu aşamalar: harita ve arama bunlarda açık. */
+const LIVE_STAGES: CourierStage[] = ["assigned", "at_restaurant", "picked_up"];
 
 export default function OrderScreen() {
   const t = useTheme();
@@ -106,6 +118,17 @@ export default function OrderScreen() {
   const stage = order.courierStage
     ? COURIER_STAGE_LABEL[order.courierStage]
     : null;
+  // Kurye işaretçisi ve yol yalnızca kurye siparişi üstlendikten sonra
+  const courierActive = Boolean(
+    order.courier && order.courierStage && LIVE_STAGES.includes(order.courierStage)
+  );
+  const stale = courierActive && locationStale(order);
+  const live = courierActive ? liveLeg(order) : null;
+  const path = courierActive ? (live?.path ?? currentRoute(order)) : null;
+  const distanceLabel =
+    live && !stale && order.courierStage !== "at_restaurant"
+      ? `${formatDistance(live.remainingM / 1000)} · ~${Math.max(1, Math.ceil(live.remainingS / 60))} dk uzakta`
+      : null;
 
   function confirmCancel() {
     Alert.alert(
@@ -147,7 +170,32 @@ export default function OrderScreen() {
         {/* Durum */}
         <Card style={{ gap: t.spacing.md }}>
           <View style={styles.statusHead}>
-            <Text style={styles.statusEmoji}>{meta.emoji}</Text>
+            <View
+              style={[
+                styles.statusIcon,
+                {
+                  backgroundColor:
+                    order.status === "cancelled"
+                      ? t.colors.dangerSoft
+                      : order.status === "delivered"
+                        ? t.colors.pistachioSoft
+                        : t.colors.brandSoft,
+                },
+              ]}
+            >
+              <Icon
+                name={ORDER_STATUS_ICONS[order.status]}
+                size={26}
+                strokeWidth={1.9}
+                color={
+                  order.status === "cancelled"
+                    ? t.colors.danger
+                    : order.status === "delivered"
+                      ? t.colors.pistachio
+                      : t.colors.brand
+                }
+              />
+            </View>
             <View style={{ flex: 1, gap: 3 }}>
               <View style={styles.statusRow}>
                 <Text variant="title">{meta.label}</Text>
@@ -163,9 +211,7 @@ export default function OrderScreen() {
               <View style={styles.etaRow}>
                 <Text variant="caption">Tahmini teslimat</Text>
                 <Text variant="body" weight="semibold" tone="ink" tabular>
-                  {order.etaAt
-                    ? formatTime(order.etaAt)
-                    : "—"}
+                  {formatTime(data?.arrivalAt ?? order.etaAt)}
                   {data && data.remainingMinutes > 0
                     ? `  ·  ${data.remainingMinutes} dk`
                     : ""}
@@ -211,33 +257,40 @@ export default function OrderScreen() {
             <MapView
               height={210}
               rounded={0}
-              route={{
-                from: order.restaurantLocation,
-                to: order.address.point,
-              }}
+              path={path}
+              routeColor={stale ? t.colors.muted : undefined}
               markers={[
                 {
                   point: order.restaurantLocation,
-                  emoji: "🏪",
+                  icon: "Store" as const,
                   color: t.colors.deep,
                 },
-                ...(order.courierPoint
+                ...(courierActive && order.courierPoint
                   ? [
                       {
                         point: order.courierPoint,
-                        emoji: "🛵",
-                        color: t.colors.brand,
+                        icon: "Bike" as const,
+                        color: stale ? t.colors.muted : t.colors.brand,
                         size: 38,
                       },
                     ]
                   : []),
                 {
                   point: order.address.point,
-                  emoji: "🏠",
+                  icon: "House" as const,
                   color: t.colors.pistachio,
                 },
               ]}
             />
+            {stale ? (
+              <View style={[styles.staleNote, { backgroundColor: t.colors.saffronSoft }]}>
+                <Text variant="caption">
+                  {order.courierLocatedAt
+                    ? `Kuryenin konumu ${Math.max(1, Math.round((Date.now() - new Date(order.courierLocatedAt).getTime()) / 60_000))} dk önce güncellendi; bağlantısı zayıf olabilir.`
+                    : "Kuryenin konumu henüz gelmedi."}
+                </Text>
+              </View>
+            ) : null}
           </Card>
         ) : null}
 
@@ -245,7 +298,7 @@ export default function OrderScreen() {
         {order.courier ? (
           <Card style={{ gap: t.spacing.sm }}>
             <View style={styles.courier}>
-              <Text style={styles.courierAvatar}>{order.courier.emoji}</Text>
+              <Avatar name={order.courier.name} size={44} />
               <View style={{ flex: 1, gap: 1 }}>
                 <Text variant="body" weight="semibold" tone="ink">
                   {order.courier.name}
@@ -256,6 +309,11 @@ export default function OrderScreen() {
                     {order.courier.rating.toFixed(1)}
                   </Text>
                   <Text variant="caption">· {order.courier.vehicle}</Text>
+                  {distanceLabel ? (
+                    <Text variant="caption" tabular>
+                      · {distanceLabel}
+                    </Text>
+                  ) : null}
 
                 </View>
               </View>
@@ -269,7 +327,7 @@ export default function OrderScreen() {
                     opacity: pressed ? 0.7 : 1,
                   },
                 ]}
-                disabled={call.busy || !order.courierStage || !["assigned", "at_restaurant", "picked_up"].includes(order.courierStage)}
+                disabled={call.busy || !courierActive}
                 onPress={call.start}
               >
                 <Phone size={17} color={t.colors.pistachio} />
@@ -458,7 +516,13 @@ function Timeline({ order }: { order: Order }) {
 
 const styles = StyleSheet.create({
   statusHead: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
-  statusEmoji: { fontSize: 34, lineHeight: 40 },
+  statusIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   etaRow: {
     flexDirection: "row",
@@ -473,7 +537,6 @@ const styles = StyleSheet.create({
   rail: { width: 2, flex: 1, minHeight: 22, marginVertical: 2 },
   stepBody: { flex: 1, paddingBottom: 14, gap: 1 },
   courier: { flexDirection: "row", alignItems: "center", gap: 12 },
-  courierAvatar: { fontSize: 32, lineHeight: 38 },
   courierMeta: { flexDirection: "row", alignItems: "center", gap: 4 },
   circleBtn: {
     width: 40,
@@ -483,4 +546,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   summaryLine: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
+  staleNote: { paddingHorizontal: 14, paddingVertical: 10 },
 });

@@ -15,12 +15,13 @@ import {
   type OfferRow,
   type OrderRow,
 } from "../db/mappers";
-import { appSettings, scaledMs } from "../db/settings";
 import { toCourierView } from "../orders/progress";
 import { DomainError } from "../errors";
 import type { Courier, CourierEarning, DeliveryOffer, LatLng, Order } from "../types";
-import { buildRoute, createId, dayKey, distanceKm, formatDayKey, round2 } from "../utils";
+import { createId, dayKey, distanceKm, formatDayKey, round2 } from "../utils";
+import { HANDOVER_SECONDS, travelSeconds } from "@sofra/core/route";
 import { payoutsFor } from "./payouts";
+import { scheduleRouteRefresh, trackDelivery } from "./tracking";
 
 /**
  * Kurye Uygulaması (Courier App) iş mantığı.
@@ -44,7 +45,7 @@ export { OFFER_TTL_SECONDS } from "../courier-constants";
 
 /** Telefon numarasıyla kayıtlı kurye (giriş için). */
 export async function courierByPhone(phone: string): Promise<Courier | null> {
-  const normalized = phone.replace(/D/g, "").slice(-10);
+  const normalized = phone.replace(/\D/g, "").slice(-10);
   if (normalized.length !== 10) return null;
   const [row] = await sql<{ id: string }[]>`select id from public.couriers where phone = ${normalized}`;
   return row ? findCourier(row.id) : null;
@@ -140,11 +141,6 @@ export async function setShift(courier: Courier, online: boolean, point?: LatLng
   return (await findCourier(courier.id))!;
 }
 
-/**
- * Cihazdan gelen konum bildirimi. Kuryenin üzerinde açık teslimat varsa
- * siparişin canlı kurye konumu da güncellenir — müşterinin takip haritası
- * bundan beslenir.
- */
 function validPoint(point: LatLng | null | undefined): point is LatLng {
   return Boolean(
     point &&
@@ -157,6 +153,11 @@ function validPoint(point: LatLng | null | undefined): point is LatLng {
   );
 }
 
+/**
+ * Cihazdan gelen konum bildirimi. Kuryenin üzerinde açık teslimat varsa
+ * siparişin canlı kurye konumu da güncellenir — müşterinin takip haritası
+ * bundan beslenir — ve gerekirse yeni yol rotası istenir (`tracking.ts`).
+ */
 export async function updateLocation(courier: Courier, point: LatLng): Promise<Courier> {
   if (!validPoint(point)) {
     throw new DomainError("invalid_point", "Geçersiz konum bilgisi.");
@@ -167,14 +168,7 @@ export async function updateLocation(courier: Courier, point: LatLng): Promise<C
        set lat = ${point.lat}, lng = ${point.lng}, location_updated_at = now()
      where id = ${courier.id}
   `;
-  await sql`
-    update public.orders
-       set courier_lat = ${point.lat}, courier_lng = ${point.lng}
-     where courier_id = ${courier.id}
-       and courier_stage = any(${ACTIVE_STAGES}::text[])
-       and status not in ('delivered', 'cancelled')
-       and (courier_lat is distinct from ${point.lat} or courier_lng is distinct from ${point.lng})
-  `;
+  await trackDelivery(courier.id, point);
   return (await findCourier(courier.id))!;
 }
 
@@ -183,7 +177,7 @@ export async function updateLocation(courier: Courier, point: LatLng): Promise<C
 /* ================================================================== */
 
 export async function acceptOffer(courier: Courier, offerId: string): Promise<void> {
-  await sql.begin(async (tx) => {
+  const orderId = await sql.begin(async (tx) => {
     const [offer] = await tx<OfferRow[]>`
       select * from public.delivery_offers
        where id = ${offerId} and courier_id = ${courier.id}
@@ -232,14 +226,24 @@ export async function acceptOffer(courier: Courier, offerId: string): Promise<vo
              courier_stage = 'assigned',
              courier_fee = ${offer.fee},
              courier_lat = ${fresh.lat},
-             courier_lng = ${fresh.lng}
+             courier_lng = ${fresh.lng},
+             courier_located_at = ${fresh.locationUpdatedAt},
+             courier_route = null,
+             courier_route_leg = null,
+             courier_route_at = null,
+             courier_route_distance_m = null,
+             courier_route_duration_s = null
        where id = ${order.id}
     `;
     await addOrderEvent(tx, order.id, "preparing", `${fresh.name} siparişi üstlendi, restorana gidiyor.`);
-    return { error: null };
+    return { error: null, orderId: order.id };
   }).then((result) => {
-    if (result.error) throw new DomainError(result.error[0], result.error[1]);
+    if (result.error !== null) throw new DomainError(result.error[0], result.error[1]);
+    return result.orderId;
   });
+
+  // Kuryenin bulunduğu yerden restorana yol rotası (yanıttan sonra)
+  scheduleRouteRefresh(orderId);
 }
 
 export async function rejectOffer(courier: Courier, offerId: string): Promise<void> {
@@ -275,7 +279,9 @@ export async function advanceStage(
   orderId: string,
   action: StageAction
 ): Promise<Order> {
-  const settings = await appSettings();
+  // Yeni ayağın rotası hemen istenir (aşama değişince rota isteği sınırı sıfırlanır):
+  // restorana varınca restorandan adrese; paketi alınca rota yoksa kuryenin yerinden
+  let needsRoute = false;
 
   await sql.begin(async (tx) => {
     const order = await findOrderRow(orderId, tx, { forUpdate: true });
@@ -294,10 +300,11 @@ export async function advanceStage(
       await tx`
         update public.orders
            set courier_stage = 'at_restaurant', courier_arrived_at = ${now},
-               courier_lat = restaurant_lat, courier_lng = restaurant_lng
+               courier_route_at = null
          where id = ${order.id}
       `;
       await addOrderEvent(tx, order.id, order.status, `${courier.name} restorana vardı.`, now);
+      needsRoute = true;
     }
 
     if (action === "pickup") {
@@ -307,18 +314,21 @@ export async function advanceStage(
       if (order.status !== "preparing") {
         throw new DomainError("invalid_stage", "Restoran siparişi henüz onaylamadı.");
       }
-      const route = buildRoute(
-        { lat: order.restaurantLat, lng: order.restaurantLng },
-        order.address.point
-      );
+      // Restorandan adrese yol rotası varsa tahmini teslim ona göre, yoksa mesafe tahmininden
+      const hasRoute = order.courierRouteLeg === "dropoff" && order.courierRouteDistanceM !== null;
+      const travelMs = hasRoute
+        ? (travelSeconds(order.courierRouteDistanceM!, order.courierRouteDurationS, courier.vehicle) +
+            HANDOVER_SECONDS) *
+          1000
+        : order.travelMinutes * 60_000;
       await tx`
         update public.orders
            set courier_stage = 'picked_up', status = 'on_the_way', picked_up_at = ${now},
-               courier_lat = restaurant_lat, courier_lng = restaurant_lng,
-               courier_route = ${tx.json(asJson(route))},
-               eta_at = ${new Date(now.getTime() + scaledMs(order.travelMinutes, settings))}
+               eta_at = ${new Date(now.getTime() + travelMs)},
+               courier_route_at = ${hasRoute ? order.courierRouteAt : null}
          where id = ${order.id}
       `;
+      needsRoute = !hasRoute;
       await addOrderEvent(tx, order.id, "on_the_way", `${courier.name} siparişi restorandan teslim aldı.`, now);
     }
 
@@ -328,8 +338,7 @@ export async function advanceStage(
       }
       await tx`
         update public.orders
-           set courier_stage = 'delivered', status = 'delivered', delivered_at = ${now},
-               courier_lat = ${order.address.point.lat}, courier_lng = ${order.address.point.lng}
+           set courier_stage = 'delivered', status = 'delivered', delivered_at = ${now}
          where id = ${order.id}
       `;
       await addOrderEvent(tx, order.id, "delivered", `${courier.name} siparişi adrese teslim etti.`, now);
@@ -348,13 +357,13 @@ export async function advanceStage(
       `;
       await tx`
         update public.couriers
-           set total_deliveries = total_deliveries + 1,
-               lat = ${order.address.point.lat}, lng = ${order.address.point.lng}
+           set total_deliveries = total_deliveries + 1
          where id = ${courier.id}
       `;
     }
   });
 
+  if (needsRoute) scheduleRouteRefresh(orderId);
   const [order] = await hydrateOrders([(await findOrderRow(orderId))!]);
   return toCourierView(order);
 }

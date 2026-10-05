@@ -81,7 +81,7 @@ export function NotificationsPanel() {
       {!items ? (
         <Skeleton className="h-64 w-full" />
       ) : items.length === 0 ? (
-        <EmptyState emoji="🔔" title="Henüz bildirim yok" description="Sipariş verdiğinde durum değişiklikleri burada görünür." />
+        <EmptyState icon={BellRing} title="Henüz bildirim yok" description="Sipariş verdiğinde durum değişiklikleri burada görünür." />
       ) : (
         <section className="card divide-y divide-border overflow-hidden">
           {items.map((item) => {

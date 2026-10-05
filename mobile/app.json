@@ -11,15 +11,17 @@
       "supportsTablet": true,
       "bundleIdentifier": "app.sofra.mobile",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Teslimat adresini bulmak ve kurye modunda konumunu paylaşmak için konumun kullanılır.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Kurye modunda teslimat boyunca konumun müşteriyle paylaşılır."
+        "NSLocationWhenInUseUsageDescription": "Teslimat adresini bulmak ve kurye mesaisinde konumunu müşteriyle paylaşmak için konumun kullanılır.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Kurye mesaisinde, ekran kilitliyken ya da navigasyondayken de konumun teslimat takibi için paylaşılır. Mesaiyi kapatınca durur."
       }
     },
     "android": {
       "package": "app.sofra.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#2e1720",
-        "foregroundImage": "./assets/images/android-icon-foreground.png"
+        "backgroundColor": "#CF2F1C",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
@@ -36,13 +38,16 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Kurye modunda teslimat boyunca konumun müşteriyle paylaşılır."
+          "locationWhenInUsePermission": "Teslimat adresini bulmak ve kurye mesaisinde konumunu müşteriyle paylaşmak için konumun kullanılır.",
+          "locationAlwaysAndWhenInUsePermission": "Kurye mesaisinde, ekran kilitliyken ya da navigasyondayken de konumun teslimat takibi için paylaşılır. Mesaiyi kapatınca durur.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#2e1720",
+          "backgroundColor": "#CF2F1C",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 120
         }

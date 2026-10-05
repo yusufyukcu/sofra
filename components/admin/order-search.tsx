@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, XCircle } from "lucide-react";
+import { Search, SearchX, XCircle } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage } from "@/lib/api-client";
 import { ORDER_STATUS_META } from "@/lib/constants";
@@ -85,7 +85,7 @@ export function OrderSearch({ initialQuery = "" }: { initialQuery?: string }) {
         <Skeleton className="h-72 w-full" />
       ) : orders.length === 0 ? (
         <EmptyState
-          emoji="🔎"
+          icon={SearchX}
           title="Sipariş bulunamadı"
           description="Kodu tam yazmayı ya da müşterinin telefonunun son 4 hanesini denemeyi unutma."
         />

@@ -25,6 +25,7 @@ import type {
   Product,
   Restaurant,
   Review,
+  RouteLeg,
   SavedCard,
   User,
   VendorAccount,
@@ -418,8 +419,12 @@ export interface OrderRow {
   courierFee: number | null;
   courierLat: number | null;
   courierLng: number | null;
+  courierLocatedAt: Date | null;
   courierRoute: LatLng[] | null;
-  simulated: boolean;
+  courierRouteLeg: RouteLeg | null;
+  courierRouteAt: Date | null;
+  courierRouteDistanceM: number | null;
+  courierRouteDurationS: number | null;
   readyAt: Date | null;
   approvedAt: Date | null;
   pickedUpAt: Date | null;
@@ -485,7 +490,11 @@ export function toOrder(row: OrderRow, events: OrderEventRow[]): Order {
       row.courierLat === null || row.courierLng === null
         ? undefined
         : point(row.courierLat, row.courierLng),
+    courierLocatedAt: iso(row.courierLocatedAt),
     courierRoute: opt(row.courierRoute),
+    courierRouteLeg: opt(row.courierRouteLeg),
+    courierRouteDistanceM: opt(row.courierRouteDistanceM),
+    courierRouteDurationS: opt(row.courierRouteDurationS),
     createdAt: isoRequired(row.createdAt),
     etaAt: isoRequired(row.etaAt),
     deliveredAt: iso(row.deliveredAt),
@@ -497,7 +506,6 @@ export function toOrder(row: OrderRow, events: OrderEventRow[]): Order {
     prepMinutes: opt(row.prepMinutes),
     travelMinutes: row.travelMinutes,
     cancelledBy: opt(row.cancelledBy),
-    simulated: row.simulated || undefined,
     refundedTotal: row.refundedTotal || undefined,
   };
 }

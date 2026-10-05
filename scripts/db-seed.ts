@@ -171,7 +171,6 @@ async function main() {
   }
 
   const password = demoPassword();
-  const simSpeed = Number(process.env.SOFRA_SIM_SPEED ?? 12) || 12;
 
   await sql.begin(async (tx) => {
     if (RESET) {
@@ -185,11 +184,9 @@ async function main() {
     }
 
     /* Ayarlar */
-    // Değerler JSON olarak yazılır (sim_speed sayı, metin değil)
+    // Değer JSON olarak yazılır (boolean, metin değil)
     await tx`
-      insert into public.app_settings (key, value) values
-        ('demo_mode', ${tx.json(false)}),
-        ('sim_speed', ${tx.json(simSpeed)})
+      insert into public.app_settings (key, value) values ('demo_mode', ${tx.json(false)})
     `;
 
     /* Restoranlar, kategoriler, ürünler */

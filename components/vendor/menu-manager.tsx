@@ -3,6 +3,7 @@
 import {
   ChevronDown,
   ChevronUp,
+  ClipboardList,
   Clock,
   Layers,
   Pencil,
@@ -194,7 +195,7 @@ export function MenuManager() {
 
       {menu.length === 0 ? (
         <EmptyState
-          emoji="📋"
+          icon={ClipboardList}
           title="Menün boş"
           description="Önce bir kategori oluştur, sonra ürünlerini ekle."
           action={
@@ -301,11 +302,10 @@ export function MenuManager() {
                           <div className="flex flex-wrap items-center gap-3 px-4 py-3">
                             <FoodImage
                               seed={product.id}
-                              emoji={product.emoji}
                               src={product.image}
                               alt={product.name}
                               className="size-11 shrink-0"
-                              emojiClassName="text-xl"
+                              iconClassName="size-4"
                               sizes="44px"
                             />
 

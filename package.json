@@ -7,10 +7,11 @@
     "build": "next build",
     "start": "next start",
     "check:theme": "node scripts/check-theme.mjs",
+    "brand:assets": "node --import tsx scripts/brand-assets.ts",
     "typecheck": "tsc --noEmit",
     "db:migrate": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --import tsx scripts/db-migrate.ts",
     "db:seed": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local --import tsx scripts/db-seed.ts",
-    "test:unit": "node --import tsx tests/unit/api-client.test.mts",
+    "test:unit": "node --import tsx tests/unit/api-client.test.mts && node --import tsx tests/unit/route.test.mts",
     "test:e2e": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local tests/e2e/run-all.mjs"
   },
   "dependencies": {

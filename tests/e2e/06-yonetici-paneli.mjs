@@ -138,11 +138,10 @@ try {
   const noCustomer = await customer.get(`/api/v1/admin/support?durum=open`);
   check("müşteri çereziyle destek kuyruğu → 401", noCustomer.status === 401, noCustomer.status);
 
-  console.log("\n▶ Demo modu anahtarı");
+  console.log("\n▶ Demo girişleri anahtarı");
   const settings = must(await admin.get("/api/v1/admin/settings"), "ayarlar");
-  check(`şu an demo ${settings.settings.demoMode ? "açık" : "kapalı"}, hız ${settings.settings.simSpeed}×`, typeof settings.settings.demoMode === "boolean");
-  const badSpeed = await admin.patch("/api/v1/admin/settings", { simSpeed: 0 });
-  check("hız 0 reddedildi", badSpeed.status === 400, badSpeed);
+  check(`şu an demo girişleri ${settings.settings.demoMode ? "açık" : "kapalı"}`, typeof settings.settings.demoMode === "boolean");
+  check("simülasyon hızı ayarı yok", !("simSpeed" in settings.settings), settings.settings);
   const badFlag = await admin.patch("/api/v1/admin/settings", { demoMode: "evet" });
   check("demoMode metin reddedildi", badFlag.status === 400, badFlag);
   const demoButton = async () => (await fetch(BASE + "/giris").then((r) => r.text())).includes("Demo hesabıyla hızlı giriş");
@@ -151,7 +150,7 @@ try {
   const offConfig = await new Client().get("/api/v1/config");
   check("kapalıyken /config demoMode=false", offConfig.ok && offConfig.data.demoMode === false, offConfig.data);
   check("kapalıyken giriş ekranında demo düğmesi yok", !(await demoButton()));
-  must(await admin.patch("/api/v1/admin/settings", { demoMode: true, simSpeed: settings.settings.simSpeed }), "demo modu açıldı");
+  must(await admin.patch("/api/v1/admin/settings", { demoMode: true }), "demo modu açıldı");
   await sleep(5500);
   const onConfig = await new Client().get("/api/v1/config");
   check("açıkken /config demoMode=true", onConfig.ok && onConfig.data.demoMode === true, onConfig.data);
@@ -159,6 +158,26 @@ try {
   must(await admin.patch("/api/v1/admin/settings", { demoMode: settings.settings.demoMode }), `demo modu eski hâline döndü (${settings.settings.demoMode ? "açık" : "kapalı"})`);
   const audit = must(await admin.get("/api/v1/admin/overview"), "iz kaydı");
   check("ayar değişikliği iz kaydında", audit.audit.some((a) => a.action === "Platform ayarını değiştirdi"));
+
+  console.log("\n▶ Vitrin afişi görseli");
+  const bannerBase = { subtitle: "deneme", gradient: ["#C4351E", "#DF9411"], href: "/?kategori=pizza", active: false };
+  const foreignImage = await admin.post("/api/v1/admin/marketing", {
+    action: "banner-upsert",
+    banner: { ...bannerBase, title: "E2E afişi", image: "https://ornek.example/afis.png" },
+  });
+  check("site dışı afiş görseli reddedildi", foreignImage.status === 400 && foreignImage.error?.code === "invalid_image", foreignImage);
+  const withImage = must(
+    await admin.post("/api/v1/admin/marketing", {
+      action: "banner-upsert",
+      banner: { ...bannerBase, title: "E2E afişi", image: "/images/food/pizza-margherita.webp" },
+    }),
+    "fotoğraflı afiş eklendi"
+  );
+  const e2eBanner = withImage.banners.find((b) => b.title === "E2E afişi");
+  check("afiş görseli kaydedildi", e2eBanner?.image === "/images/food/pizza-margherita.webp", e2eBanner);
+  if (e2eBanner) {
+    must(await admin.post("/api/v1/admin/marketing", { action: "banner-delete", id: e2eBanner.id }), "deneme afişi silindi");
+  }
 
   for (const path of ["/yonetim/siparisler?q=" + encodeURIComponent(target.code), "/yonetim/destek"]) {
     const page = await fetch(BASE + path, { headers: { cookie: admin.cookieHeader() } });

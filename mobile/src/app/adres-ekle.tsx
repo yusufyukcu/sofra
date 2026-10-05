@@ -3,7 +3,7 @@ import { router } from "expo-router";
 import { Crosshair } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
-import { ADDRESS_LABELS, DEFAULT_CENTER, type Address, type AddressLabel, type LatLng } from "@sofra/core";
+import { ADDRESS_LABELS, DEFAULT_CENTER, addressLabelIcon, type Address, type AddressLabel, type LatLng } from "@sofra/core";
 import { MapView } from "@/components/map/map-view";
 import { Button } from "@/components/ui/button";
 import { Field, Option } from "@/components/ui/input";
@@ -114,7 +114,7 @@ export default function AddAddressScreen() {
         >
           <Card padded={false} style={{ overflow: "hidden" }}>
             {point ? (
-              <MapView height={180} markers={[{ point, emoji: "🏠", color: t.colors.brand }]} />
+              <MapView height={180} markers={[{ point, icon: "House", color: t.colors.brand }]} />
             ) : (
               <View style={[styles.mapPlaceholder, { backgroundColor: t.colors.surface2 }]}>
                 <Text variant="small">Konum alınıyor…</Text>
@@ -136,7 +136,8 @@ export default function AddAddressScreen() {
               {ADDRESS_LABELS.map((item) => (
                 <Option
                   key={item.id}
-                  title={`${item.emoji}  ${item.name}`}
+                  title={item.name}
+                  icon={addressLabelIcon(item.id)}
                   selected={label === item.id}
                   onPress={() => {
                     setLabel(item.id);

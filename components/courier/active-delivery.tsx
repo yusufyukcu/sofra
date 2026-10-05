@@ -1,14 +1,17 @@
 "use client";
 
 import {
+  BellOff,
   Check,
+  House,
   NotebookPen,
   Navigation,
   Package,
   Store,
   MapPin,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { currentRoute, legForStage, liveLeg } from "@sofra/core/route";
 import { api, errorMessage } from "@/lib/api-client";
 import { useCourier } from "@/lib/store/courier";
 import type { Order } from "@/lib/types";
@@ -49,14 +52,14 @@ export function ActiveDelivery({ order }: { order: Order }) {
 
   const target =
     stage === "picked_up" ? order.address.point : order.restaurantLocation;
-  const remainingKm = courier
-    ? Math.round(
-        Math.hypot(
-          (target.lat - courier.point.lat) * 111,
-          (target.lng - courier.point.lng) * 85
-        ) * 10
-      ) / 10
-    : 0;
+  // Kalan yol, yol tarifi rotası üzerinden (rota yoksa kuş uçuşu × sapma payı)
+  const courierPoint = order.courierPoint ?? courier?.point;
+  const live = liveLeg({ ...order, courierPoint });
+  const remaining = live
+    ? `${formatDistance(live.remainingM / 1000)} · ~${Math.max(1, Math.ceil(live.remainingS / 60))} dk`
+    : null;
+
+  useScreenWakeLock();
 
   async function advance() {
     setBusy(true);
@@ -80,7 +83,8 @@ export function ActiveDelivery({ order }: { order: Order }) {
     }
   }
 
-  const navUrl = `https://www.google.com/maps/dir/?api=1&destination=${target.lat},${target.lng}&travelmode=driving`;
+  const travelMode = courier?.vehicle === "bisiklet" ? "bicycling" : "driving";
+  const navUrl = `https://www.google.com/maps/dir/?api=1&destination=${target.lat},${target.lng}&travelmode=${travelMode}`;
 
   return (
     <div className="space-y-4">
@@ -115,20 +119,24 @@ export function ActiveDelivery({ order }: { order: Order }) {
         <TrackingMap
           restaurant={order.restaurantLocation}
           destination={order.address.point}
-          courier={order.courierPoint ?? courier?.point}
-          route={order.courierRoute}
-          restaurantEmoji={order.restaurantEmoji}
+          courier={courierPoint}
+          route={currentRoute(order)}
+          leg={legForStage(order.courierStage)}
           className="h-52 w-full"
         />
 
         <div className="flex items-center gap-3 border-t border-border p-4">
           <span
             className={cn(
-              "flex size-11 shrink-0 items-center justify-center rounded-xl text-xl",
-              stage === "picked_up" ? "bg-brand-soft" : "bg-saffron-soft"
+              "flex size-11 shrink-0 items-center justify-center rounded-xl",
+              stage === "picked_up" ? "bg-brand-soft text-brand" : "bg-saffron-soft text-saffron"
             )}
           >
-            {stage === "picked_up" ? "🏠" : order.restaurantEmoji}
+            {stage === "picked_up" ? (
+              <House className="size-5" aria-hidden />
+            ) : (
+              <Store className="size-5" aria-hidden />
+            )}
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold text-muted">{heading}</p>
@@ -138,9 +146,11 @@ export function ActiveDelivery({ order }: { order: Order }) {
                 : order.restaurantName}
             </p>
             <p className="tabular text-xs text-muted">
-              {stage === "picked_up"
-                ? order.address.line1
-                : `${formatDistance(Math.max(remainingKm, 0))} uzaklıkta`}
+              {stage === "at_restaurant"
+                ? "Restorandasın · paketi teslim al"
+                : remaining
+                  ? `${remaining} kaldı`
+                  : "Konumun bekleniyor…"}
             </p>
           </div>
           <a
@@ -186,8 +196,12 @@ export function ActiveDelivery({ order }: { order: Order }) {
             {order.preferences.contactless && (
               <Flag icon={<Package className="size-3" />}>Temassız</Flag>
             )}
-            {!order.preferences.ringDoorbell && <Flag>🔕 Zile basma</Flag>}
-            {order.preferences.note && <Flag>📝 Not var</Flag>}
+            {!order.preferences.ringDoorbell && (
+              <Flag icon={<BellOff className="size-3" />}>Zile basma</Flag>
+            )}
+            {order.preferences.note && (
+              <Flag icon={<NotebookPen className="size-3" />}>Not var</Flag>
+            )}
           </div>
 
           {order.preferences.note && (
@@ -257,8 +271,52 @@ export function ActiveDelivery({ order }: { order: Order }) {
         <Check className="size-5" strokeWidth={3} />
         {next.label}
       </button>
+      <p className="px-2 text-center text-[11px] leading-snug text-muted">
+        Teslimat boyunca ekran açık kalır. Tarayıcı arka plana alınınca konum
+        gönderilemez; kilit ekranında da çalışan takip için Sofra mobil
+        uygulamasını kullan.
+      </p>
     </div>
   );
+}
+
+/**
+ * Teslimat sürerken ekranın kararmasını engeller (Screen Wake Lock API).
+ * Tarayıcı, arka plandaki sayfanın konumunu göndermez; ekran açık kaldıkça
+ * konum müşteriye akmaya devam eder. Sekme arka plana alınınca kilit düşer,
+ * sayfa yeniden görünür olunca tekrar alınır.
+ */
+function useScreenWakeLock() {
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("wakeLock" in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    let cancelled = false;
+
+    const acquire = async () => {
+      if (cancelled || lock || document.visibilityState !== "visible") return;
+      try {
+        const sentinel = await navigator.wakeLock.request("screen");
+        if (cancelled) {
+          void sentinel.release();
+          return;
+        }
+        lock = sentinel;
+        sentinel.addEventListener("release", () => {
+          if (lock === sentinel) lock = null;
+        });
+      } catch {
+        /* pil tasarrufu modu ya da tarayıcı izin vermedi */
+      }
+    };
+
+    void acquire();
+    document.addEventListener("visibilitychange", acquire);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", acquire);
+      void lock?.release();
+    };
+  }, []);
 }
 
 function Flag({

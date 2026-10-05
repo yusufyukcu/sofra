@@ -1,11 +1,10 @@
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import * as Location from "expo-location";
 import { router } from "expo-router";
-import { LogOut, Power } from "lucide-react-native";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Bike, LogOut, MapPin, MapPinOff, Power, Radio } from "lucide-react-native";
+import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import {
-  IDLE_LOCATION_PING_MS,
-  LOCATION_PING_MS,
   PRESENCE_HEARTBEAT_MS,
   formatPrice,
   type Courier,
@@ -16,10 +15,18 @@ import {
 import { ActiveDelivery } from "@/components/courier/active-delivery";
 import { OfferCard } from "@/components/courier/offer-card";
 import { Button } from "@/components/ui/button";
-import { Header, Screen } from "@/components/ui/screen";
+import { Header, HeaderButton, Screen } from "@/components/ui/screen";
 import { Card, EmptyState, Skeleton } from "@/components/ui/surfaces";
 import { Text } from "@/components/ui/text";
 import { courierApi, errorMessage } from "@/lib/api";
+import {
+  rememberPoint,
+  sendPresence,
+  setActiveDelivery,
+  startCourierTracking,
+  stopCourierTracking,
+  type TrackingMode,
+} from "@/lib/courier-tracking";
 import { useLive } from "@/lib/use-live";
 import { useCourier } from "@/store/courier";
 import { useTheme } from "@/theme";
@@ -28,13 +35,16 @@ import { useTheme } from "@/theme";
  * Kurye operasyon ekranı.
  *
  * Mesai anahtarı, gelen teklif ve aktif teslimat. Pano `useLive` ile 3
- * saniyede bir tazelenir (web SSE kullanıyor, sözleşme aynı).
+ * saniyede bir tazelenir (web Realtime kullanıyor, sözleşme aynı).
  *
- * Konum: mesai açıkken cihazın gerçek GPS'i dinlenir ve sunucuya bildirilir.
- * Web panelinde bu konum "simüle sürüş" ile üretiliyordu; mobilde gerçek
- * olanı gönderiyoruz — uç nokta ve gövde aynı, yalnızca kaynak değişti.
- * Müşterinin takip haritasında görünen nokta budur.
+ * Konum: mesai açıkken cihazın gerçek GPS'i sunucuya bildirilir
+ * (`lib/courier-tracking.ts`). Geliştirme ve mağaza derlemesinde arka planda
+ * da akar; Expo Go'da yalnızca uygulama açıkken — ekran bunu kuryeye söyler
+ * ve teslimat sürerken ekranı açık tutar. Müşterinin takip haritasında
+ * görünen nokta budur.
  */
+
+const KEEP_AWAKE_TAG = "sofra-courier-delivery";
 
 interface BoardPayload {
   courier: Courier;
@@ -68,69 +78,55 @@ export default function CourierBoardScreen() {
 
   const online = data?.courier.online ?? courier?.online ?? false;
   const activeOrder = data?.activeOrder ?? null;
-
-  /* ---------------------------------------------------------------- */
-  /* Konum yayını                                                     */
-  /* ---------------------------------------------------------------- */
-
-  const watcher = useRef<Location.LocationSubscription | null>(null);
-  const lastSent = useRef(0);
-  const lastPoint = useRef<LatLng | null>(null);
   const hasActive = Boolean(activeOrder);
-  const hasActiveRef = useRef(hasActive);
-  hasActiveRef.current = hasActive;
 
-  const pushLocation = useCallback(async (point: LatLng, force = false) => {
-    // Teslimatta 3 sn'de, beklerken 15 sn'de bir; varlık sinyali beklemeden gönderir
-    const interval = hasActiveRef.current ? LOCATION_PING_MS : IDLE_LOCATION_PING_MS;
-    const now = Date.now();
-    if (!force && now - lastSent.current < interval) return;
-    lastSent.current = now;
-    try {
-      await courierApi.post("/courier/location", { point });
-    } catch {
-      /* konum bildirimi başarısızsa sessiz geç, sonraki tur dener */
-    }
-  }, []);
+  /* ---------------------------------------------------------------- */
+  /* Konum paylaşımı                                                  */
+  /* ---------------------------------------------------------------- */
+
+  const [tracking, setTracking] = useState<TrackingMode | "denied" | null>(null);
+
+  // Teslimattayken 3 sn'de, beklerken 15 sn'de bir
+  useEffect(() => {
+    setActiveDelivery(hasActive);
+  }, [hasActive]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function start() {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted" || cancelled) return;
-
-      watcher.current = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          timeInterval: LOCATION_PING_MS,
-          distanceInterval: 10,
-        },
-        (position) => {
-          const point = { lat: position.coords.latitude, lng: position.coords.longitude };
-          lastPoint.current = point;
-          void pushLocation(point);
-        }
-      );
+    if (!online) {
+      void stopCourierTracking();
+      return;
     }
+    let cancelled = false;
+    (async () => {
+      const permission = await Location.getForegroundPermissionsAsync();
+      if (cancelled) return;
+      if (permission.status !== "granted") {
+        setTracking("denied");
+        return;
+      }
+      const mode = await startCourierTracking();
+      if (!cancelled) setTracking(mode);
+    })().catch(() => {
+      if (!cancelled) setTracking("denied");
+    });
 
-    if (online) void start();
-
-    // Kurye dururken konum olayı gelmez: dakikada bir "buradayım" sinyali.
+    // Kurye dururken konum olayı seyrekleşir: dakikada bir "buradayım" sinyali.
     // Sunucu konumu 5 dk gelmeyen kuryeye teklif göndermez, 15 dk'da mesaiden düşürür.
-    const heartbeat = online
-      ? setInterval(() => {
-          if (lastPoint.current) void pushLocation(lastPoint.current, true);
-        }, PRESENCE_HEARTBEAT_MS)
-      : null;
-
+    const heartbeat = setInterval(sendPresence, PRESENCE_HEARTBEAT_MS);
     return () => {
       cancelled = true;
-      watcher.current?.remove();
-      watcher.current = null;
-      if (heartbeat) clearInterval(heartbeat);
+      clearInterval(heartbeat);
     };
-  }, [online, pushLocation]);
+  }, [online]);
+
+  // Arka plan konumu olmayan derlemede teslimat sürerken ekran kararmasın
+  useEffect(() => {
+    if (tracking !== "foreground" || !hasActive) return;
+    void activateKeepAwakeAsync(KEEP_AWAKE_TAG);
+    return () => {
+      void deactivateKeepAwake(KEEP_AWAKE_TAG);
+    };
+  }, [tracking, hasActive]);
 
   /* ---------------------------------------------------------------- */
   /* Eylemler                                                         */
@@ -152,13 +148,14 @@ export default function CourierBoardScreen() {
         }
         const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
         point = { lat: position.coords.latitude, lng: position.coords.longitude };
-        lastPoint.current = point;
+        rememberPoint(point);
       }
       const result = await courierApi.post<{ courier: Courier }>(
         "/courier/shift",
         { online: !online, point }
       );
       setCourier(result.courier);
+      if (!result.courier.online) setTracking(null);
       await refresh();
     } catch (err) {
       Alert.alert("Mesai değiştirilemedi", errorMessage(err));
@@ -201,10 +198,9 @@ export default function CourierBoardScreen() {
         title={courier?.name ?? "Kurye"}
         subtitle={online ? "Mesaide" : "Mesai kapalı"}
         right={
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Kurye oturumunu kapat"
-            hitSlop={10}
+          <HeaderButton
+            icon={LogOut}
+            label="Kurye oturumunu kapat"
             onPress={() =>
               Alert.alert("Çıkış yap", "Kurye oturumunu kapatmak istiyor musun?", [
                 { text: "Vazgeç", style: "cancel" },
@@ -218,13 +214,7 @@ export default function CourierBoardScreen() {
                 },
               ])
             }
-            style={({ pressed }) => [
-              styles.iconBtn,
-              { backgroundColor: t.colors.deep2, opacity: pressed ? 0.7 : 1 },
-            ]}
-          >
-            <LogOut size={17} color={t.colors.onDeepMuted} />
-          </Pressable>
+          />
         }
       />
 
@@ -282,6 +272,8 @@ export default function CourierBoardScreen() {
               <Stat label="Puan" value={stats.rating.toFixed(1)} />
             </View>
           ) : null}
+
+          {online && tracking ? <TrackingNotice mode={tracking} /> : null}
         </Card>
 
         {/* Teklif */}
@@ -306,13 +298,13 @@ export default function CourierBoardScreen() {
             <Skeleton height={180} radius={t.radius.lg} />
           ) : online ? (
             <EmptyState
-              emoji="📡"
+              icon={Radio}
               title="Teklif bekleniyor"
               description="Yakındaki bir restoran sipariş hazırlamaya başladığında ilk sen haberdar olacaksın."
             />
           ) : (
             <EmptyState
-              emoji="🛵"
+              icon={Bike}
               title="Mesai kapalı"
               description="Mesaiyi açtığında sana en yakın siparişler 45 saniyelik teklif olarak düşer."
             />
@@ -324,6 +316,32 @@ export default function CourierBoardScreen() {
 }
 
 /* ------------------------------------------------------------------ */
+
+/** Konum paylaşımının durumu: kilit ekranında da mı, yalnızca uygulama açıkken mi, izin yok mu. */
+function TrackingNotice({ mode }: { mode: TrackingMode | "denied" }) {
+  const t = useTheme();
+  const tone =
+    mode === "background"
+      ? t.colors.pistachio
+      : mode === "foreground"
+        ? t.colors.saffron
+        : t.colors.danger;
+  const text =
+    mode === "background"
+      ? "Konumun arka planda da paylaşılıyor: ekranı kilitlesen ya da navigasyona geçsen de müşteri seni canlı görür."
+      : mode === "foreground"
+        ? "Bu derlemede arka plan konumu yok (Expo Go): teslimat boyunca uygulamayı açık tut, ekran kararmaz."
+        : "Konum izni kapalı. Ayarlardan Sofra'ya konum izni ver; konumu bilinmeyen kuryeye sipariş teklif edilmez.";
+  const Icon = mode === "denied" ? MapPinOff : MapPin;
+  return (
+    <View style={styles.notice}>
+      <Icon size={15} color={tone} />
+      <Text variant="caption" style={{ flex: 1 }}>
+        {text}
+      </Text>
+    </View>
+  );
+}
 
 function Stat({
   label,
@@ -346,13 +364,6 @@ function Stat({
 }
 
 const styles = StyleSheet.create({
-  iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   shift: { flexDirection: "row", alignItems: "center", gap: 12 },
   shiftIcon: {
     width: 44,
@@ -363,4 +374,5 @@ const styles = StyleSheet.create({
   },
   stats: { flexDirection: "row", gap: 12 },
   stat: { flex: 1, gap: 1 },
+  notice: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
 });

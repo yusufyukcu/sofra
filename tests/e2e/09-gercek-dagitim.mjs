@@ -1,5 +1,5 @@
 // Gerçek kurye ataması: demo kapalı varsayılan, konumla mesai, bayat konuma teklif yok,
-// simüle kurye yok, sinyali kesilen kurye mesaiden düşer; anasayfa başvuru afişi.
+// kurye yokken sipariş bekler, sinyali kesilen kurye mesaiden düşer; anasayfa başvuru afişi.
 // Çalıştırma: npm run test:e2e (hepsi) ya da node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local <dosya>
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
@@ -107,7 +107,7 @@ try {
   let board = must(await courier.get("/api/v1/courier/board"), "kurye panosu");
   check("konumu 30 dk önce gelen kuryeye teklif yok", !board.offer, board.offer && { order: board.offer.orderId });
   let tracking = must(await customer.get(`/api/v1/orders/${orderId}`), "müşteri takibi");
-  check("sipariş kurye bekliyor, simüle kurye yok", !tracking.order.courier && !tracking.order.simulated && tracking.order.status === "preparing", { courier: tracking.order.courier, simulated: tracking.order.simulated });
+  check("sipariş kurye bekliyor; kurye ve uydurma kurye konumu yok", !tracking.order.courier && !tracking.order.courierPoint && tracking.order.status === "preparing", { courier: tracking.order.courier, point: tracking.order.courierPoint });
 
   console.log("\n▶ Konum gelince en yakın kurye olarak teklif alır");
   must(await courier.post("/api/v1/courier/location", { point: NEAR }), "kurye konumunu gönderdi");
@@ -120,7 +120,7 @@ try {
   check(`teklif geldi (${offer?.secondsLeft} sn, ${offer?.fee} ₺)`, Boolean(offer), board.offer);
   must(await courier.post(`/api/v1/courier/offers/${offer.id}`, { action: "accept" }), "kurye kabul etti");
   tracking = must(await customer.get(`/api/v1/orders/${orderId}`), "müşteri takibi");
-  check("siparişi gerçek kurye üstlendi", tracking.order.courier?.id === courierId && !tracking.order.simulated, tracking.order.courier);
+  check("siparişi gerçek kurye üstlendi, konumu cihazından", tracking.order.courier?.id === courierId && tracking.order.courierPoint?.lat === NEAR.lat, { courier: tracking.order.courier, point: tracking.order.courierPoint });
   must(await customer.post(`/api/v1/orders/${orderId}/cancel`, { reason: "Gerçek dağıtım testi" }), "müşteri iptal etti");
   orderId = null;
 

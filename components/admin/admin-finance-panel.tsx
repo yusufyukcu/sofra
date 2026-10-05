@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CreditCard, Table2, TrendingUp, Wallet } from "lucide-react";
+import { Bike, ChartColumn, Check, CreditCard, Store, Table2, TrendingUp, Wallet } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, errorMessage } from "@/lib/api-client";
 import type { AdminFinance } from "@/lib/services/admin";
@@ -201,7 +201,7 @@ export function AdminFinancePanel() {
 
         {!hasData ? (
           <EmptyState
-            emoji="📊"
+            icon={ChartColumn}
             title="Bu dönemde teslim edilen sipariş yok"
             description="Siparişler tamamlandıkça GMV burada birikir."
           />
@@ -437,8 +437,12 @@ export function AdminFinancePanel() {
                     key={payout.id}
                     className="flex flex-wrap items-center gap-3 px-5 py-3"
                   >
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-base">
-                      {payout.kind === "vendor" ? "🏪" : "🛵"}
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-muted">
+                      {payout.kind === "vendor" ? (
+                        <Store className="size-[18px]" aria-hidden />
+                      ) : (
+                        <Bike className="size-[18px]" aria-hidden />
+                      )}
                     </span>
 
                     <div className="min-w-0 flex-1">

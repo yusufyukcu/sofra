@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPinOff, Radio } from "lucide-react";
+import { Bike, MapPinOff, Radio } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
 import { useRealtime } from "@/lib/realtime";
@@ -16,6 +16,10 @@ import { Skeleton } from "@/components/ui/primitives";
 import { ActiveDelivery } from "./active-delivery";
 import { OfferCard } from "./offer-card";
 
+/** Bu doğruluktan (m) kötü okuma, yakın zamanda iyi konum varsa gönderilmez */
+const POOR_ACCURACY_M = 100;
+const GOOD_FIX_TTL_MS = 30_000;
+
 /**
  * Kurye ana ekranı.
  *
@@ -27,6 +31,11 @@ import { OfferCard } from "./offer-card";
  * bir "buradayım" sinyali gider. Sunucu konumu 5 dakikadır gelmeyen kuryeye
  * teklif göndermez — en yakın kurye seçimi bu konuma göre yapılır ve
  * müşterinin takip haritası buradan beslenir.
+ *
+ * Kapalı alanda GPS bazen yüzlerce metre sapan okuma verir: yakın zamanda
+ * iyi bir konum varsa kötü okuma yok sayılır, işaretçi binaların üstüne
+ * sıçramaz. Tarayıcı arka plandaki sekmenin konumunu göndermediği için
+ * sayfa yeniden görünür olunca son konum hemen gönderilir.
  */
 export function CourierOperations() {
   const courier = useCourier((s) => s.courier);
@@ -104,6 +113,7 @@ export function CourierOperations() {
   const sending = useRef(false);
   const lastSentAt = useRef(0);
   const lastPoint = useRef<LatLng | null>(null);
+  const lastGoodFixAt = useRef(0);
 
   const pushLocation = useCallback(async (point: LatLng, force = false) => {
     const interval = useCourier.getState().activeOrder ? LOCATION_PING_MS : IDLE_LOCATION_PING_MS;
@@ -130,6 +140,12 @@ export function CourierOperations() {
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
+        const now = Date.now();
+        if (position.coords.accuracy > POOR_ACCURACY_M) {
+          if (now - lastGoodFixAt.current < GOOD_FIX_TTL_MS) return;
+        } else {
+          lastGoodFixAt.current = now;
+        }
         const point = { lat: position.coords.latitude, lng: position.coords.longitude };
         lastPoint.current = point;
         setLocation("ok");
@@ -143,10 +159,18 @@ export function CourierOperations() {
     const heartbeat = setInterval(() => {
       if (lastPoint.current) void pushLocation(lastPoint.current, true);
     }, PRESENCE_HEARTBEAT_MS);
+    // Arka plandan dönünce beklemeden "buradayım"
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && lastPoint.current) {
+        void pushLocation(lastPoint.current, true);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       navigator.geolocation.clearWatch(watchId);
       clearInterval(heartbeat);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [online, setActivePoint, pushLocation]);
 
@@ -205,8 +229,8 @@ function IdleState({ online, live, locationOk }: { online: boolean; live: boolea
   if (!online) {
     return (
       <div className="card flex flex-col items-center px-6 py-12 text-center">
-        <span className="text-5xl" aria-hidden>
-          🛵
+        <span className="flex size-16 items-center justify-center rounded-full bg-surface-2 text-muted" aria-hidden>
+          <Bike className="size-8" strokeWidth={1.8} />
         </span>
         <h2 className="font-display mt-4 text-lg font-extrabold text-ink">
           Mesai kapalı
@@ -223,8 +247,8 @@ function IdleState({ online, live, locationOk }: { online: boolean; live: boolea
     <div className="card flex flex-col items-center px-6 py-12 text-center">
       <span className="relative flex size-16 items-center justify-center">
         <span className="animate-pulse-ring absolute inset-0 rounded-full bg-pistachio/40" />
-        <span className="relative flex size-16 items-center justify-center rounded-full bg-pistachio-soft text-3xl">
-          📡
+        <span className="relative flex size-16 items-center justify-center rounded-full bg-pistachio-soft text-pistachio">
+          <Radio className="size-7" strokeWidth={1.9} aria-hidden />
         </span>
       </span>
       <h2 className="font-display mt-4 text-lg font-extrabold text-ink">

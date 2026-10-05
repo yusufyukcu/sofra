@@ -3,11 +3,13 @@
 import {
   ChevronDown,
   Bell,
+  Bike,
   Heart,
   LogOut,
   Moon,
   Receipt,
   Search,
+  ShieldCheck,
   ShoppingBag,
   Store,
   Sun,
@@ -17,30 +19,33 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { APP_NAME } from "@/lib/constants";
 import { useMounted } from "@/lib/hooks";
 import { cartCount, useCart } from "@/lib/store/cart";
 import { useSession } from "@/lib/store/session";
 import { formatPrice } from "@/lib/utils";
+import { Logo } from "@/components/brand/logo";
+import { Avatar } from "@/components/ui/avatar";
 import { AddressSelector } from "./address-selector";
 import { NotificationBell } from "./notification-bell";
 
 /**
- * Üst bant. Patlıcan koyusu her sayfada sabit durur: sıcak kâğıt zemin
- * üzerinde markanın çapası olur ve altındaki içerikten net ayrılır.
+ * Üst çubuk. Beyaz ve sakin: sayfanın yıldızı yemek fotoğrafları, başlık
+ * onların önüne geçmez. Marka rengi yalnızca logoda ve sepet düğmesinde.
  */
 export function Header() {
   const pathname = usePathname();
   const hideSearch = pathname === "/odeme";
 
   return (
-    <header className="band-deep sticky top-0 z-40 border-b border-white/5">
+    <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-4 sm:gap-3 lg:px-6">
-        <Logo />
+        <Link href="/" aria-label="Sofra ana sayfa" className="shrink-0 rounded-lg">
+          <Logo size="md" wordmarkClassName="hidden sm:inline" />
+        </Link>
 
-        <span className="hidden h-7 w-px bg-white/12 sm:block" />
+        <span className="hidden h-7 w-px bg-border sm:block" />
 
-        <AddressSelector onDeep compact />
+        <AddressSelector compact />
 
         {!hideSearch && <HeaderSearch />}
 
@@ -52,21 +57,6 @@ export function Header() {
         </div>
       </div>
     </header>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-
-function Logo() {
-  return (
-    <Link href="/" className="flex shrink-0 items-center gap-2.5">
-      <span className="flex size-9 items-center justify-center rounded-xl bg-brand text-lg shadow-brand">
-        🍽️
-      </span>
-      <span className="font-display hidden text-[1.35rem] font-extrabold leading-none tracking-tight text-on-deep sm:block">
-        {APP_NAME}
-      </span>
-    </Link>
   );
 }
 
@@ -85,13 +75,13 @@ function HeaderSearch() {
       }}
       className="ml-2 hidden min-w-0 flex-1 lg:block"
     >
-      <label className="flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/8 px-3 transition-colors focus-within:border-white/25 focus-within:bg-white/12">
-        <Search className="size-4 shrink-0 text-on-deep-muted" />
+      <label className="flex h-11 items-center gap-2.5 rounded-full border border-transparent bg-surface-2 px-4 transition-colors focus-within:border-brand focus-within:bg-surface">
+        <Search className="size-[18px] shrink-0 text-muted" />
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="Restoran veya mutfak ara"
-          className="min-w-0 flex-1 bg-transparent text-sm text-on-deep placeholder:text-on-deep-muted focus:outline-none"
+          placeholder="Restoran, yemek ya da mutfak ara"
+          className="min-w-0 flex-1 bg-transparent text-[15px] text-text placeholder:text-muted focus:outline-none"
           aria-label="Restoran ara"
         />
       </label>
@@ -100,6 +90,9 @@ function HeaderSearch() {
 }
 
 /* ------------------------------------------------------------------ */
+
+const ICON_BUTTON =
+  "flex size-10 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-2 hover:text-ink";
 
 function ThemeToggle() {
   const mounted = useMounted();
@@ -125,7 +118,7 @@ function ThemeToggle() {
       type="button"
       onClick={toggle}
       aria-label={dark ? "Aydınlık temaya geç" : "Karanlık temaya geç"}
-      className="hidden size-10 items-center justify-center rounded-xl text-on-deep-muted transition-colors hover:bg-white/10 hover:text-on-deep sm:flex"
+      className={`${ICON_BUTTON} hidden sm:flex`}
     >
       {mounted && dark ? <Sun className="size-5" /> : <Moon className="size-5" />}
     </button>
@@ -133,6 +126,16 @@ function ThemeToggle() {
 }
 
 /* ------------------------------------------------------------------ */
+
+/**
+ * Menüde "Yönetim paneli" kısayolunu gören telefonlar (başında 0 olmadan,
+ * virgülle ayrılmış). Numara repoya girmesin diye ortam değişkeninden okunur.
+ * Kısayol yetki vermez: panel yine yönetici girişi ister.
+ */
+const ADMIN_PANEL_PHONES = (process.env.NEXT_PUBLIC_SOFRA_ADMIN_PHONES ?? "")
+  .split(",")
+  .map((phone) => phone.trim())
+  .filter(Boolean);
 
 function AccountMenu() {
   const user = useSession((s) => s.user);
@@ -146,15 +149,22 @@ function AccountMenu() {
     const onClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
     document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
   if (status !== "authenticated" || !user) {
     return (
       <Link
         href="/giris"
-        className="hidden h-10 items-center rounded-xl border border-white/15 px-3.5 text-sm font-semibold text-on-deep transition-colors hover:bg-white/10 sm:inline-flex"
+        className="hidden h-10 items-center rounded-full border border-border-strong px-4 text-sm font-semibold text-ink transition-colors hover:bg-surface-2 sm:inline-flex"
       >
         Giriş yap
       </Link>
@@ -167,22 +177,27 @@ function AccountMenu() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex h-10 items-center gap-2 rounded-xl px-2 text-sm font-semibold text-on-deep transition-colors hover:bg-white/10"
+        aria-haspopup="menu"
+        className="flex h-10 items-center gap-2 rounded-full py-1 pl-1 pr-2.5 text-sm font-semibold text-ink transition-colors hover:bg-surface-2"
       >
-        <span className="flex size-7 items-center justify-center rounded-full bg-white/12 text-base">
-          {user.avatarEmoji}
-        </span>
+        <Avatar name={user.name} className="size-8 text-xs" />
         <span className="max-w-24 truncate">{user.name.split(" ")[0]}</span>
-        <ChevronDown className="size-4 text-on-deep-muted" />
+        <ChevronDown className="size-4 text-muted" />
       </button>
 
       {open && (
-        <div className="animate-fade-up absolute right-0 mt-2 w-60 overflow-hidden rounded-2xl border border-border bg-surface shadow-float">
-          <div className="border-b border-border px-4 py-3">
-            <p className="truncate text-sm font-bold text-ink">{user.name}</p>
-            <p className="truncate text-xs text-muted">
-              {user.phone ? `0${user.phone}` : user.email}
-            </p>
+        <div
+          role="menu"
+          className="animate-fade-up absolute right-0 mt-2 w-64 overflow-hidden rounded-2xl border border-border bg-surface shadow-float"
+        >
+          <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+            <Avatar name={user.name} className="size-10 text-sm" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-ink">{user.name}</p>
+              <p className="truncate text-xs text-muted">
+                {user.phone ? `0${user.phone}` : user.email}
+              </p>
+            </div>
           </div>
           <nav className="p-1.5">
             {[
@@ -195,6 +210,7 @@ function AccountMenu() {
               <Link
                 key={item.href}
                 href={item.href}
+                role="menuitem"
                 onClick={() => setOpen(false)}
                 className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-text transition-colors hover:bg-surface-2"
               >
@@ -210,16 +226,27 @@ function AccountMenu() {
                 {formatPrice(user.walletBalance)}
               </span>
             </div>
-            <Link
-              href="/isletme"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-text transition-colors hover:bg-surface-2"
-            >
-              <Store className="size-4 text-muted" />
-              Restoran paneli
-            </Link>
+            {[
+              { href: "/isletme", label: "Restoran paneli", icon: Store },
+              { href: "/kurye", label: "Kurye uygulaması", icon: Bike },
+              ...(user.phone && ADMIN_PANEL_PHONES.includes(user.phone)
+                ? [{ href: "/yonetim", label: "Yönetim paneli", icon: ShieldCheck }]
+                : []),
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-text transition-colors hover:bg-surface-2"
+              >
+                <item.icon className="size-4 text-muted" />
+                {item.label}
+              </Link>
+            ))}
             <button
               type="button"
+              role="menuitem"
               onClick={() => {
                 setOpen(false);
                 void logout();
@@ -245,13 +272,13 @@ function CartButton() {
   return (
     <Link
       href="/sepet"
-      className="relative flex h-10 items-center gap-2 rounded-xl bg-brand px-3.5 text-sm font-bold text-brand-contrast transition-colors hover:bg-brand-hover"
+      className="relative flex h-10 items-center gap-2 rounded-full bg-brand px-4 text-sm font-bold text-brand-contrast shadow-brand transition-colors hover:bg-brand-hover"
       aria-label={`Sepetim${mounted && count ? `, ${count} ürün` : ""}`}
     >
       <ShoppingBag className="size-[18px]" />
       <span className="hidden sm:inline">Sepetim</span>
       {mounted && count > 0 && (
-        <span className="tabular flex min-w-5 items-center justify-center rounded-full bg-black/20 px-1.5 text-xs font-extrabold">
+        <span className="tabular flex min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-xs font-extrabold text-brand">
           {count}
         </span>
       )}

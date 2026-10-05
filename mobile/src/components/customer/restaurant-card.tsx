@@ -1,26 +1,29 @@
 import { router } from "expo-router";
-import { Bike, Star } from "lucide-react-native";
+import { Bike, Clock, MapPin, Star } from "lucide-react-native";
 import { Pressable, StyleSheet, View } from "react-native";
 import {
+  CATEGORIES,
   formatDistance,
   formatPrice,
+  restaurantPhoto,
   type RestaurantListItem,
 } from "@sofra/core";
-import { FoodArt } from "@/components/ui/food-art";
-import { Badge } from "@/components/ui/surfaces";
+import { FoodPhoto } from "@/components/ui/food-photo";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/theme";
 
 /**
- * Restoran kartı.
+ * Restoran kartı — fotoğraf üstte, bilgi altta; web'deki kartla aynı dil.
  *
- * İki biçim var — web'deki düzenin aynısı: sıralamadaki ilk restoran geniş
- * kartla açılır (`featured`), gerisi kompakt satır olur. Yapı "en iyi eşleşme"
- * bilgisini kodlar; süsleme değil.
+ * İki boy var: sıralamadaki ilk restoran geniş kartla açılır (`featured`,
+ * açıklamasıyla), gerisi daha kısa fotoğraflı kart olur. Yapı "en iyi
+ * eşleşme" bilgisini kodlar; süsleme değil.
  *
  * Kapalı veya teslimat alanı dışındaki restoran soluk gösterilir ama
  * gizlenmez — kullanıcı neden sipariş veremediğini görsün.
  */
+
+const cuisineName = (tag: string) => CATEGORIES.find((c) => c.id === tag)?.name ?? tag;
 
 export function RestaurantCard({
   restaurant,
@@ -37,148 +40,154 @@ export function RestaurantCard({
     : restaurant.temporarilyClosed
       ? "Şu an mola veriyor"
       : !restaurant.open
-        ? "Şu an kapalı"
+        ? `${restaurant.workingHours.open}'de açılıyor`
         : null;
 
-  const open = () => router.push(`/restoran/${restaurant.slug}`);
-
-  const meta = (
-    <View style={styles.meta}>
-      <View style={styles.metaItem}>
-        <Star size={13} color={t.colors.saffron} fill={t.colors.saffron} />
-        <Text variant="small" weight="semibold" tone="ink" tabular>
-          {restaurant.rating.toFixed(1)}
-        </Text>
-        <Text variant="caption">({restaurant.ratingCount})</Text>
-      </View>
-      <Text variant="caption">·</Text>
-      <Text variant="small" tabular>
-        {restaurant.etaText}
-      </Text>
-      <Text variant="caption">·</Text>
-      <Text variant="small" tabular>
-        {formatDistance(restaurant.distanceKm)}
-      </Text>
-    </View>
-  );
-
-  const delivery = (
-    <View style={styles.meta}>
-      <Bike size={13} color={t.colors.muted} />
-      <Text variant="caption">
-        {restaurant.deliveryFee === 0
-          ? "Ücretsiz teslimat"
-          : `${formatPrice(restaurant.deliveryFee)} teslimat`}
-      </Text>
-      <Text variant="caption">·</Text>
-      <Text variant="caption">min. {formatPrice(restaurant.minBasket)}</Text>
-    </View>
-  );
-
-  if (featured) {
-    return (
-      <Pressable
-        accessibilityRole="button"
-        onPress={open}
-        style={({ pressed }) => [
-          styles.featured,
-          {
-            backgroundColor: t.colors.surface,
-            borderColor: t.colors.border,
-            borderRadius: t.radius.lg,
-            opacity: pressed ? 0.94 : unavailable ? 0.62 : 1,
-          },
-          t.shadow.md,
-        ]}
-      >
-        <FoodArt
-          seed={restaurant.coverSeed}
-          emoji={restaurant.emoji}
-          tone={restaurant.tags[0]}
-          radius={0}
-          emojiSize={54}
-          style={styles.featuredArt}
-        />
-
-        <View style={styles.featuredBody}>
-          <View style={styles.badges}>
-            <Badge label="En iyi eşleşme" tone="brand" />
-            {restaurant.badges.slice(0, 1).map((b) => (
-              <Badge key={b} label={b} tone="saffron" />
-            ))}
-            {reason ? <Badge label={reason} tone="danger" /> : null}
-          </View>
-
-          <Text variant="title" numberOfLines={1}>
-            {restaurant.name}
-          </Text>
-          <Text variant="small" numberOfLines={2}>
-            {restaurant.description}
-          </Text>
-          {meta}
-          {delivery}
-        </View>
-      </Pressable>
-    );
-  }
+  const freeDelivery =
+    restaurant.freeDeliveryOver === null
+      ? null
+      : restaurant.freeDeliveryOver === 0
+        ? "Teslimat ücretsiz"
+        : `${restaurant.freeDeliveryOver} ₺ üzeri ücretsiz`;
 
   return (
     <Pressable
       accessibilityRole="button"
-      onPress={open}
+      accessibilityLabel={`${restaurant.name}, ${restaurant.rating.toFixed(1)} puan, ${restaurant.etaText}`}
+      onPress={() => router.push(`/restoran/${restaurant.slug}`)}
       style={({ pressed }) => [
-        styles.compact,
+        styles.card,
         {
           backgroundColor: t.colors.surface,
           borderColor: t.colors.border,
           borderRadius: t.radius.lg,
-          opacity: pressed ? 0.94 : unavailable ? 0.62 : 1,
+          opacity: unavailable ? 0.7 : 1,
+          transform: [{ scale: pressed ? 0.985 : 1 }],
         },
-        t.shadow.sm,
+        featured ? t.shadow.md : t.shadow.sm,
       ]}
     >
-      <FoodArt
-        seed={restaurant.coverSeed}
-        emoji={restaurant.emoji}
-        tone={restaurant.tags[0]}
-        radius={t.radius.md}
-        emojiSize={30}
-        style={styles.compactArt}
-      />
+      <View>
+        <FoodPhoto
+          src={restaurantPhoto(restaurant)}
+          seed={restaurant.coverSeed}
+          tone={restaurant.tags[0]}
+          radius={0}
+          iconSize={featured ? 40 : 32}
+          priority={featured}
+          style={{ height: featured ? 176 : 132, width: "100%" }}
+        />
 
-      <View style={styles.compactBody}>
-        <Text variant="bodyLarge" weight="semibold" tone="ink" numberOfLines={1}>
-          {restaurant.name}
-        </Text>
+        {/* Fotoğrafın üstündeki rozetler */}
+        <View style={styles.overlayRow} pointerEvents="none">
+          {freeDelivery ? (
+            <View style={[styles.pill, { backgroundColor: t.colors.pistachio }]}>
+              <Text variant="caption" weight="bold" style={styles.pillText}>
+                {freeDelivery}
+              </Text>
+            </View>
+          ) : null}
+          {restaurant.badges.slice(0, featured ? 2 : 1).map((badge) => (
+            <View key={badge} style={[styles.pill, styles.pillDark]}>
+              <Text variant="caption" weight="semibold" style={styles.pillText}>
+                {badge}
+              </Text>
+            </View>
+          ))}
+        </View>
+
         {reason ? (
-          <Text variant="caption" tone="danger">
-            {reason}
+          <View style={[StyleSheet.absoluteFill, styles.closed]}>
+            <View style={[styles.closedChip, { backgroundColor: t.colors.surface }]}>
+              <Text variant="small" weight="bold" tone="ink">
+                {reason}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={[styles.body, featured && { paddingVertical: 14 }]}>
+        <View style={styles.titleRow}>
+          <Text variant={featured ? "title" : "bodyLarge"} weight="semibold" tone="ink" numberOfLines={1} style={{ flex: 1 }}>
+            {restaurant.name}
           </Text>
-        ) : (
-          <Text variant="caption" numberOfLines={1}>
-            {restaurant.tags.slice(0, 3).join(" · ")}
+          <View style={[styles.rating, { backgroundColor: t.colors.saffronSoft }]}>
+            <Star size={12} color={t.colors.saffron} fill={t.colors.saffron} />
+            <Text variant="caption" weight="bold" tabular style={{ color: t.colors.saffron }}>
+              {restaurant.rating.toFixed(1)}
+            </Text>
+          </View>
+        </View>
+
+        <Text variant="caption" numberOfLines={1}>
+          {restaurant.tags.slice(0, 3).map(cuisineName).join(", ")} · {restaurant.ratingCount} değerlendirme
+        </Text>
+
+        {featured && restaurant.description ? (
+          <Text variant="small" tone="muted" numberOfLines={2}>
+            {restaurant.description}
           </Text>
-        )}
-        {meta}
-        {delivery}
+        ) : null}
+
+        <View style={styles.meta}>
+          <View style={styles.metaItem}>
+            <Clock size={13} color={t.colors.muted} />
+            <Text variant="caption" tabular>
+              {restaurant.etaText}
+            </Text>
+          </View>
+          <View style={styles.metaItem}>
+            <MapPin size={13} color={t.colors.muted} />
+            <Text variant="caption" tabular>
+              {formatDistance(restaurant.distanceKm)}
+            </Text>
+          </View>
+          <View style={styles.metaItem}>
+            <Bike size={13} color={t.colors.muted} />
+            <Text variant="caption" tabular>
+              {restaurant.deliveryFee === 0 ? "Ücretsiz" : formatPrice(restaurant.deliveryFee)}
+            </Text>
+          </View>
+          <Text variant="caption" tabular>
+            Min. {formatPrice(restaurant.minBasket)}
+          </Text>
+        </View>
       </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  featured: { overflow: "hidden", borderWidth: StyleSheet.hairlineWidth * 2 },
-  featuredArt: { height: 150, width: "100%" },
-  featuredBody: { padding: 16, gap: 5 },
-  badges: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginBottom: 2 },
-  compact: {
+  card: { overflow: "hidden", borderWidth: StyleSheet.hairlineWidth * 2 },
+  overlayRow: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    right: 10,
     flexDirection: "row",
-    gap: 12,
-    padding: 12,
-    borderWidth: StyleSheet.hairlineWidth * 2,
+    flexWrap: "wrap",
+    gap: 6,
   },
-  compactArt: { width: 74, height: 74 },
-  compactBody: { flex: 1, gap: 3, justifyContent: "center" },
-  meta: { flexDirection: "row", alignItems: "center", gap: 5, flexWrap: "wrap" },
-  metaItem: { flexDirection: "row", alignItems: "center", gap: 3 },
+  pill: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
+  pillDark: { backgroundColor: "rgba(0,0,0,0.5)" },
+  pillText: { color: "#ffffff" },
+  closed: {
+    backgroundColor: "rgba(46,23,32,0.62)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closedChip: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
+  body: { paddingHorizontal: 14, paddingVertical: 12, gap: 4 },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  rating: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  meta: { flexDirection: "row", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 4 },
+  metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
 });

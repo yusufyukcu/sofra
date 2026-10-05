@@ -1,6 +1,7 @@
 "use client";
 
-import { Search, SearchX, Sparkles, X } from "lucide-react";
+import { Search, SearchX, Sparkles, UtensilsCrossed, X } from "lucide-react";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CATEGORIES } from "@/lib/constants";
@@ -16,12 +17,17 @@ import {
 import { useDebounced } from "@/lib/hooks";
 import { deliveryLabel, deliveryPoint, useSession } from "@/lib/store/session";
 import type { Banner, CategoryId } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { Button, EmptyState } from "@/components/ui/primitives";
 import { ActiveOrdersStrip } from "@/components/order/active-orders-strip";
 import { PartnerBanner } from "@/components/partner/partner-banner";
 import { BannerSlider } from "./banner-slider";
 import { CategoryRail, FilterBar, FilterPanel } from "./filters";
+import { HeroArt } from "./hero-art";
 import { RestaurantCard } from "./restaurant-card";
+
+/** Vitrindeki hızlı mutfak kısayolları */
+const POPULAR = ["burger", "pizza", "kebap", "tatli", "kahvalti", "uzakdogu"];
 
 /**
  * Anasayfa keşif deneyimi.
@@ -104,6 +110,8 @@ export function DiscoveryClient({
   }, [decorated, filters, debouncedQuery]);
 
   const deliverable = decorated.filter((r) => r.deliverable);
+  /** Şu an sipariş verilebilenler: adrese teslim ediyor ve açık */
+  const orderableCount = deliverable.filter((r) => r.open).length;
   const avgEta = deliverable.length
     ? Math.round(
         deliverable.reduce((sum, r) => sum + (r.etaMin + r.etaMax) / 2, 0) /
@@ -126,49 +134,99 @@ export function DiscoveryClient({
 
   return (
     <>
-      {/* Koyu bant — başlıktan devam eder, tek işi burada karşılar */}
-      <section className="band-deep">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 pb-6 pt-5 lg:flex-row lg:items-end lg:justify-between lg:gap-10 lg:px-6 lg:py-8">
-          <h1 className="font-display max-w-[16ch] text-[1.75rem] font-extrabold leading-[1.08] text-on-deep sm:text-4xl lg:max-w-none">
-            Bugün canın ne çekiyor?
-          </h1>
+      {/* Vitrin — koyu bant üstünde yemek fotoğrafları */}
+      <section className="band-deep relative isolate overflow-hidden">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -left-32 -top-40 -z-10 size-[30rem] rounded-full bg-brand/30 blur-[110px]"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-48 right-[8%] -z-10 size-[26rem] rounded-full bg-saffron/25 blur-[120px]"
+        />
+        <div className="mx-auto grid max-w-7xl gap-6 px-4 pb-7 pt-6 lg:grid-cols-[minmax(0,1fr)_25rem] lg:items-center lg:gap-12 lg:px-6 lg:py-10 xl:grid-cols-[minmax(0,1fr)_28rem]">
+          <div className="min-w-0">
+            <p className="tabular inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-on-deep ring-1 ring-white/10">
+              <span className="relative flex size-2">
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-pistachio opacity-60 motion-reduce:hidden" />
+                <span className="relative inline-flex size-2 rounded-full bg-pistachio" />
+              </span>
+              {orderableCount} restoran şu an sipariş alıyor
+            </p>
 
-          <form onSubmit={(e) => e.preventDefault()} className="max-w-xl lg:hidden">
-            <label className="flex h-12 items-center gap-2.5 rounded-2xl border border-white/12 bg-white/10 px-4 transition-colors focus-within:border-white/30 focus-within:bg-white/15">
-              <Search className="size-[18px] shrink-0 text-on-deep-muted" />
-              <input
-                value={filters.query}
-                onChange={(e) => setFilters({ ...filters, query: e.target.value })}
-                placeholder="Restoran veya mutfak ara"
-                aria-label="Restoran ara"
-                className="min-w-0 flex-1 bg-transparent text-[15px] text-on-deep placeholder:text-on-deep-muted focus:outline-none"
-              />
-              {filters.query && (
-                <button
-                  type="button"
-                  onClick={() => setFilters({ ...filters, query: "" })}
-                  aria-label="Aramayı temizle"
-                >
-                  <X className="size-4 text-on-deep-muted" />
-                </button>
+            <h1 className="font-display mt-4 max-w-[15ch] text-[2rem] font-extrabold leading-[1.04] text-on-deep sm:text-5xl lg:text-[3.4rem]">
+              Bugün canın ne çekiyor?
+            </h1>
+
+            <p className="tabular mt-3 max-w-xl text-sm leading-relaxed text-balance text-on-deep-muted sm:text-base">
+              {hasLocation ? (
+                <>
+                  <span className="font-semibold text-on-deep">{label}</span>{" "}
+                  adresine {deliverable.length} restoran teslimat yapıyor
+                  {avgEta > 0 && <> · ortalama {avgEta} dakikada kapında</>}
+                </>
+              ) : (
+                <>
+                  Şu an Kadıköy merkez için listeliyoruz. Üstteki adres alanından
+                  kendi konumunu seç, süreler sana göre hesaplansın.
+                </>
               )}
-            </label>
-          </form>
+            </p>
 
-          <p className="tabular text-sm leading-relaxed text-balance text-on-deep-muted lg:max-w-md lg:pb-1 lg:text-right">
-            {hasLocation ? (
-              <>
-                <span className="font-semibold text-on-deep">{label}</span>{" "}
-                adresine {deliverable.length} restoran teslimat yapıyor
-                {avgEta > 0 && <> · ortalama {avgEta} dakika</>}
-              </>
-            ) : (
-              <>
-                Şu an Kadıköy merkez için listeliyoruz. Üstteki adres alanından
-                kendi konumunu seç, süreler sana göre hesaplansın.
-              </>
-            )}
-          </p>
+            <form onSubmit={(e) => e.preventDefault()} className="mt-5 max-w-xl lg:hidden">
+              <label className="flex h-12 items-center gap-2.5 rounded-full bg-surface px-4 shadow-float transition-shadow focus-within:ring-2 focus-within:ring-brand">
+                <Search className="size-[18px] shrink-0 text-muted" />
+                <input
+                  value={filters.query}
+                  onChange={(e) => setFilters({ ...filters, query: e.target.value })}
+                  placeholder="Restoran, yemek ya da mutfak ara"
+                  aria-label="Restoran ara"
+                  className="min-w-0 flex-1 bg-transparent text-[15px] text-text placeholder:text-muted focus:outline-none"
+                />
+                {filters.query && (
+                  <button
+                    type="button"
+                    onClick={() => setFilters({ ...filters, query: "" })}
+                    aria-label="Aramayı temizle"
+                    className="flex size-7 items-center justify-center rounded-full text-muted hover:bg-surface-2"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
+              </label>
+            </form>
+
+            <div className="no-scrollbar -mx-4 mt-5 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:px-0">
+              {POPULAR.map((id) => {
+                const category = CATEGORIES.find((c) => c.id === id);
+                if (!category?.image) return null;
+                const active = filters.category === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() =>
+                      setFilters({ ...filters, category: active ? "all" : (id as CategoryId) })
+                    }
+                    className={cn(
+                      "inline-flex shrink-0 items-center gap-2 rounded-full py-1 pl-1 pr-3.5 text-sm font-semibold transition-colors",
+                      active
+                        ? "bg-brand text-brand-contrast"
+                        : "bg-white/10 text-on-deep ring-1 ring-white/12 hover:bg-white/16"
+                    )}
+                  >
+                    <span className="relative size-7 overflow-hidden rounded-full">
+                      <Image src={category.image} alt="" fill sizes="28px" className="object-cover" />
+                    </span>
+                    {category.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <HeroArt className="hidden lg:block" />
         </div>
       </section>
 
@@ -262,7 +320,7 @@ export function DiscoveryClient({
 
               {results.length === 0 ? (
                 <EmptyState
-                  emoji="🔍"
+                  icon={UtensilsCrossed}
                   title="Bu kriterlerde restoran çıkmadı"
                   description="Filtreleri gevşet ya da başka bir mutfak dene."
                   action={

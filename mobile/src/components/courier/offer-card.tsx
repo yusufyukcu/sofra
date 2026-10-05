@@ -120,10 +120,9 @@ export function OfferCard({
 
       <MapView
         height={150}
-        route={{ from: order.restaurantLocation, to: order.address.point }}
         markers={[
-          { point: order.restaurantLocation, emoji: "🏪", color: t.colors.deep },
-          { point: order.address.point, emoji: "🏠", color: t.colors.pistachio },
+          { point: order.restaurantLocation, icon: "Store", color: t.colors.deep },
+          { point: order.address.point, icon: "House", color: t.colors.pistachio },
         ]}
       />
 
@@ -136,7 +135,7 @@ export function OfferCard({
         <Leg
           icon={<MapPin size={15} color={t.colors.muted} />}
           title={`${order.address.title} · ${order.address.district}`}
-          subtitle={`Teslim · ${formatDistance(offer.dropoffKm)} sürüş`}
+          subtitle={`Teslim · ${formatDistance(offer.dropoffKm)} kuş uçuşu`}
         />
       </View>
 

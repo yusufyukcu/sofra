@@ -102,7 +102,11 @@ Ayrıntılar: [`mobile/README.md`](mobile/README.md)
 ### Sipariş takibi & satış sonrası
 - Canlı durum: **Onay bekliyor → Hazırlanıyor → Yolda → Teslim edildi**
 - **Supabase Realtime** ile anında güncelleme (bağlantı koparsa yoklama yedeği)
-- **Kurye canlı harita takibi**; kurye konumu doğrudan haritayı kaydırır
+- **Kurye canlı harita takibi:** kurye konumu kuryenin cihazından gelir ve
+  işaretçi yolda akarak ilerler; çizgi, yol tarifi servisinden (OSRM) gelen
+  **gerçek yoldur** — önce kurye → restoran, sonra kurye → adres, kurye
+  saparsa bulunduğu yerden yenisi. Kalan mesafe ve süre kuryenin önündeki
+  yoldan hesaplanır; konum 90 sn'dir gelmiyorsa ekran bunu söyler
 - **Maskeli arama:** müşteri kuryeyi platform hattından arar, iki taraf da
   birbirinin numarasını görmez (test modunda simülasyon)
 - Sipariş iptali → online ödemede kalan tutar cüzdana bir kez iade
@@ -174,7 +178,12 @@ mesai anahtarı.
   Teslim ettim (kazanç ve hakediş yazılır)
 - **Maskeli arama** — müşterinin numarası kuryeye hiç gönderilmez
 - **Konum** — müşterinin haritasına Realtime ile gider; aynı nokta tekrar
-  gönderilirse yayın yapılmaz
+  gönderilirse yayın yapılmaz. Kapalı alandaki sapmalı GPS okumaları
+  (doğruluk > 100 m) yakın zamanda iyi konum varsa gönderilmez
+- **Yol rotası ve kalan süre** haritada; navigasyon düğmesi Google
+  Haritalar'ı açar. Webde teslimat sürerken ekran kararmaz (tarayıcı arka
+  plandaki sekmenin konumunu göndermez); kilit ekranında da çalışan takip
+  mobil uygulamadadır
 - **Kazanç, bahşiş, hakediş** ve **performans** (süre, kabul oranı, puan)
 
 ---
@@ -188,7 +197,7 @@ Her manuel işlem iz kaydına yazılır.
 - **Görsel onayları**, **kurye aktivasyonu / askıya alma**
 - **Kara liste** — engellenen müşterinin oturumu anında düşer (Auth ban)
 - **Canlı operasyon** (Realtime): harita + liste, gecikme alarmı,
-  “kurye bekleniyor” işareti, manuel iptal ve iade, **demo modu anahtarı**
+  “kurye bekleniyor” işareti, manuel iptal ve iade, **demo girişleri anahtarı**
 - **Siparişler & iade** (`/yonetim/siparisler`): kod, ad ya da telefonla
   arama; **teslim edilmiş siparişe kısmi/tam iade** (kalan tutarla sınırlı)
 - **Canlı destek konsolu** (`/yonetim/destek`): temsilci bekleyen
@@ -210,7 +219,8 @@ Hesabım ekranından açılır ve ayrı oturum kullanır.
   değerlendirme + bahşiş, **adres ekleme (GPS)**, **kartlarım**,
   **bildirimler**, **canlı destek**
 - **Kurye:** telefon + kodla giriş, mesai, 45 sn teklif, aktif teslimat,
-  maskeli arama, gerçek GPS ile konum, kazanç ve performans
+  maskeli arama, gerçek GPS ile konum — **geliştirme/mağaza derlemesinde
+  arka planda da** (ekran kilitliyken, navigasyondayken), kazanç ve performans
 - **Oturum:** erişim + yenileme token'ı cihazın güvenli alanında; süre
   dolmadan ya da 401'de otomatik yenilenir
 
@@ -219,13 +229,34 @@ Hesabım ekranından açılır ve ayrı oturum kullanır.
 | Kimlik | `httpOnly` çerez (Supabase Auth) | Bearer + yenileme token'ı, Keychain / EncryptedSharedPreferences |
 | Canlı veri | Supabase Realtime (özel kanallar) | Aynı GET uçlarını yoklama (2–3 sn), arka planda durur |
 | Harita | Leaflet | OpenStreetMap karoları + `react-native-svg` |
-| Kurye konumu | Simüle sürüş / cihaz konumu | Cihazın GPS'i (`expo-location`) |
+| Kurye konumu | Tarayıcı konumu (sekme açıkken) | Cihazın GPS'i (`expo-location`); derlemede arka planda da, Expo Go'da yalnızca açıkken |
 
 ### Paylaşılan çekirdek — `packages/core`
 
 Alan modeli, fiyat/kupon hesabı, keşif filtreleri, sepet kuralları,
 biçimlendiriciler, API istemcisi ve **tasarım jetonları** web ve mobilde
 aynı dosyadan okunur. Palet ayrışması denetlenir: `npm run check:theme`.
+
+### Marka, ikonlar ve fotoğraflar
+
+- **Logo** — "buharlı kâse": kâseden yükselen buhar Sofra'nın "S"sini çizer.
+  Geometri `packages/core/src/brand.ts` içinde tek yerde; web
+  (`components/brand/logo.tsx`), mobil (`mobile/src/components/brand/logo.tsx`)
+  ve uygulama simgeleri aynı ölçüleri kullanır. İşaret değişirse
+  `npm run brand:assets` favicon'u, PWA ve iOS/Android simgelerini ve açılış
+  görselini yeniden üretir.
+- **İkonlar** — arayüzde emoji yok; Lucide ikonları kullanılır. Hangi kavramın
+  hangi ikonla çizileceği (sipariş durumu, ödeme yöntemi, adres etiketi,
+  mutfak) `packages/core/src/icons.ts` içinde ad olarak tutulur, iki istemci
+  aynı adı kendi Lucide paketinden çizer. Veri modelindeki `emoji` alanları
+  API uyumu için duruyor, gösterilmiyor. Kişiler baş harfli avatarla görünür.
+- **Yemek fotoğrafları** — `public/images/food` altında, Creative Commons
+  lisanslı (Openverse: Flickr, Wikimedia Commons, Rawpixel). Hepsine aynı
+  renk işlemesi uygulandı (sıcaklık, doygunluk, kontrast, yerel kontrast,
+  keskinlik, hafif vinyet); atıflar `lib/image-credits.ts` →
+  `/gorsel-kaynaklari`. Mobil uygulama aynı dosyaları web sunucusundan
+  `expo-image` ile önbelleğe alarak gösterir; fotoğrafı olmayan ürünlerde
+  mutfağa göre renklenen degrade ve mutfak ikonu çizilir.
 
 ---
 
@@ -265,7 +296,7 @@ Mobil: [`mobile/README.md`](mobile/README.md) · Testler: [`tests/README.md`](te
 | Zamanlanmış iş | **pg_cron** — kurye dağıtımı, süresi dolan kod temizliği |
 | Dosya | **Supabase Storage** — özel bucket, erişim kontrollü `/media/*` |
 | Bildirim | **Web Push (VAPID)** + service worker, gönderim kuyruğu |
-| Dil / stil | TypeScript, Tailwind CSS v4, Bricolage Grotesque + Geist |
+| Dil / stil | TypeScript, Tailwind CSS v4, Bricolage Grotesque + Figtree, Lucide ikonları |
 | Durum | Zustand (+ persist) |
 | Harita | Leaflet + OpenStreetMap (anahtar gerekmez) |
 | Mobil | Expo SDK 57, Expo Router, React Native |
@@ -310,12 +341,13 @@ Yerel ayarlar `.env.development.local` (Vercel bu dosyaya dokunmaz):
 | Değişken | Ne işe yarar |
 |---|---|
 | `SOFRA_DEMO_PASSWORD` | İşletme/yönetici demo hesaplarının parolası (`db:seed` üretir) |
-| `SOFRA_SIM_SPEED` | Tohumlamada demo hız çarpanı (sonra yönetici panelinden değişir) |
+| `SOFRA_ROUTING_URL` | Yol tarifi (OSRM uyumlu; `{profile}` → `car`/`bike`). Boş: herkese açık FOSSGIS sunucusu (yalnızca geliştirme), `off`: kapalı |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` · `VAPID_PRIVATE_KEY` · `VAPID_SUBJECT` | Web Push anahtarları (yoksa push kapalı, bildirim kutusu çalışır) |
 | `SOFRA_SMS_PROVIDER` · `SOFRA_EMAIL_PROVIDER` | Boş/`test` → kod ekranda |
 | `SOFRA_VOICE_PROVIDER` | Boş/`test` → maskeli arama simülasyonu |
 | `SOFRA_PAYMENT_PROVIDER` | Boş → ödeme simülasyonu, yalnızca test kartları |
 | `SOFRA_DB_POOL_MAX` | Sunucu başına veritabanı bağlantısı (varsayılan 5) |
+| `NEXT_PUBLIC_SOFRA_ADMIN_PHONES` | Hesap menüsünde "Yönetim paneli" kısayolunu gören telefonlar (virgülle, başında 0 olmadan). Yalnızca kısayol: panel yine yönetici girişi ister |
 
 Vercel'de üretim ve önizleme için ayrı VAPID anahtarları tanımlıdır.
 
@@ -332,13 +364,36 @@ npm run db:seed -- --reset      # tüm uygulama verisini silip yeniden doldurur
 > çıkmadan önce geliştirme için ayrı bir Supabase projesi (ya da Supabase
 > branching) açman, testleri ve `--reset`'i yalnızca orada çalıştırman önerilir.
 
-### Demo (sunum) modu
+### Demo girişleri ve simülasyon
 
-Uygulama **gerçek çalışır**: siparişi yalnızca mesaideki kuryeler üstlenir,
-süreler gerçektir, giriş ekranında demo düğmesi yoktur. Yönetici panelindeki
-**Canlı operasyon → Demo modu (sunum)** anahtarı yalnızca kuryesiz bir
-tanıtım içindir: açıkken mesaide kurye yoksa sipariş simülasyonla ilerler,
-süreler seçilen kat (1×–30×) hızlı akar ve “demo hesabıyla giriş” görünür.
+Uygulama **gerçek çalışır** ve teslimat simülasyonu yoktur: siparişi
+yalnızca mesaideki kuryeler üstlenir, süreler gerçektir, kurye konumu
+kuryenin cihazından, rota yol tarifi servisinden gelir. Mesaide kurye yoksa
+sipariş "kurye bekleniyor" durumunda kalır. Yönetici panelindeki **Canlı
+operasyon → Demo girişleri (sunum)** anahtarı yalnızca giriş ekranlarında
+hazır demo hesaplarını gösterir.
+
+### Yol tarifi (OSRM)
+
+Kuryenin izleyeceği gerçek yol `lib/routing.ts` ile OSRM uyumlu bir
+servisten alınır. `SOFRA_ROUTING_URL` boşsa FOSSGIS'in herkese açık sunucusu
+kullanılır — saniyede en fazla 1 istek ve ticari olmayan kullanım şartıyla;
+geliştirme için yeterli, **canlı için değil**. Canlıya çıkmadan önce kendi
+OSRM sunucunu kur (Türkiye OpenStreetMap verisiyle) ve adresini yaz:
+
+```bash
+wget https://download.geofabrik.de/europe/turkey-latest.osm.pbf
+docker run -t -v "$PWD:/data" ghcr.io/project-osrm/osrm-backend osrm-extract -p /opt/car.lua /data/turkey-latest.osm.pbf
+docker run -t -v "$PWD:/data" ghcr.io/project-osrm/osrm-backend osrm-partition /data/turkey-latest.osrm
+docker run -t -v "$PWD:/data" ghcr.io/project-osrm/osrm-backend osrm-customize /data/turkey-latest.osrm
+docker run -p 5000:5000 -v "$PWD:/data" ghcr.io/project-osrm/osrm-backend osrm-routed --algorithm mld /data/turkey-latest.osrm
+# → SOFRA_ROUTING_URL=https://osrm.senin-alanin.com
+# Bisikletli kurye için bike.lua ile ikinci bir örnek kurup önüne /car ve /bike
+# yolları koyarsan: SOFRA_ROUTING_URL=https://osrm.senin-alanin.com/{profile}
+```
+
+Servis yanıt vermezse teslimat akışı etkilenmez: harita çizgisiz kalır,
+kalan süre kuş uçuşu mesafeden tahmin edilir.
 
 ---
 
@@ -386,6 +441,8 @@ npm run test:e2e        # sunucu çalışırken; ayrıntı: tests/README.md
 | Mobil push | Bildirim kutusu (uygulama içi) | Expo Notifications + EAS (`push_subscriptions.kind = 'expo'` hazır) |
 | Mobil canlı veri | Yoklama | Realtime'ın mobile taşınması (yalnızca `use-live.ts` değişir) |
 | Veritabanı ortamları | Tek veritabanı | Geliştirme için ayrı Supabase projesi / branching |
+| Yol tarifi | Herkese açık OSRM (FOSSGIS): saniyede 1 istek, ticari kullanım yok | Kendi OSRM sunucun ya da ticari servis, `SOFRA_ROUTING_URL` |
+| Kurye konumu arka planda | Geliştirme derlemesinde hazır; Expo Go'da yok (uygulama açık kalmalı) | EAS Build (Android ön plan servisi, iOS arka plan konumu açık) |
 | Mağaza dağıtımı | Expo Go | EAS Build + App Store / Play Store |
 
 Her biri tek bir modül değiştirilerek gerçeğe bağlanabilecek şekilde yalıtılmıştır.

@@ -157,8 +157,12 @@ Hangi kanalın dinlenebileceğine veritabanı politikası karar verir.
 → { "restaurants": [{ …, "distanceKm": 0.6, "deliverable": true, "open": true,
                       "etaText": "26-36 dk", "isFavorite": false }],
     "featured": [...],          // yönetimin öne çıkardıkları, sıralı
-    "total": 16, "filters": {…}, "point": {…}, "categories": [...], "banners": [...] }
+    "total": 16, "filters": {…}, "point": {…},
+    "categories": [{ "id": "burger", "name": "Burger", "image": "/images/food/…", "count": 3 }, …],
+    "banners": [...] }
 ```
+`categories[].count`: seçili mutfaktan bağımsız, diğer filtreler uygulanmış listede o
+mutfaktan kaç restoran olduğu (`all` → toplam, `top-rated` → 4,5 ve üzeri puanlılar).
 Teslimat bölgesi: restoran poligon çizdiyse nokta-çokgen testi, yoksa yarıçap.
 Onaysız/askıdaki restoran hiç listelenmez.
 
@@ -216,11 +220,16 @@ Hatalar: `restaurant_closed`, `out_of_delivery_zone`, `below_min_basket`,
 ```jsonc
 GET /orders      → { "orders": [...] }
 GET /orders/:id  → { "order": {…}, "progress": 0.57, "remainingMinutes": 2,
-                     "timing": { "simSpeed": 12, "demoMode": true } }
+                     "arrivalAt": "2026-10-04T12:41:10.000Z" }
 ```
-`timing`, istemcinin ilerleme çubuğunu kendisi güncelleyebilmesi içindir.
-Sipariş alanları arasında `courierStage`, `courierPoint`, `simulated`
-(demo simülasyonu), `refundedTotal` bulunur.
+Kurye paketi almışsa ve konumu canlıysa (son 90 sn) `remainingMinutes` ve
+`arrivalAt` kuryenin önündeki gerçek yoldan hesaplanır; değilse planlanan
+saatten (`order.etaAt`). Sipariş alanları arasında `courierStage`,
+`courierPoint` (kuryenin cihazından; kurye atanmadan yok), `courierLocatedAt`,
+`courierRoute` (şu anki ayağın yol çizgisi, `[{ lat, lng }]`),
+`courierRouteLeg` (`pickup`: kurye → restoran, `dropoff`: → adres),
+`courierRouteDistanceM`, `courierRouteDurationS`, `refundedTotal` bulunur.
+Rota ayağı aşamayla uyuşmuyorsa (yenisi hesaplanıyor) çizilmez.
 
 ### `POST /orders/:id/cancel`
 ```jsonc
@@ -506,8 +515,12 @@ olmayan) kurye sunucu tarafından mesaiden düşürülür.
 ### `POST /courier/location`
 `{ "point": { "lat": 40.984, "lng": 29.027 } }` → `{ "courier" }`. Mesaideyken
 düzenli gönderilir (teslimatta 3 sn, beklerken 15 sn, dururken dakikada bir
-varlık sinyali). Açık teslimatın canlı konumu da güncellenir (müşteriye
-Realtime `courier_moved`); aynı nokta tekrar gönderilirse yayın yapılmaz.
+varlık sinyali; mobilde arka planda da). Açık teslimatın canlı konumu da
+güncellenir (müşteriye Realtime `courier_moved`, `courierPoint` +
+`courierLocatedAt`); aynı nokta tekrar gönderilirse yayın yapılmaz, konum
+zamanı 30 sn'de bir tazelenir. Ayağın rotası yoksa ya da kurye rotadan 60
+m'den fazla saptıysa yanıttan sonra yeni yol rotası istenir (en fazla 20
+sn'de bir).
 
 ## Teslimat
 
@@ -581,11 +594,11 @@ hazırlanıyor ama vardiyadaki kuryeler teklifi karşılıksız bırakıyor.
 
 ### `GET /admin/settings` · `PATCH /admin/settings`
 ```jsonc
-{ "demoMode": true, "simSpeed": 12 }   // simSpeed 1–60
-→ { "settings": { "demoMode", "simSpeed" } }
+{ "demoMode": true } → { "settings": { "demoMode" } }
 ```
-Demo modu açıkken mesaide kurye yoksa sipariş simülasyonla ilerler, süreler
-hızlanır ve müşteri demo girişi açılır. Hata: `invalid_setting`.
+Demo girişleri (sunum): açıkken giriş ekranlarında hazır demo hesapları
+görünür. Teslimatı her durumda gerçek kuryeler yapar; simülasyon ve süre
+hızlandırma yoktur. Hata: `invalid_setting`.
 
 ## Siparişler ve iade
 

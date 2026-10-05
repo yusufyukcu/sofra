@@ -1,13 +1,14 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Figtree } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { AppChrome } from "@/components/layout/app-chrome";
 
 /**
  * Tipografi iki aileye dayanır:
- *   Bricolage Grotesque → başlıklar ve fiyatlar (pazar tabelası karakteri)
- *   Geist               → arayüz ve gövde metni (nötr, yoğun ekranlarda okunur)
+ *   Bricolage Grotesque → logo, başlıklar ve fiyatlar (pazar tabelası karakteri)
+ *   Figtree             → arayüz ve gövde metni (sıcak, yuvarlak hatlı; küçük
+ *                         boyda da okunur)
  * Türkçe için `latin-ext` alt kümesi zorunlu (ğ, ı, İ, ş, ç, ö, ü).
  */
 const bricolage = Bricolage_Grotesque({
@@ -16,15 +17,9 @@ const bricolage = Bricolage_Grotesque({
   display: "swap",
 });
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const figtree = Figtree({
+  variable: "--font-figtree",
   subsets: ["latin", "latin-ext"],
-  display: "swap",
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
   display: "swap",
 });
 
@@ -45,8 +40,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#2e1720" },
-    { media: "(prefers-color-scheme: dark)", color: "#1d0f15" },
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#1b1617" },
   ],
 };
 
@@ -67,7 +62,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="tr"
-      className={`${geistSans.variable} ${geistMono.variable} ${bricolage.variable} h-full antialiased`}
+      className={`${figtree.variable} ${bricolage.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

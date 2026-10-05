@@ -11,12 +11,12 @@ import {
   Utensils,
   X,
 } from "lucide-react";
+import { PAYMENT_METHOD_ICONS, addressLabelIcon } from "@sofra/core";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, errorMessage } from "@/lib/api-client";
 import {
-  ADDRESS_LABELS,
   MEAL_CARD_BRANDS,
   PAYMENT_METHODS,
   PAYMENT_ORDER,
@@ -35,6 +35,7 @@ import type {
 import { cn, formatPrice } from "@/lib/utils";
 import { AddCardModal } from "@/components/account/add-card-modal";
 import { AddressForm } from "@/components/account/address-form";
+import { Icon } from "@/components/ui/icon";
 import { Modal } from "@/components/ui/modal";
 import { RestaurantThumb } from "@/components/ui/restaurant-thumb";
 import {
@@ -215,7 +216,7 @@ export function CheckoutClient() {
 
       clearCart();
       void refreshActiveOrders();
-      toast.success("Siparişin alındı! 🎉");
+      toast.success("Siparişin alındı. Afiyet olsun!");
       router.replace(`/siparis/${data.order.id}`);
     } catch (err) {
       toast.error(errorMessage(err));
@@ -280,8 +281,11 @@ export function CheckoutClient() {
           <Section icon={<MapPin className="size-5" />} title="Teslimat adresi">
             {address ? (
               <div className="flex items-start gap-3">
-                <span className="text-xl" aria-hidden>
-                  {ADDRESS_LABELS.find((l) => l.id === address.label)?.emoji ?? "📍"}
+                <span
+                  className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand"
+                  aria-hidden
+                >
+                  <Icon name={addressLabelIcon(address.label)} className="size-5" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="font-bold text-text">{address.title}</p>
@@ -310,7 +314,7 @@ export function CheckoutClient() {
               </div>
             ) : (
               <EmptyState
-                emoji="📍"
+                icon={MapPin}
                 title="Kayıtlı adresin yok"
                 description="Siparişini teslim edebilmemiz için bir adres eklemelisin."
                 action={
@@ -390,8 +394,14 @@ export function CheckoutClient() {
                           : "border-border bg-surface hover:bg-surface-2"
                       )}
                     >
-                      <span className="text-xl" aria-hidden>
-                        {method.emoji}
+                      <span
+                        className={cn(
+                          "flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors",
+                          active ? "bg-brand text-brand-contrast" : "bg-surface-2 text-muted"
+                        )}
+                        aria-hidden
+                      >
+                        <Icon name={PAYMENT_METHOD_ICONS[id]} className="size-5" />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex flex-wrap items-center gap-2">
@@ -575,7 +585,6 @@ export function CheckoutClient() {
             <div className="flex items-center gap-2.5 border-b border-border pb-3">
               <RestaurantThumb
                 image={cartRestaurant.image}
-                emoji={cartRestaurant.emoji}
                 className="size-10 rounded-xl"
               />
               <div className="min-w-0">
@@ -713,8 +722,11 @@ export function CheckoutClient() {
                     : "border-border hover:bg-surface-2"
                 )}
               >
-                <span className="text-xl">
-                  {ADDRESS_LABELS.find((l) => l.id === item.label)?.emoji ?? "📍"}
+                <span
+                  className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-muted"
+                  aria-hidden
+                >
+                  <Icon name={addressLabelIcon(item.label)} className="size-[18px]" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block font-semibold text-text">

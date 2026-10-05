@@ -10,6 +10,7 @@ import {
   Star,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { PAYMENT_METHOD_ICONS } from "@sofra/core";
 import { CATEGORIES, PAYMENT_METHODS } from "@/lib/constants";
 import { restaurantPhoto } from "@/lib/photos";
 import { deliveryPoint, useSession } from "@/lib/store/session";
@@ -26,6 +27,7 @@ import { CartSummaryCard, MiniCartBar } from "@/components/cart/cart-summary-car
 import { FavoriteButton } from "@/components/discovery/restaurant-card";
 import { StaticMap } from "@/components/map";
 import { FoodImage } from "@/components/ui/food-image";
+import { Icon } from "@/components/ui/icon";
 import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/primitives";
 import { MenuBrowser } from "./menu-browser";
@@ -58,18 +60,24 @@ export function RestaurantClient({
     <div className="mx-auto max-w-7xl px-4 pt-4 sm:pt-6 lg:px-6 lg:pt-8">
       {/* Kapak */}
       <header className="card relative overflow-hidden">
-        <FoodImage
-          seed={restaurant.coverSeed}
-          emoji={restaurant.emoji}
-          tone={restaurant.tags[0]}
-          src={restaurantPhoto(restaurant)}
-          alt={restaurant.name}
-          rounded="rounded-none"
-          className="h-44 w-full sm:h-60"
-          emojiClassName="text-6xl sm:text-7xl"
-          sizes="(min-width: 1280px) 1232px, 100vw"
-          eager
-        />
+        <div className="relative">
+          <FoodImage
+            seed={restaurant.coverSeed}
+            tone={restaurant.tags[0]}
+            src={restaurantPhoto(restaurant)}
+            alt={restaurant.name}
+            rounded="rounded-none"
+            className="h-52 w-full sm:h-72"
+            iconClassName="size-14"
+            sizes="(min-width: 1280px) 1232px, 100vw"
+            eager
+          />
+          {/* Alt kenarda yumuşak gölge: fotoğraf karta sert bir çizgiyle değil, ışıkla bağlansın */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/25 to-transparent"
+          />
+        </div>
         <FavoriteButton restaurantId={restaurant.id} initial={false} />
 
         <div className="p-4 sm:p-6">
@@ -216,7 +224,6 @@ export function RestaurantClient({
               point={restaurant.location}
               radiusKm={restaurant.deliveryRadiusKm}
               zone={restaurant.deliveryZone}
-              emoji={restaurant.emoji}
               className="h-48 w-full"
             />
           </div>
@@ -246,7 +253,8 @@ export function RestaurantClient({
             <div className="flex flex-wrap gap-1.5">
               {restaurant.paymentMethods.map((method) => (
                 <Badge key={method}>
-                  {PAYMENT_METHODS[method].emoji} {PAYMENT_METHODS[method].name}
+                  <Icon name={PAYMENT_METHOD_ICONS[method]} className="size-3" />
+                  {PAYMENT_METHODS[method].name}
                 </Badge>
               ))}
             </div>

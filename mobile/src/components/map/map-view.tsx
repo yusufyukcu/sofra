@@ -2,8 +2,9 @@ import { Image } from "expo-image";
 import { useMemo, useState } from "react";
 import { StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from "react-native";
 import Svg, { Circle, Polyline } from "react-native-svg";
-import { buildRoute, type LatLng } from "@sofra/core";
+import type { IconName, LatLng } from "@sofra/core";
 import { useTheme } from "@/theme";
+import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 import {
   centerOf,
@@ -17,7 +18,9 @@ import {
 /**
  * Harita.
  *
- * OpenStreetMap karoları döşenir, üstüne SVG ile rota ve işaretçiler çizilir.
+ * OpenStreetMap karoları döşenir, üstüne SVG ile yol çizgisi ve işaretçiler
+ * çizilir. Çizgi, sunucunun yol tarifi servisinden aldığı gerçek yoldur
+ * (`order.courierRoute`); yoksa çizgi çizilmez.
  * Web uygulamasındaki Leaflet haritasıyla aynı karo kaynağını kullandığı için
  * iki istemcide aynı sokaklar görünür.
  *
@@ -27,8 +30,8 @@ import {
 
 export interface MapMarker {
   point: LatLng;
-  /** İşaretçinin içine yazılan emoji */
-  emoji?: string;
+  /** İşaretçinin içindeki ikon (`@sofra/core` adlarıyla) */
+  icon?: IconName;
   /** Halka rengi; verilmezse marka rengi */
   color?: string;
   label?: string;
@@ -37,21 +40,24 @@ export interface MapMarker {
 
 export function MapView({
   markers,
-  /** İki nokta arasında kavisli bir rota çizer */
-  route,
+  /** Çizilecek yol (kuryenin önündeki gerçek yol) */
+  path,
   height = 220,
   padding = 28,
   zoom: fixedZoom,
   style,
   rounded = 16,
+  routeColor,
 }: {
   markers: MapMarker[];
-  route?: { from: LatLng; to: LatLng } | null;
+  path?: LatLng[] | null;
   height?: number;
   padding?: number;
   zoom?: number;
   style?: StyleProp<ViewStyle>;
   rounded?: number;
+  /** Yol çizgisinin rengi; verilmezse marka rengi */
+  routeColor?: string;
 }) {
   const t = useTheme();
   const [width, setWidth] = useState(0);
@@ -61,9 +67,9 @@ export function MapView({
 
   const points = useMemo(() => {
     const list = markers.map((m) => m.point);
-    if (route) list.push(route.from, route.to);
+    if (path) list.push(...path);
     return list;
-  }, [markers, route]);
+  }, [markers, path]);
 
   const center = useMemo(() => centerOf(points), [points]);
   const zoom = useMemo(
@@ -77,14 +83,14 @@ export function MapView({
   );
 
   const routePoints = useMemo(() => {
-    if (!route || width === 0) return "";
-    return buildRoute(route.from, route.to, 32)
+    if (!path || path.length < 2 || width === 0) return "";
+    return path
       .map((p) => {
         const pos = screenPosition(p, center, zoom, width, height);
         return `${pos.x.toFixed(1)},${pos.y.toFixed(1)}`;
       })
       .join(" ");
-  }, [route, center, zoom, width, height]);
+  }, [path, center, zoom, width, height]);
 
   return (
     <View
@@ -128,16 +134,17 @@ export function MapView({
                 points={routePoints}
                 stroke="#ffffff"
                 strokeOpacity={0.85}
-                strokeWidth={6}
+                strokeWidth={8}
                 strokeLinecap="round"
+                strokeLinejoin="round"
                 fill="none"
               />
               <Polyline
                 points={routePoints}
-                stroke={t.colors.brand}
-                strokeWidth={3}
+                stroke={routeColor ?? t.colors.brand}
+                strokeWidth={4}
                 strokeLinecap="round"
-                strokeDasharray="1 7"
+                strokeLinejoin="round"
                 fill="none"
               />
             </>
@@ -167,7 +174,7 @@ export function MapView({
         </Svg>
       ) : null}
 
-      {/* İşaretçi emojileri — SVG metni yerine gerçek metin, emoji doğru render olsun */}
+      {/* İşaretçi ikonları — halkanın tam ortasında */}
       {width > 0
         ? markers.map((marker, i) => {
             const pos = screenPosition(
@@ -192,9 +199,7 @@ export function MapView({
                   justifyContent: "center",
                 }}
               >
-                <Text style={{ fontSize: size * 0.5 }}>
-                  {marker.emoji ?? "📍"}
-                </Text>
+                <Icon name={marker.icon ?? "MapPin"} size={size * 0.5} color="#ffffff" strokeWidth={2.4} />
               </View>
             );
           })
@@ -208,7 +213,7 @@ export function MapView({
         ]}
       >
         <Text variant="caption" style={{ fontSize: 9, lineHeight: 12 }}>
-          © OpenStreetMap
+          {routePoints ? "© OpenStreetMap · OSRM" : "© OpenStreetMap"}
         </Text>
       </View>
     </View>

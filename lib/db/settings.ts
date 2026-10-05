@@ -2,17 +2,19 @@ import "server-only";
 import { sql, type Db } from "./client";
 
 /**
- * Uygulama ayarları (`app_settings`). Dağıtım fonksiyonu da aynı tabloyu
- * okur; bu yüzden ayar veritabanında durur, ortam değişkeninde değil.
+ * Uygulama ayarları (`app_settings`). Ayar veritabanında durur, ortam
+ * değişkeninde değil: yönetici panelinden değişir, tüm sunucular aynı
+ * değeri görür.
  */
 export interface AppSettings {
-  /** Vardiyada kurye yokken teslimatı simülasyon üstlensin mi */
+  /**
+   * Demo girişleri (sunum): giriş ekranlarında hazır demo hesapları
+   * görünür. Teslimatı her zaman gerçek kuryeler yapar; süreler gerçektir.
+   */
   demoMode: boolean;
-  /** Demo süre çarpanı: 12 → 30 dakikalık teslimat 2,5 dakikada biter */
-  simSpeed: number;
 }
 
-const DEFAULTS: AppSettings = { demoMode: false, simSpeed: 12 };
+const DEFAULTS: AppSettings = { demoMode: false };
 const TTL_MS = 5_000;
 
 let cache: { at: number; value: AppSettings } | null = null;
@@ -21,7 +23,7 @@ export async function appSettings(db: Db = sql): Promise<AppSettings> {
   if (cache && Date.now() - cache.at < TTL_MS) return cache.value;
 
   const rows = await db<{ key: string; value: unknown }[]>`
-    select key, value from public.app_settings where key in ('demo_mode', 'sim_speed')
+    select key, value from public.app_settings where key = 'demo_mode'
   `;
   const map = new Map(rows.map((r) => [r.key, r.value]));
   const value: AppSettings = {
@@ -29,7 +31,6 @@ export async function appSettings(db: Db = sql): Promise<AppSettings> {
       typeof map.get("demo_mode") === "boolean"
         ? (map.get("demo_mode") as boolean)
         : DEFAULTS.demoMode,
-    simSpeed: Math.max(1, Number(map.get("sim_speed") ?? DEFAULTS.simSpeed) || DEFAULTS.simSpeed),
   };
   cache = { at: Date.now(), value };
   return value;
@@ -46,19 +47,6 @@ export async function updateAppSettings(
       on conflict (key) do update set value = excluded.value, updated_at = now()
     `;
   }
-  if (patch.simSpeed !== undefined) {
-    const speed = Math.min(60, Math.max(1, Math.round(patch.simSpeed)));
-    await db`
-      insert into public.app_settings (key, value, updated_at)
-      values ('sim_speed', ${db.json(speed)}, now())
-      on conflict (key) do update set value = excluded.value, updated_at = now()
-    `;
-  }
   cache = null;
   return appSettings(db);
-}
-
-/** Gerçek dakikayı demo süresine çevirir (ms). */
-export function scaledMs(minutes: number, settings: AppSettings): number {
-  return Math.round((minutes * 60_000) / (settings.demoMode ? settings.simSpeed : 1));
 }

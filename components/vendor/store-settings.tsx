@@ -11,6 +11,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { PAYMENT_METHOD_ICONS } from "@sofra/core";
 import { api, errorMessage } from "@/lib/api-client";
 import { PAYMENT_METHODS, PAYMENT_ORDER } from "@/lib/constants";
 import { restaurantPhoto } from "@/lib/photos";
@@ -18,6 +19,7 @@ import { useVendor } from "@/lib/store/vendor";
 import type { LatLng, MediaRequest, PaymentMethodId, Restaurant } from "@/lib/types";
 import { cn, formatPrice } from "@/lib/utils";
 import { StaticMap, ZoneEditorMap } from "@/components/map";
+import { Icon } from "@/components/ui/icon";
 import {
   Button,
   Field,
@@ -161,7 +163,6 @@ export function StoreSettings() {
               shape="cover"
               currentImage={restaurantPhoto(draft)}
               seed={draft.coverSeed}
-              emoji={draft.emoji}
               tone={draft.tags[0]}
               requests={requests}
               onRequestsChange={setRequests}
@@ -346,7 +347,6 @@ export function StoreSettings() {
                 <StaticMap
                   point={draft.location}
                   radiusKm={draft.deliveryRadiusKm}
-                  emoji={draft.emoji}
                   className="h-56 w-full"
                 />
               </div>
@@ -377,7 +377,6 @@ export function StoreSettings() {
                   radiusKm={draft.deliveryRadiusKm}
                   zone={zone}
                   onChange={(next) => patch({ deliveryZone: next })}
-                  emoji={draft.emoji}
                   className="h-72 w-full"
                 />
               </div>
@@ -502,7 +501,15 @@ export function StoreSettings() {
                         : "border-border bg-surface hover:bg-surface-2"
                     )}
                   >
-                    <span className="text-lg">{info.emoji}</span>
+                    <span
+                      className={cn(
+                        "flex size-9 shrink-0 items-center justify-center rounded-lg",
+                        active ? "bg-brand text-brand-contrast" : "bg-surface-2 text-muted"
+                      )}
+                      aria-hidden
+                    >
+                      <Icon name={PAYMENT_METHOD_ICONS[method]} className="size-[18px]" />
+                    </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-semibold text-ink">
                         {info.name}

@@ -2,6 +2,8 @@
 
 import { Crosshair, MapPin } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { addressLabelIcon } from "@sofra/core";
+import { Icon } from "@/components/ui/icon";
 import { api, errorMessage } from "@/lib/api-client";
 import { ADDRESS_LABELS, DEFAULT_CENTER } from "@/lib/constants";
 import { QUICK_LOCATIONS, currentPosition, reverseGeocode } from "@/lib/geocode";
@@ -207,7 +209,7 @@ export function AddressForm({
               if (!title.trim()) setTitle(l.name === "Ev" ? "Evim" : l.name);
             }}
           >
-            <span aria-hidden>{l.emoji}</span>
+            <Icon name={addressLabelIcon(l.id)} className="size-4" />
             {l.name}
           </Chip>
         ))}

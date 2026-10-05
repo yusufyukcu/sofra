@@ -1,6 +1,6 @@
 "use client";
 
-import { Table2, TrendingUp } from "lucide-react";
+import { ChartColumn, Table2, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api, errorMessage } from "@/lib/api-client";
 import type { FinancePeriod, FinanceReport } from "@/lib/services/vendor";
@@ -163,7 +163,7 @@ export function FinancePanel() {
 
         {!hasData ? (
           <EmptyState
-            emoji="📊"
+            icon={ChartColumn}
             title="Bu dönemde teslim edilen sipariş yok"
             description="Siparişler teslim edildikçe ciro burada birikir."
           />

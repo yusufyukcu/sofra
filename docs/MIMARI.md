@@ -85,6 +85,7 @@ uygulananlar `supabase_migrations.schema_migrations` tablosunda izlenir
 | `…0008_maskeli_arama` | Görüşme kaydı, siparişle kapanan arama oturumları |
 | `…0009_kupon_tek_kullanim` | Kupon kullanıcı başına bir kez (eşzamanlı siparişe karşı) |
 | `…0010_gercek_dagitim` | Demo varsayılan kapalı, kurye varlığı (taze konum), hayalet kurye temizliği |
+| `…0011_gercek_konum_takibi` | Teslimat simülasyonu ve süre hızlandırma kaldırıldı; gerçek yol rotası alanları (ayak, mesafe, süre, istek zamanı), kurye konum zamanı; yalnızca konum değişen güncelleme hafif yayın |
 
 ### 3.2 Tablolar
 
@@ -115,10 +116,12 @@ veritabanı korur:
 
 ### 3.4 Ayarlar
 
-`app_settings` anahtar/değer: `demo_mode` (varsayılan **kapalı**),
-`sim_speed`. Dağıtım fonksiyonu da buradan okur; değer yönetici panelinden
-değişir (5 sn önbellek). İstemciler `GET /api/v1/config` ile demo modunu ve
-hangi servislerin test modunda olduğunu öğrenir.
+`app_settings` anahtar/değer: `demo_mode` (varsayılan **kapalı**) —
+yalnızca **demo girişleri**: açıkken giriş ekranlarında hazır demo
+hesapları görünür. Teslimatı her durumda gerçek kuryeler yapar, süreler
+gerçektir; simülasyon yoktur. Değer yönetici panelinden değişir (5 sn
+önbellek). İstemciler `GET /api/v1/config` ile demo girişlerini ve hangi
+servislerin test modunda olduğunu öğrenir.
 
 ---
 
@@ -260,10 +263,10 @@ tek tur çalışır (advisory lock).
    **konumu son 5 dakikada gelmiş** kurye aday olur; elinde iş ya da bekleyen
    teklif olan kurye atlanır; aynı siparişi son 2 dakikada reddeden/kaçıran
    kurye ona tekrar seçilmez. Ücret mesafeden hesaplanır.
-3. Önceden başlamış simüle teslimatlar (demo kapatılmış olsa da) tamamlanır.
-4. **Demo (sunum) modu — varsayılan kapalı:** açıkken vardiyada hiç kurye
-   yoksa hazırlık süresi dolan siparişi simüle kurye alır, rota üzerinde
-   ilerletir ve teslim eder; süreler `sim_speed` kat hızlıdır.
+
+Simülasyon yoktur: mesaide kurye yoksa sipariş "kurye bekleniyor" durumunda
+kalır ve ilk müsait kuryeye teklif edilir. Restoranın kendi kuryesiyle giden
+sipariş, restoran panelinden "Yolda" ve "Teslim edildi" ile ilerler.
 
 **Kurye varlığı.** Kurye mesaiyi cihazın konumuyla açar (`POST /courier/shift`
 `point`); mesaideyken uygulama konumu teslimatta 3 sn, beklerken 15 sn'de bir
@@ -274,6 +277,37 @@ olmayan kurye mesaiden düşer, bekleyen teklifleri kapanır.
 
 Kabul (`acceptOffer`) teklifin hâlâ geçerli ve siparişin hâlâ boşta
 olduğunu kilit altında doğrular; iki kurye aynı siparişi alamaz.
+
+### 8.1 Canlı konum ve yol rotası
+
+Müşterinin haritasındaki kurye, kuryenin cihazından gelen gerçek konumdur;
+çizgi ise bir yol tarifi servisinden (OSRM) gelen gerçek yoldur.
+
+- **Konum** (`POST /courier/location` → `lib/services/tracking.ts`):
+  kuryenin kaydı ve açık teslimatı (`orders.courier_lat/lng`,
+  `courier_located_at`) güncellenir. Aynı nokta tekrar gelirse satır
+  değişmez (yayın yok); konum zamanı yine de 30 sn'de bir tazelenir ki
+  duran kurye "konumu gelmiyor" görünmesin. Kurye atanmadan siparişte
+  kurye konumu ve rota yoktur; aşama bildirimleri konumu restorana ya da
+  adrese taşımaz.
+- **Rota** (`lib/routing.ts`): teklif kabul edilince kurye → restoran,
+  restorana varınca restoran → adres (`courier_route_leg`: `pickup` /
+  `dropoff`). Kurye çizgiden 60 m'den fazla saparsa bulunduğu yerden yeni
+  rota istenir (aynı sipariş için en fazla 20 sn'de bir, aynı anda tek
+  istek). İstek yanıt gönderildikten sonra yapılır (`after`); servis yanıt
+  vermezse teslimat akışı etkilenmez, harita çizgisiz kalır. Motosiklet ve
+  araba `car`, bisiklet `bike` profilini kullanır.
+- **Süre**: paket alınınca ve yolda yeni rota gelince `eta_at`, yol
+  mesafesi ve süresine göre güncellenir (servisin trafiksiz süresi ile
+  şehir içi ortalama hızın uzun olanı + 2 dk kapıda teslim payı). Müşteriye
+  gösterilen kalan süre ise her an kuryenin önündeki yoldan hesaplanır
+  (`packages/core/src/route.ts` → `liveLeg`; `GET /orders/:id` de aynısını
+  döner). Konum 90 sn'dir gelmiyorsa canlı sayılmaz: ekran bunu söyler,
+  süre planlanan saate döner.
+- **Sağlayıcı**: `SOFRA_ROUTING_URL` (OSRM uyumlu, `{profile}` yer
+  tutucusu araca göre `car`/`bike` olur). Boşsa FOSSGIS'in herkese açık
+  sunucusu kullanılır (saniyede en fazla 1 istek, ticari kullanım yok —
+  yalnızca geliştirme); `off` yol tarifini kapatır.
 
 ---
 
@@ -296,9 +330,11 @@ Tetikleyiciler `realtime.send(payload, event, topic, private => true)` ile
 
 Kim hangi kanalı dinleyebilir, `realtime.messages` üzerindeki politika
 (`app_private.realtime_can_listen`) JWT'nin `app_metadata` bilgisiyle
-belirler. Konum güncellemesi yalnızca haritası olanlara (`order:`,
-`admin:ops`) gider; **değişmeyen** bir güncelleme hiç yayın üretmez
-(aynı noktayı tekrar gönderen kurye tüm ekranları yeniden çektirmez).
+belirler. Yalnızca konum alanları (`courier_lat/lng`, `courier_located_at`)
+değişen güncelleme hafif `courier_moved` olarak yalnızca haritası olanlara
+(`order:`, `admin:ops`) gider; **değişmeyen** bir güncelleme ve rota
+isteğinin iç kaydı (`courier_route_at`) hiç yayın üretmez. Yeni rota
+`order_changed` üretir, ekran siparişi yeniden çeker.
 
 ### 9.2 Tarayıcı istemcisi — `lib/realtime.ts`
 
@@ -381,7 +417,7 @@ Kurye ile müşteri birbirinin numarasını görmeden görüşür:
 
 **Test modu** (`SOFRA_VOICE_PROVIDER` boş): oturum ve görüşme süresi gerçek
 kaydedilir, arama ekranda simüle edilir. Gerçek numaralar hiçbir yanıtta
-yer almaz. Demo simülasyonundaki simüle kurye de aranabilir.
+yer almaz.
 
 ---
 
@@ -448,7 +484,7 @@ anlık filtreler → filtreler URL'e yazılır.
 | Kimlik | `httpOnly` çerez | Bearer + yenileme token'ı, cihazın güvenli alanında |
 | Canlı veri | Realtime | Aynı GET uçlarını yoklama (takip 2 sn, kurye 3 sn); arka planda durur |
 | Harita | Leaflet | OSM karoları + `react-native-svg` |
-| Kurye konumu | Tarayıcı konum servisi (izin zorunlu) | Cihaz GPS'i (`expo-location`, izin zorunlu) |
+| Kurye konumu | Tarayıcı konum servisi (izin zorunlu); sekme açıkken, teslimatta ekran kararmaz | Cihaz GPS'i (`expo-location`); geliştirme/mağaza derlemesinde arka planda da (Android ön plan servisi, iOS arka plan konumu), Expo Go'da yalnızca uygulama açıkken |
 
 Yoklama tek bir kancada (`mobile/src/lib/use-live.ts`); Realtime'ın mobile
 taşınması yalnızca bu kancayı değiştirir. Kurye ve müşteri oturumları ayrı
@@ -459,14 +495,29 @@ token, ayrı "oturum düştü" işleyicisiyle çalışır.
 `expo-maps` Expo Go'da yok, `react-native-maps` native derleme gerektiriyor.
 Bunun yerine ince bir harita: Web Mercator projeksiyonu ve `fitZoom`,
 `expo-image` ile OpenStreetMap karoları (web ile aynı kaynak),
-`react-native-svg` ile rota ve işaretçiler. Tek kod iOS, Android ve webde
-Expo Go'da çalışır; sürükleme yok, harita noktalara kendini oturtur.
+`react-native-svg` ile yol çizgisi (sunucudan gelen gerçek rota) ve
+işaretçiler. Tek kod iOS, Android ve webde Expo Go'da çalışır; sürükleme
+yok, harita noktalara kendini oturtur.
 
-### 17.3 Türkçe büyük harf ve ₺
+### 17.3 Kurye konumu arka planda
+
+`mobile/src/lib/courier-tracking.ts`: mesai açılınca
+`Location.startLocationUpdatesAsync` ile bir arka plan görevi
+(`expo-task-manager`, kök yerleşimde tanımlanır) başlar. Android'de
+"Sofra Kurye · mesaidesin" bildirimli ön plan servisi, iOS'ta konum arka
+plan modu çalışır; ikisi de yalnızca "uygulamayı kullanırken" izni ister
+(güncellemeler uygulama öndeyken başlar). Kurye ekranı kilitlese ya da
+navigasyona geçse de konum akar; mesai kapanınca, çıkışta ya da oturum
+düşünce durur. Expo Go arka plan konumunu desteklemediği için orada ön
+plan izleyicisine düşülür, ekran bunu kuryeye söyler ve teslimatta ekranı
+açık tutar. Kapalı alandaki sapmalı okumalar (doğruluk > 100 m) yakın
+zamanda iyi konum varsa gönderilmez.
+
+### 17.4 Türkçe büyük harf ve ₺
 
 CSS `text-transform: uppercase` belge diline bakar ("TESLIMAT"); `Text`
 bileşeni `label` varyantında metni `toLocaleUpperCase("tr")` ile kendisi
-büyütür. Geist ve Bricolage Grotesque'te ₺ glifi yok; webde aile adının
+büyütür. Figtree'de ₺ glifi yok; webde aile adının
 arkasına sistem yığını eklenir.
 
 ---
@@ -475,8 +526,9 @@ arkasına sistem yığını eklenir.
 
 - `npm run typecheck`, `npm run build` (üretim derlemesi), mobilde `tsc` ve
   Metro ile iOS/Android paket derlemesi
-- `npm run test:unit` — ortak API istemcisinin oturum yenileme davranışı
-- `npm run test:e2e` — gerçek API, veritabanı ve Realtime'a karşı 8 dosya:
-  dört rolün akışları, sipariş hataları, demo simülasyonu, başvuru, Realtime
+- `npm run test:unit` — ortak API istemcisinin oturum yenileme davranışı;
+  rota geometrisi (izdüşüm, kalan yol, sapma, sadeleştirme, kalan süre)
+- `npm run test:e2e` — gerçek API, veritabanı ve Realtime'a karşı 9 dosya:
+  dört rolün akışları, sipariş hataları, canlı konum ve yol rotası, başvuru, Realtime
   kanal yetkileri, işletme/yönetici panelleri, kart/bildirim/push/maskeli
   arama ve Realtime istemci modülü ([`../tests/README.md`](../tests/README.md))

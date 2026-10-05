@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Store, Timer } from "lucide-react";
+import { MapPin, Package, Store, Timer } from "lucide-react";
 import { useState } from "react";
 import { api, errorMessage } from "@/lib/api-client";
 import { OFFER_TTL_SECONDS } from "@/lib/courier-constants";
@@ -107,20 +107,20 @@ export function OfferCard({ offer }: { offer: ActiveOffer }) {
             tone="saffron"
             title={order.restaurantName}
             subtitle={`Alış · ${formatDistance(offer.pickupKm)} uzaklıkta`}
-            emoji={order.restaurantEmoji}
           />
           <div className="ml-[1.125rem] h-4 w-px bg-border-strong" />
           <Leg
             icon={<MapPin className="size-4" />}
             tone="brand"
             title={`${order.address.district} · ${order.address.title}`}
-            subtitle={`Teslim · ${formatDistance(offer.dropoffKm)} sürüş`}
+            subtitle={`Teslim · ${formatDistance(offer.dropoffKm)} kuş uçuşu`}
           />
         </div>
 
         {order.preferences.contactless && (
-          <p className="mt-3 rounded-lg bg-surface-2 px-3 py-2 text-xs font-medium text-muted">
-            📦 Temassız teslimat isteniyor
+          <p className="mt-3 flex items-center gap-1.5 rounded-lg bg-surface-2 px-3 py-2 text-xs font-medium text-muted">
+            <Package className="size-3.5 shrink-0" aria-hidden />
+            Temassız teslimat isteniyor
           </p>
         )}
 
@@ -152,13 +152,11 @@ function Leg({
   tone,
   title,
   subtitle,
-  emoji,
 }: {
   icon: React.ReactNode;
   tone: "saffron" | "brand";
   title: string;
   subtitle: string;
-  emoji?: string;
 }) {
   return (
     <div className="flex items-start gap-3">
@@ -170,7 +168,7 @@ function Leg({
             : "bg-brand-soft text-brand"
         )}
       >
-        {emoji ? <span className="text-lg">{emoji}</span> : icon}
+        {icon}
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[15px] font-bold text-ink">{title}</p>

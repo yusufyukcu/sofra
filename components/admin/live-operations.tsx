@@ -1,6 +1,8 @@
 "use client";
 
-import { AlertTriangle, Bike, History, Radio, XCircle } from "lucide-react";
+import { AlertTriangle, Bike, History, MoonStar, Radio, XCircle } from "lucide-react";
+import { ORDER_STATUS_ICONS } from "@sofra/core";
+import { Icon } from "@/components/ui/icon";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
 import { ORDER_STATUS_META } from "@/lib/constants";
@@ -104,7 +106,7 @@ export function LiveOperations() {
     const orderMarkers = data.live.map((item) => ({
       id: `o_${item.order.id}`,
       point: item.order.address.point,
-      emoji: ORDER_STATUS_META[item.order.status].emoji,
+      icon: ORDER_STATUS_ICONS[item.order.status],
       tone: SEVERITY[item.severity].tone,
       label: `${item.order.code} · ${ORDER_STATUS_META[item.order.status].label}`,
       pulse: item.severity === "critical",
@@ -113,7 +115,7 @@ export function LiveOperations() {
     const courierMarkers = data.couriers.map((courier) => ({
       id: `c_${courier.id}`,
       point: courier.point,
-      emoji: courier.emoji,
+      icon: "Bike" as const,
       tone: courier.busy ? "#2f6bb5" : "#4b7f3e",
       label: `${courier.name} · ${courier.busy ? "teslimatta" : "boşta"}`,
     }));
@@ -203,7 +205,7 @@ export function LiveOperations() {
 
             {orders.length === 0 ? (
               <EmptyState
-                emoji="🌙"
+                icon={MoonStar}
                 title="Şu an aktif sipariş yok"
                 description="Yeni sipariş düştüğünde burada anlık olarak görünecek."
               />
@@ -292,8 +294,8 @@ function LiveRow({
         item.severity === "late" && "border-saffron/40"
       )}
     >
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-xl">
-        {meta.emoji}
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-muted">
+        <Icon name={ORDER_STATUS_ICONS[item.order.status]} className="size-5" />
       </span>
 
       <div className="min-w-0 flex-1">

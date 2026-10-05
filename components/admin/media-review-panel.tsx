@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Check, ExternalLink, X } from "lucide-react";
+import { ArrowRight, Check, ExternalLink, FolderOpen, Images, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage } from "@/lib/api-client";
 import type { AdminMediaRow } from "@/lib/services/media";
@@ -141,7 +141,7 @@ export function MediaReviewPanel() {
       {tab === "pending" ? (
         pending.length === 0 ? (
           <EmptyState
-            emoji="🖼️"
+            icon={Images}
             title="Onay bekleyen fotoğraf yok"
             description="Restoranlar panelden kapak ya da ürün fotoğrafı gönderdiğinde burada sıraya girer."
           />
@@ -166,7 +166,7 @@ export function MediaReviewPanel() {
         )
       ) : decided.length === 0 ? (
         <EmptyState
-          emoji="🗂️"
+          icon={FolderOpen}
           title="Henüz karar verilmiş fotoğraf yok"
           description="Onaylanan ve reddedilen fotoğraflar burada listelenir."
         />
@@ -225,7 +225,6 @@ function PendingCard({
       <div className="flex flex-wrap items-center gap-3">
         <RestaurantThumb
           image={restaurant.image}
-          emoji={restaurant.emoji}
           className="size-11 rounded-xl"
         />
         <div className="min-w-0 flex-1">
@@ -246,8 +245,7 @@ function PendingCard({
           {row.currentImage ? (
             <FoodImage
               seed={request.id}
-              emoji={restaurant.emoji}
-              src={row.currentImage}
+                  src={row.currentImage}
               alt="Yayındaki fotoğraf"
               className={cn("w-full", aspect)}
               sizes="(min-width: 1024px) 360px, 40vw"

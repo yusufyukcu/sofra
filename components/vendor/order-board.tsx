@@ -1,6 +1,6 @@
 "use client";
 
-import { Bike, ChefHat, Inbox, Radio, ScrollText } from "lucide-react";
+import { Bike, ChefHat, Inbox, Radio, ReceiptText, ScrollText } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
@@ -184,7 +184,7 @@ export function OrderBoard() {
 
         {board.closed.length === 0 ? (
           <EmptyState
-            emoji="🧾"
+            icon={ReceiptText}
             title="Henüz kapanan sipariş yok"
             description="Teslim edilen ve iptal olan siparişler burada listelenir."
           />

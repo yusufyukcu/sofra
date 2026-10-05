@@ -1,4 +1,4 @@
-import { ArrowRight, Store } from "lucide-react";
+import { ArrowRight, ChefHat, Store } from "lucide-react";
 import Link from "next/link";
 
 /**
@@ -20,12 +20,11 @@ export function PartnerBanner() {
       aria-labelledby="partner-banner-title"
       className="band-deep grain relative overflow-hidden rounded-3xl shadow-soft"
     >
-      <span
+      <ChefHat
         aria-hidden
-        className="pointer-events-none absolute -right-6 -top-10 select-none text-[9rem] leading-none opacity-[0.12]"
-      >
-        🏪
-      </span>
+        strokeWidth={1.2}
+        className="pointer-events-none absolute -right-8 -top-10 size-56 rotate-12 text-on-deep opacity-[0.07]"
+      />
 
       <div className="relative flex flex-col gap-5 p-6 sm:p-7 lg:flex-row lg:items-center lg:gap-8">
         <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-brand shadow-brand">

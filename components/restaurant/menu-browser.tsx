@@ -1,6 +1,6 @@
 "use client";
 
-import { Flame, Plus, Search, X } from "lucide-react";
+import { Flame, Plus, Search, SearchX, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { MenuCategory, Product } from "@/lib/types";
@@ -169,7 +169,7 @@ export function MenuBrowser({
 
       {filtered.length === 0 ? (
         <EmptyState
-          emoji="🍽️"
+          icon={SearchX}
           title="Bu menüde sonuç yok"
           description={`"${query}" için eşleşen ürün bulamadık.`}
         />
@@ -274,13 +274,14 @@ function ProductRow({
       <div className="relative shrink-0">
         <FoodImage
           seed={product.id}
-          emoji={product.emoji}
           tone={tone}
           src={product.image}
           alt={product.name}
-          className="size-24 sm:size-28"
-          emojiClassName="text-3xl"
-          sizes="112px"
+          className="size-28 sm:size-32"
+          rounded="rounded-2xl"
+          iconClassName="size-7"
+          sizes="128px"
+          zoom
         />
         {!unavailable && (
           <span className="absolute bottom-1.5 right-1.5 flex size-8 items-center justify-center rounded-full border-2 border-surface bg-brand text-brand-contrast shadow-sm transition-transform group-hover:scale-110">

@@ -97,7 +97,7 @@ export function useMaskedCall(client: ApiClient, path: string): {
               { backgroundColor: connected ? t.colors.pistachioSoft : t.colors.surface2 },
             ]}
           >
-            <Text style={{ fontSize: 34 }}>📞</Text>
+            <Phone size={32} color={connected ? t.colors.pistachio : t.colors.ink} strokeWidth={1.9} />
           </View>
           <Text variant="heading" center tabular>
             {call.testMode ? (connected ? clock(seconds) : "Çalıyor…") : call.proxyNumber}

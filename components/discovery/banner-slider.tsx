@@ -96,8 +96,7 @@ export function BannerSlider({ banners }: { banners: Banner[] }) {
             >
               <BannerArt
                 banner={banner}
-                sizes="(min-width: 1024px) 200px, (min-width: 640px) 25vw, 42vw"
-                emojiClassName="absolute -right-5 -top-7 text-[7.5rem] opacity-20 transition-transform duration-500 group-hover:scale-110"
+                sizes="(min-width: 1024px) 220px, (min-width: 640px) 26vw, 45vw"
               />
               <span className={cn("relative min-w-0 flex-1", banner.image && "pr-[34%]")}>
                 <span className="font-display block text-xl font-extrabold leading-tight sm:text-2xl lg:text-xl xl:text-[1.375rem]">

@@ -10,7 +10,6 @@ import {
   loadMenu,
 } from "../db/queries";
 import { toReview, type OrderRow, type ProductRow, type ReviewRow } from "../db/mappers";
-import { appSettings, scaledMs } from "../db/settings";
 import { DomainError } from "../errors";
 import type {
   LatLng,
@@ -188,7 +187,6 @@ export async function approveOrder(
   prepMinutes: number
 ): Promise<Order> {
   const minutes = validPrep(prepMinutes);
-  const settings = await appSettings();
 
   const courierMode = await sql.begin(async (tx) => {
     const row = await ownedOrderForUpdate(tx, restaurantId, orderId);
@@ -199,7 +197,7 @@ export async function approveOrder(
     await tx`
       update public.orders
          set status = 'preparing', approved_at = ${now}, prep_minutes = ${minutes},
-             eta_at = ${new Date(now.getTime() + scaledMs(minutes + row.travelMinutes, settings))}
+             eta_at = ${new Date(now.getTime() + (minutes + row.travelMinutes) * 60_000)}
        where id = ${row.id}
     `;
     await addOrderEvent(tx, row.id, "preparing", `Restoran siparişi onayladı · hazırlık ${minutes} dk.`, now);
@@ -220,7 +218,6 @@ export async function updatePrepTime(
   prepMinutes: number
 ): Promise<Order> {
   const minutes = validPrep(prepMinutes);
-  const settings = await appSettings();
 
   await sql.begin(async (tx) => {
     const row = await ownedOrderForUpdate(tx, restaurantId, orderId);
@@ -231,7 +228,7 @@ export async function updatePrepTime(
     await tx`
       update public.orders
          set prep_minutes = ${minutes},
-             eta_at = ${new Date(approvedAt + scaledMs(minutes + row.travelMinutes, settings))}
+             eta_at = ${new Date(approvedAt + (minutes + row.travelMinutes) * 60_000)}
        where id = ${row.id}
     `;
     await addOrderEvent(tx, row.id, "preparing", `Hazırlık süresi ${minutes} dakika olarak güncellendi.`);
@@ -264,8 +261,6 @@ export async function markReady(restaurantId: string, orderId: string): Promise<
 
 /** Restoranın kendi kuryesi siparişi aldı → "Yolda". */
 export async function markOnTheWay(restaurantId: string, orderId: string): Promise<Order> {
-  const settings = await appSettings();
-
   await sql.begin(async (tx) => {
     const row = await ownedOrderForUpdate(tx, restaurantId, orderId);
     if (row.status !== "preparing") {
@@ -282,7 +277,7 @@ export async function markOnTheWay(restaurantId: string, orderId: string): Promi
       update public.orders
          set status = 'on_the_way', picked_up_at = ${now},
              approved_at = coalesce(approved_at, ${now}),
-             eta_at = ${new Date(now.getTime() + scaledMs(row.travelMinutes, settings))}
+             eta_at = ${new Date(now.getTime() + row.travelMinutes * 60_000)}
        where id = ${row.id}
     `;
     await addOrderEvent(tx, row.id, "on_the_way", "Restoran kuryesi yola çıktı.", now);

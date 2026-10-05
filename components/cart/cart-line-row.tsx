@@ -30,11 +30,10 @@ export function CartLineRow({
       {!compact && (
         <FoodImage
           seed={line.productId}
-          emoji={line.emoji}
           src={line.image}
           alt={line.name}
           className="size-16 shrink-0"
-          emojiClassName="text-2xl"
+          iconClassName="size-5"
           sizes="64px"
         />
       )}

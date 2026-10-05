@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { ChevronLeft } from "lucide-react-native";
+import { ChevronLeft, type LucideIcon } from "lucide-react-native";
 import type { ReactNode } from "react";
 import {
   Pressable,
@@ -9,15 +9,17 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Logo } from "@/components/brand/logo";
 import { useTheme } from "@/theme";
 import { Text } from "./text";
 
 /**
  * Ekran çerçevesi.
  *
- * Web'de her sayfanın tepesinde sabit bir patlıcan bandı var; mobilde de
- * aynı bant başlık olarak duruyor. Durum çubuğu alanı banda dahil — böylece
- * koyu bant ekranın en üstüne kadar uzanır, web'deki görünümle eşleşir.
+ * Web'in üst çubuğu gibi başlık da açık zeminde durur: sayfanın yıldızı
+ * yemek fotoğrafları, başlık onların önüne geçmez. Marka rengi logoda ve
+ * eylem düğmelerinde. Durum çubuğu alanı başlığa dahil, ekranın en üstüne
+ * kadar uzanır.
  */
 
 export function Screen({
@@ -48,10 +50,11 @@ export function Screen({
 }
 
 /**
- * Koyu başlık bandı.
+ * Başlık.
  *
  * `back` verilirse geri düğmesi çıkar; `title` başlık, `subtitle` altındaki
- * ikincil satır. Sağa bir eylem konabilir.
+ * ikincil satır. `logo` verilirse başlık yerine Sofra logosu çizilir (keşfet
+ * ekranı). Sağa bir eylem konabilir — `HeaderButton` ile.
  */
 export function Header({
   title,
@@ -59,15 +62,18 @@ export function Header({
   back,
   right,
   large,
+  logo,
   children,
 }: {
   title: string;
   subtitle?: string;
   back?: boolean;
   right?: ReactNode;
-  /** Anasayfada başlık büyük gösterilir */
+  /** Sekme ekranlarında başlık büyük gösterilir */
   large?: boolean;
-  /** Bandın altına eklenen içerik — ör. arama çubuğu */
+  /** Başlık yerine logo (başlık erişilebilirlik etiketi olarak kalır) */
+  logo?: boolean;
+  /** Başlığın altına eklenen içerik — ör. arama çubuğu */
   children?: ReactNode;
 }) {
   const t = useTheme();
@@ -76,7 +82,9 @@ export function Header({
   return (
     <View
       style={{
-        backgroundColor: t.colors.deep,
+        backgroundColor: t.colors.surface,
+        borderBottomColor: t.colors.border,
+        borderBottomWidth: StyleSheet.hairlineWidth,
         paddingTop: insets.top + t.spacing.sm,
         paddingBottom: t.spacing.md,
         paddingHorizontal: t.spacing.lg,
@@ -85,38 +93,23 @@ export function Header({
     >
       <View style={styles.bar}>
         {back ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Geri"
+          <HeaderButton
+            icon={ChevronLeft}
+            label="Geri"
             onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
-            hitSlop={12}
-            style={({ pressed }) => [
-              styles.backBtn,
-              {
-                backgroundColor: t.colors.deep2,
-                borderRadius: t.radius.pill,
-                opacity: pressed ? 0.7 : 1,
-              },
-            ]}
-          >
-            <ChevronLeft size={20} color={t.colors.onDeep} strokeWidth={2.4} />
-          </Pressable>
+          />
         ) : null}
 
-        <View style={styles.titles}>
-          <Text
-            variant={large ? "heading" : "title"}
-            style={{ color: t.colors.onDeep }}
-            numberOfLines={1}
-          >
-            {title}
-          </Text>
+        <View style={styles.titles} accessibilityRole="header" accessibilityLabel={logo ? title : undefined}>
+          {logo ? (
+            <Logo size={30} />
+          ) : (
+            <Text variant={large ? "heading" : "title"} tone="ink" numberOfLines={1}>
+              {title}
+            </Text>
+          )}
           {subtitle ? (
-            <Text
-              variant="caption"
-              style={{ color: t.colors.onDeepMuted }}
-              numberOfLines={1}
-            >
+            <Text variant="caption" tone="muted" numberOfLines={1}>
               {subtitle}
             </Text>
           ) : null}
@@ -127,6 +120,44 @@ export function Header({
 
       {children}
     </View>
+  );
+}
+
+/** Başlıktaki yuvarlak eylem düğmesi (geri, favori, çıkış…). */
+export function HeaderButton({
+  icon: IconComponent,
+  label,
+  onPress,
+  active,
+  activeColor,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onPress: () => void;
+  /** Seçili durum — ör. favoriye eklenmiş */
+  active?: boolean;
+  activeColor?: string;
+}) {
+  const t = useTheme();
+  const color = active ? (activeColor ?? t.colors.brand) : t.colors.ink;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={active === undefined ? undefined : { selected: active }}
+      onPress={onPress}
+      hitSlop={10}
+      style={({ pressed }) => [
+        styles.headerBtn,
+        {
+          backgroundColor: t.colors.surface2,
+          borderRadius: t.radius.pill,
+          opacity: pressed ? 0.7 : 1,
+        },
+      ]}
+    >
+      <IconComponent size={19} color={color} fill={active ? color : "transparent"} strokeWidth={2.2} />
+    </Pressable>
   );
 }
 
@@ -157,7 +188,7 @@ export function SectionTitle({
 
 const styles = StyleSheet.create({
   bar: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 40 },
-  backBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  headerBtn: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
   titles: { flex: 1, gap: 1 },
   section: {
     flexDirection: "row",

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronLeft, ChevronRight, Star } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, FolderOpen, Star } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api, errorMessage } from "@/lib/api-client";
 import { ORDER_STATUS_META } from "@/lib/constants";
@@ -172,7 +172,7 @@ export function OrderHistory() {
         <Skeleton className="h-80 w-full" />
       ) : !data || data.orders.length === 0 ? (
         <EmptyState
-          emoji="🗂️"
+          icon={FolderOpen}
           title="Bu aralıkta sipariş yok"
           description="Tarih aralığını genişletmeyi ya da durumu değiştirmeyi dene."
         />

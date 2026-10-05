@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { Tag, Trash2 } from "lucide-react-native";
+import { ShoppingBag, Tag, Trash2 } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -17,8 +17,9 @@ import {
   type OrderTotals,
 } from "@sofra/core";
 import { Button } from "@/components/ui/button";
+import { FoodPhoto } from "@/components/ui/food-photo";
 import { Field, Stepper } from "@/components/ui/input";
-import { Header, Screen } from "@/components/ui/screen";
+import { Header, HeaderButton, Screen } from "@/components/ui/screen";
 import {
   Badge,
   Card,
@@ -116,7 +117,7 @@ export default function CartScreen() {
       <Screen edges="both">
         <Header title="Sepetim" back />
         <EmptyState
-          emoji="🛒"
+          icon={ShoppingBag}
           title="Sepetin boş"
           description="Beğendiğin bir restorandan ürün ekleyince burada görünür."
           action={
@@ -138,18 +139,7 @@ export default function CartScreen() {
         subtitle={restaurant.name}
         back
         right={
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Sepeti boşalt"
-            onPress={clear}
-            hitSlop={10}
-            style={({ pressed }) => [
-              styles.iconBtn,
-              { backgroundColor: t.colors.deep2, opacity: pressed ? 0.7 : 1 },
-            ]}
-          >
-            <Trash2 size={17} color={t.colors.onDeepMuted} />
-          </Pressable>
+          <HeaderButton icon={Trash2} label="Sepeti boşalt" onPress={clear} />
         }
       />
 
@@ -170,7 +160,13 @@ export default function CartScreen() {
               <View key={line.lineId} style={{ gap: t.spacing.sm }}>
                 {index > 0 ? <Divider /> : null}
                 <View style={styles.line}>
-                  <Text style={styles.lineEmoji}>{line.emoji}</Text>
+                  <FoodPhoto
+                    src={line.image}
+                    seed={line.productId}
+                    radius={12}
+                    iconSize={18}
+                    style={{ width: 56, height: 56 }}
+                  />
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text variant="body" weight="semibold" tone="ink">
                       {line.name}
@@ -368,15 +364,7 @@ export default function CartScreen() {
 }
 
 const styles = StyleSheet.create({
-  iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   line: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
-  lineEmoji: { fontSize: 26, lineHeight: 32 },
   couponHead: { flexDirection: "row", alignItems: "center", gap: 7 },
   couponRow: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
   couponApplied: { flexDirection: "row", alignItems: "center", gap: 8 },

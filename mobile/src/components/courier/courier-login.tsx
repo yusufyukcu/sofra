@@ -11,7 +11,8 @@ import {
 } from "react-native";
 import { Button } from "@/components/ui/button";
 import { Field, Option } from "@/components/ui/input";
-import { Header, Screen } from "@/components/ui/screen";
+import { Avatar } from "@/components/ui/avatar";
+import { Header, HeaderButton, Screen } from "@/components/ui/screen";
 import { Card, Skeleton } from "@/components/ui/surfaces";
 import { Text } from "@/components/ui/text";
 import { courierApi, errorMessage } from "@/lib/api";
@@ -101,18 +102,7 @@ export function CourierLogin() {
         title="Kurye girişi"
         subtitle={challenge ? `${challenge.maskedTarget} numarasına kod gönderildi` : "Telefon numaranla giriş yap"}
         right={
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Müşteri uygulamasına dön"
-            onPress={() => router.replace("/")}
-            hitSlop={10}
-            style={({ pressed }) => [
-              styles.exit,
-              { backgroundColor: t.colors.deep2, opacity: pressed ? 0.7 : 1 },
-            ]}
-          >
-            <ArrowLeft size={18} color={t.colors.onDeep} />
-          </Pressable>
+          <HeaderButton icon={ArrowLeft} label="Müşteri uygulamasına dön" onPress={() => router.replace("/")} />
         }
       />
 
@@ -162,7 +152,8 @@ export function CourierLogin() {
                   {demo.map((courier) => (
                     <Option
                       key={courier.id}
-                      title={`${courier.emoji}  ${courier.name}`}
+                      title={courier.name}
+                      left={<Avatar name={courier.name} size={38} />}
                       subtitle={`${VEHICLE_LABEL[courier.vehicle]} · ${courier.rating.toFixed(1)} puan${courier.status !== "active" ? " · onay bekliyor" : ""}`}
                       selected={phone === courier.phone}
                       onPress={() => setPhone(courier.phone ?? "")}
@@ -224,12 +215,5 @@ export function CourierLogin() {
 }
 
 const styles = StyleSheet.create({
-  exit: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   hero: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
 });

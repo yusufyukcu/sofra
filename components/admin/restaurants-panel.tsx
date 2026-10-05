@@ -1,6 +1,8 @@
 "use client";
 
 import { Check, Copy, Link2, Percent, Search, Star, Store, XCircle } from "lucide-react";
+import { restaurantPhoto } from "@/lib/photos";
+import { RestaurantThumb } from "@/components/ui/restaurant-thumb";
 import { useEffect, useMemo, useState } from "react";
 import { api, errorMessage } from "@/lib/api-client";
 import type { AdminRestaurantRow } from "@/lib/services/admin";
@@ -180,7 +182,7 @@ export function RestaurantsPanel() {
 
       {filtered.length === 0 ? (
         <EmptyState
-          emoji="🏪"
+          icon={Store}
           title={
             filter === "pending"
               ? "Onay bekleyen başvuru yok"
@@ -200,9 +202,11 @@ export function RestaurantsPanel() {
             return (
               <li key={r.id} className="card p-4">
                 <div className="flex flex-wrap items-center gap-3">
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-xl">
-                  {r.emoji}
-                </span>
+                <RestaurantThumb
+                  image={restaurantPhoto(r)}
+                  tone={r.tags[0]}
+                  className="size-11 rounded-xl"
+                />
 
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-2">
@@ -219,7 +223,9 @@ export function RestaurantsPanel() {
                     </span>
                   </p>
                   <p className="tabular truncate text-xs text-muted">
-                    {r.district} · ⭐ {r.rating.toFixed(1)} · katılım{" "}
+                    {r.district} ·{" "}
+                    <Star className="inline size-3 -translate-y-px fill-saffron text-saffron" aria-hidden />{" "}
+                    {r.rating.toFixed(1)} · katılım{" "}
                     {new Date(r.joinedAt).toLocaleDateString("tr-TR")}
                   </p>
                 </div>

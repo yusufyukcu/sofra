@@ -11,7 +11,6 @@ import {
   ordersOfUser,
 } from "../db/queries";
 import type { OrderRow } from "../db/mappers";
-import { appSettings, scaledMs } from "../db/settings";
 import { toCartMeta, type CartRestaurantMeta } from "@sofra/core/cart";
 import { computeTotals, validateCart } from "../pricing";
 import type {
@@ -25,7 +24,6 @@ import type {
   User,
 } from "../types";
 import {
-  buildRoute,
   createId,
   createOrderCode,
   distanceKm,
@@ -155,7 +153,6 @@ export async function createOrder(
     );
   }
 
-  const settings = await appSettings();
   const km = distanceKm(address.point, restaurant.location);
   const eta = etaForDistance(restaurant, km);
   // Kuryenin yol süresi mesafeden türetilir; hazırlık süresinden bağımsızdır
@@ -173,8 +170,7 @@ export async function createOrder(
   };
   const paymentLabel = paymentLabelFor(input.paymentMethod, input.mealCardBrand);
   const etaAt = new Date(
-    now.getTime() +
-      (autoApprove ? scaledMs(prepMinutes + travelMinutes, settings) : scaledMs(eta.max, settings))
+    now.getTime() + (autoApprove ? prepMinutes + travelMinutes : eta.max) * 60_000
   );
 
   const walletBalance = await sql.begin(async (tx) => {
@@ -187,7 +183,7 @@ export async function createOrder(
           restaurant_emoji, restaurant_image, restaurant_lat, restaurant_lng, commission_rate,
           address, lines, subtotal, delivery_fee, discount, service_fee, wallet_used,
           grand_total, payment_method, payment_label, coupon_code, preferences, status,
-          courier_mode, courier_stage, courier_lat, courier_lng, courier_route,
+          courier_mode, courier_stage,
           approved_at, prep_minutes, travel_minutes, eta_at, created_at
         ) values (
           ${id}, ${createOrderCode()}, ${user.id}, ${restaurant.id}, ${restaurant.name},
@@ -199,13 +195,6 @@ export async function createOrder(
           ${couponCheck?.valid ? coupon!.code : null}, ${tx.json(asJson(preferences))},
           ${autoApprove ? "preparing" : "pending_approval"}, ${restaurant.courierMode},
           ${restaurant.courierMode === "platform" ? "unassigned" : null},
-          ${restaurant.courierMode === "platform" ? restaurant.location.lat : null},
-          ${restaurant.courierMode === "platform" ? restaurant.location.lng : null},
-          ${
-            restaurant.courierMode === "platform"
-              ? tx.json(asJson(buildRoute(restaurant.location, address.point)))
-              : null
-          },
           ${autoApprove ? now : null}, ${autoApprove ? prepMinutes : null},
           ${travelMinutes}, ${etaAt}, ${now}
         )
@@ -396,8 +385,8 @@ export async function rateOrder(
     }
 
     const restaurantScore = clampScore(input.restaurantScore);
-    // Simüle teslimatta gerçek kurye yok: puan ve bahşiş yalnızca gerçek kuryeye
-    const realCourier = row.courierId && !row.simulated ? row.courierId : null;
+    // Kurye puanı ve bahşiş yalnızca platform kuryesine (restoranın kendi kuryesi kayıtlı değil)
+    const realCourier = row.courierId;
     const courierScore = realCourier && input.courierScore ? clampScore(input.courierScore) : undefined;
 
     let tip = 0;

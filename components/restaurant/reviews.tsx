@@ -1,6 +1,6 @@
 "use client";
 
-import { CornerDownRight } from "lucide-react";
+import { CornerDownRight, MessageSquareText } from "lucide-react";
 import { useState } from "react";
 import type { Review } from "@/lib/types";
 import { cn, relativeTime } from "@/lib/utils";
@@ -22,7 +22,7 @@ export function ReviewList({
   if (!reviews.length) {
     return (
       <EmptyState
-        emoji="💬"
+        icon={MessageSquareText}
         title="Henüz yorum yok"
         description="İlk değerlendirmeyi sen yapabilirsin — siparişin teslim edildikten sonra puan verebilirsin."
       />

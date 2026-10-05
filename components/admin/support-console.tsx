@@ -173,7 +173,7 @@ export function SupportConsole() {
             </div>
           ) : queue.sessions.length === 0 ? (
             <p className="px-4 py-10 text-center text-sm text-muted">
-              {filter === "open" ? "Bekleyen konuşma yok. 🎉" : "Konuşma bulunamadı."}
+              {filter === "open" ? "Bekleyen konuşma yok." : "Konuşma bulunamadı."}
             </p>
           ) : (
             <ul className="min-h-0 flex-1 divide-y divide-border overflow-y-auto">
@@ -225,7 +225,7 @@ export function SupportConsole() {
         {/* Konuşma */}
         {!selected ? (
           <EmptyState
-            emoji="🎧"
+            icon={Headset}
             title="Bir konuşma seç"
             description="Soldaki kuyruktan bir konuşma seçtiğinde mesajlar ve müşterinin son siparişleri burada görünür."
           />

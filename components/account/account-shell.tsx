@@ -8,6 +8,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { useSession } from "@/lib/store/session";
 import { cn, formatPrice } from "@/lib/utils";
+import { Avatar } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/primitives";
 
 const NAV: { href: Route; label: string; icon: LucideIcon; exact?: boolean }[] = [
@@ -53,9 +54,7 @@ export function AccountShell({ children }: { children: ReactNode }) {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8">
         <aside className="min-w-0">
           <div className="card mb-3 flex items-center gap-3 p-4">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-xl">
-              {user.avatarEmoji}
-            </span>
+            <Avatar name={user.name} className="size-11 text-sm" />
             <div className="min-w-0">
               <p className="truncate font-bold text-text">{user.name}</p>
               <p className="truncate text-xs text-muted">

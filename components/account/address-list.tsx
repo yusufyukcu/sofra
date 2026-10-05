@@ -1,6 +1,8 @@
 "use client";
 
-import { Pencil, Plus, Star, Trash2 } from "lucide-react";
+import { MapPin, Pencil, Plus, Star, Trash2 } from "lucide-react";
+import { addressLabelIcon } from "@sofra/core";
+import { Icon } from "@/components/ui/icon";
 import { useState } from "react";
 import { api, errorMessage } from "@/lib/api-client";
 import { ADDRESS_LABELS } from "@/lib/constants";
@@ -66,7 +68,7 @@ export function AddressList() {
 
       {addresses.length === 0 ? (
         <EmptyState
-          emoji="📍"
+          icon={MapPin}
           title="Henüz adres eklemedin"
           description="Sipariş verebilmek için haritadan bir teslimat adresi işaretle."
           action={<Button onClick={() => setAdding(true)}>Adres ekle</Button>}
@@ -85,8 +87,11 @@ export function AddressList() {
                 )}
               >
                 <div className="flex items-start gap-3">
-                  <span className="text-xl" aria-hidden>
-                    {meta?.emoji ?? "📍"}
+                  <span
+                    className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand"
+                    aria-hidden
+                  >
+                    <Icon name={addressLabelIcon(meta?.id)} className="size-5" />
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">

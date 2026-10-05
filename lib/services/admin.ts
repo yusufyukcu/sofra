@@ -21,7 +21,6 @@ import {
   type ProfileRow,
   type RestaurantRow,
 } from "../db/mappers";
-import { appSettings } from "../db/settings";
 import { progressOf, remainingMinutes } from "../orders/progress";
 import { DomainError } from "../errors";
 import type {
@@ -77,7 +76,6 @@ export interface LiveOrder {
 }
 
 export async function liveOrders(now = Date.now()): Promise<LiveOrder[]> {
-  const settings = await appSettings();
   const rows = await sql<OrderRow[]>`
     select * from public.orders
      where status in ('pending_approval', 'preparing', 'on_the_way')
@@ -90,7 +88,7 @@ export async function liveOrders(now = Date.now()): Promise<LiveOrder[]> {
       const lateMinutes = Math.round((now - new Date(order.etaAt).getTime()) / 60_000);
       return {
         order,
-        progress: progressOf(order, settings, now),
+        progress: progressOf(order, now),
         remainingMinutes: remainingMinutes(order, now),
         lateMinutes,
         severity:
@@ -100,10 +98,7 @@ export async function liveOrders(now = Date.now()): Promise<LiveOrder[]> {
               ? "late"
               : "ontime",
         waitingCourier:
-          order.status === "preparing" &&
-          order.courierMode === "platform" &&
-          !order.courier &&
-          !order.simulated,
+          order.status === "preparing" && order.courierMode === "platform" && !order.courier,
       } satisfies LiveOrder;
     })
     .sort((a, b) => b.lateMinutes - a.lateMinutes);
@@ -168,11 +163,7 @@ export async function adminOverview(now = Date.now()): Promise<AdminOverview> {
       (select count(*)::int from public.support_sessions where status = 'waiting_agent') as waiting_support
   `;
 
-  const busyIds = new Set(
-    live
-      .filter((l) => l.order.courier && !l.order.simulated)
-      .map((l) => l.order.courier!.id)
-  );
+  const busyIds = new Set(live.filter((l) => l.order.courier).map((l) => l.order.courier!.id));
   const couriers = await sql<{ id: string; name: string; emoji: string; lat: number; lng: number }[]>`
     select id, name, emoji, lat, lng from public.couriers where online order by name
   `;
@@ -743,13 +734,17 @@ export interface BannerInput {
   title: string;
   subtitle: string;
   code?: string;
-  emoji: string;
+  /** Eski istemciler için; arayüz artık göstermiyor */
+  emoji?: string;
+  /** Sitedeki yemek fotoğraflarından biri (`/images/food/….webp`); boşsa fotoğrafsız afiş */
+  image?: string | null;
   gradient: [string, string];
   href: string;
   active?: boolean;
 }
 
 const COLOR = /^#[0-9a-fA-F]{6}$/;
+const BANNER_IMAGE = /^\/images\/food\/[a-z0-9-]+\.webp$/;
 
 export async function upsertBanner(admin: AdminAccount, input: BannerInput): Promise<void> {
   if ((input.title ?? "").trim().length < 3) {
@@ -764,11 +759,17 @@ export async function upsertBanner(admin: AdminAccount, input: BannerInput): Pro
     throw new DomainError("invalid_gradient", "İki renk kodu seç (#RRGGBB).");
   }
 
+  const image = input.image?.trim() || null;
+  if (image && !BANNER_IMAGE.test(image)) {
+    throw new DomainError("invalid_image", "Afiş görseli sitedeki yemek fotoğraflarından biri olmalı.");
+  }
+
   const payload = {
     title: input.title.trim().slice(0, 80),
     subtitle: (input.subtitle ?? "").trim().slice(0, 140),
     code: input.code?.trim().toUpperCase() || null,
     emoji: input.emoji?.trim() || "🎉",
+    image,
     gradient,
     href,
     active: input.active !== false,
@@ -781,9 +782,9 @@ export async function upsertBanner(admin: AdminAccount, input: BannerInput): Pro
   }
   if (!existed) {
     await sql`
-      insert into public.banners (id, title, subtitle, code, emoji, gradient, href, active, position)
+      insert into public.banners (id, title, subtitle, code, emoji, image, gradient, href, active, position)
       values (
-        ${createId("bn")}, ${payload.title}, ${payload.subtitle}, ${payload.code}, ${payload.emoji},
+        ${createId("bn")}, ${payload.title}, ${payload.subtitle}, ${payload.code}, ${payload.emoji}, ${payload.image},
         ${payload.gradient}, ${payload.href}, ${payload.active},
         (select coalesce(max(position), -1) + 1 from public.banners)
       )

@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { Headset, Send, Sparkles } from "lucide-react-native";
+import { Headset, LockKeyhole, Send, Sparkles } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AppState,
@@ -106,7 +106,7 @@ export default function SupportScreen() {
         <Header title="Canlı destek" back />
         <View style={{ padding: t.spacing.lg }}>
           <EmptyState
-            emoji="🔐"
+            icon={LockKeyhole}
             title="Destek için giriş yap"
             description="Siparişlerini görebilmemiz için hesabına giriş yapmalısın."
             action={<Button label="Giriş yap" onPress={() => router.push("/giris")} />}

@@ -53,13 +53,13 @@ export function RestaurantCard({
         >
           <FoodImage
             seed={item.coverSeed}
-            emoji={item.emoji}
             tone={item.tags[0]}
             src={restaurantPhoto(item)}
             alt={item.name}
             rounded="rounded-none"
-            className="size-full transition-transform duration-500 group-hover:scale-[1.06]"
-            emojiClassName={featured ? "text-6xl" : "text-5xl"}
+            className="size-full"
+            zoom
+            iconClassName={featured ? "size-12" : "size-10"}
             sizes={
               featured
                 ? "(min-width: 640px) 248px, 100vw"

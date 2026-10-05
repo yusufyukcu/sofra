@@ -18,6 +18,7 @@ import { useEffect, type ReactNode } from "react";
 import { api } from "@/lib/api-client";
 import { useAdmin } from "@/lib/store/admin";
 import { cn } from "@/lib/utils";
+import { LogoTile } from "@/components/brand/logo";
 import { Skeleton } from "@/components/ui/primitives";
 
 /** Yan menü sayaçları bu aralıkla tazelenir (restoranlar her an talep gönderebilir). */
@@ -126,9 +127,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col bg-paper lg:flex-row">
       <aside className="band-deep flex shrink-0 flex-col lg:w-60">
         <div className="flex items-center gap-2.5 px-5 py-5">
-          <span className="flex size-9 items-center justify-center rounded-xl bg-brand text-lg">
-            🍽️
-          </span>
+          <LogoTile className="size-9" />
           <div className="min-w-0">
             <p className="font-display text-sm font-extrabold leading-tight text-on-deep">
               Sofra Yönetim

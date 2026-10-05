@@ -6,7 +6,7 @@ import { useTheme } from "@/theme";
  * Tipografi.
  *
  * Ölçek `@sofra/core/theme` içinden gelir; web'deki basamaklarla aynı.
- * Başlıklar Bricolage Grotesque, arayüz metni Geist — iki istemcide aynı
+ * Başlıklar Bricolage Grotesque, arayüz metni Figtree — iki istemcide aynı
  * yazı tipleri.
  *
  * `tabular` sayı hizalaması içindir: fiyat listelerinde ve sayaçlarda

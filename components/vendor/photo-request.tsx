@@ -70,7 +70,6 @@ export function PhotoRequestField({
   shape,
   currentImage,
   seed,
-  emoji,
   tone,
   requests,
   onRequestsChange,
@@ -83,7 +82,6 @@ export function PhotoRequestField({
   /** Müşterinin şu an gördüğü fotoğraf */
   currentImage?: string;
   seed: string;
-  emoji: string;
   tone?: string;
   requests: MediaRequest[];
   onRequestsChange: (requests: MediaRequest[]) => void;
@@ -164,16 +162,15 @@ export function PhotoRequestField({
         <figure className="min-w-0">
           <FoodImage
             seed={seed}
-            emoji={emoji}
             tone={tone}
             src={currentImage}
             alt="Yayındaki fotoğraf"
             className={cn("w-full", ratio.className)}
-            emojiClassName="text-4xl"
+            iconClassName="size-9"
             sizes="(min-width: 1024px) 320px, 45vw"
           />
           <figcaption className="mt-1.5 text-xs font-semibold text-muted">
-            {currentImage ? "Yayında" : "Fotoğraf yok — renkli çizim görünüyor"}
+            {currentImage ? "Yayında" : "Fotoğraf yok — mutfak ikonu görünüyor"}
           </figcaption>
         </figure>
 

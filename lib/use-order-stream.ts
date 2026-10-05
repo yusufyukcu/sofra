@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api-client";
-import { progressOf, remainingMinutes, type ProgressContext } from "./orders/progress";
+import { arrivalAt, progressOf, remainingMinutes } from "./orders/progress";
 import { useRealtime } from "./realtime";
 import type { LatLng, Order } from "./types";
 
@@ -10,23 +10,23 @@ import type { LatLng, Order } from "./types";
  * Canlı sipariş takibi (Supabase Realtime).
  *
  * İlk durum `/orders/:id` ile çekilir. Ardından `order:<id>` kanalı dinlenir:
- * kurye konumu yayını haritayı doğrudan kaydırır, durum değişikliği güncel
- * siparişi yeniden çeker. İlerleme çubuğu ve kalan süre tarayıcıda her
- * 2 saniyede bir yeniden hesaplanır. Realtime bağlantısı kurulamazsa
+ * kurye konumu yayını haritayı doğrudan kaydırır, durum ya da rota
+ * değişikliği güncel siparişi yeniden çeker. İlerleme çubuğu, kalan süre ve
+ * tahmini varış tarayıcıda her 2 saniyede bir yeniden hesaplanır (kurye
+ * yoldaysa önündeki gerçek yoldan). Realtime bağlantısı kurulamazsa
  * yoklama (polling) yedeği devrede kalır.
  */
 
 interface OrderPayload {
   order: Order;
-  progress: number;
-  remainingMinutes: number;
-  timing?: ProgressContext;
 }
 
 export interface OrderStreamState {
   order: Order | null;
   progress: number;
   remainingMinutes: number;
+  /** Tahmini teslim anı (ISO) — kurye yoldaysa canlı konumdan */
+  arrivalAt: string | null;
   live: boolean;
   loading: boolean;
   error: string | null;
@@ -38,7 +38,6 @@ const finished = (order: Order | null) =>
 
 export function useOrderStream(orderId: string): OrderStreamState {
   const [order, setOrderState] = useState<Order | null>(null);
-  const [timing, setTiming] = useState<ProgressContext>({ simSpeed: 1, demoMode: false });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [, tick] = useState(0);
@@ -48,7 +47,6 @@ export function useOrderStream(orderId: string): OrderStreamState {
     try {
       const data = await api.get<OrderPayload>(`/orders/${orderId}`);
       setOrderState(data.order);
-      if (data.timing) setTiming(data.timing);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sipariş yüklenemedi");
@@ -69,7 +67,14 @@ export function useOrderStream(orderId: string): OrderStreamState {
     (message) => {
       if (message.event === "courier_moved") {
         const point = message.payload.courierPoint as LatLng | null | undefined;
-        if (point) setOrderState((current) => (current ? { ...current, courierPoint: point } : current));
+        const locatedAt = message.payload.courierLocatedAt as string | null | undefined;
+        if (point) {
+          setOrderState((current) =>
+            current
+              ? { ...current, courierPoint: point, courierLocatedAt: locatedAt ?? current.courierLocatedAt }
+              : current
+          );
+        }
         return;
       }
       // Art arda gelen olaylar tek istekte birleşsin
@@ -100,10 +105,12 @@ export function useOrderStream(orderId: string): OrderStreamState {
     []
   );
 
+  const now = Date.now();
   return {
     order,
-    progress: order ? progressOf(order, timing) : 0,
-    remainingMinutes: order ? remainingMinutes(order) : 0,
+    progress: order ? progressOf(order, now) : 0,
+    remainingMinutes: order ? remainingMinutes(order, now) : 0,
+    arrivalAt: order ? arrivalAt(order, now) : null,
     live: status === "live" && !finished(order),
     loading,
     error,

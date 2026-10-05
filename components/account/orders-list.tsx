@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronRight, RotateCcw, Star } from "lucide-react";
+import { ChevronRight, ReceiptText, RotateCcw, Star } from "lucide-react";
+import { ORDER_STATUS_ICONS } from "@sofra/core";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -10,6 +11,7 @@ import { useCart, type CartRestaurantMeta } from "@/lib/store/cart";
 import type { CartLine, Order } from "@/lib/types";
 import { cn, formatDateTime, formatPrice } from "@/lib/utils";
 import { Badge, Button, EmptyState, Skeleton } from "@/components/ui/primitives";
+import { Icon } from "@/components/ui/icon";
 import { Modal } from "@/components/ui/modal";
 import { RestaurantThumb } from "@/components/ui/restaurant-thumb";
 import { useToast } from "@/components/ui/toast";
@@ -131,7 +133,7 @@ export function OrdersList() {
 
       {filtered.length === 0 ? (
         <EmptyState
-          emoji="🧾"
+          icon={ReceiptText}
           title={
             filter === "active"
               ? "Devam eden siparişin yok"
@@ -158,9 +160,7 @@ export function OrdersList() {
                 >
                   <RestaurantThumb
                     image={order.restaurantImage}
-                    emoji={order.restaurantEmoji}
                     className="size-12 rounded-xl"
-                    emojiClassName="text-2xl"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -176,7 +176,8 @@ export function OrdersList() {
                               : "brand"
                         }
                       >
-                        {meta.emoji} {meta.label}
+                        <Icon name={ORDER_STATUS_ICONS[order.status]} className="size-3.5" />
+                        {meta.label}
                       </Badge>
                     </div>
                     <p className="mt-0.5 truncate text-xs text-muted">

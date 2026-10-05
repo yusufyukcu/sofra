@@ -1,6 +1,17 @@
 "use client";
 
-import { Eye, EyeOff, Search, ShieldCheck } from "lucide-react";
+import {
+  BellRing,
+  ChartColumn,
+  Eye,
+  EyeOff,
+  Search,
+  ShieldCheck,
+  Store,
+  Timer,
+  UtensilsCrossed,
+} from "lucide-react";
+import { LogoTile } from "@/components/brand/logo";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -91,7 +102,7 @@ export function VendorLogin({ demoPassword }: { demoPassword?: string }) {
       {/* Tanıtım tarafı */}
       <section className="band-deep hidden flex-col justify-between p-10 lg:flex">
         <div className="flex items-center gap-2.5">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-brand text-xl">🍽️</span>
+          <LogoTile />
           <span className="font-display text-xl font-extrabold tracking-tight text-on-deep">Sofra İşletme</span>
         </div>
 
@@ -105,15 +116,17 @@ export function VendorLogin({ demoPassword }: { demoPassword?: string }) {
           </p>
 
           <ul className="mt-9 space-y-3.5">
-            {[
-              ["🔔", "Yeni sipariş düştüğünde zil çalar"],
-              ["⏱️", "Hazırlık süresini bildir, müşteri anında görsün"],
-              ["🍽️", "Ürün ekle, fiyat güncelle, tükeneni kapat"],
-              ["📊", "Günlük ciro, komisyon ve hakediş tabloları"],
-            ].map(([emoji, text]) => (
+            {(
+              [
+                [BellRing, "Yeni sipariş düştüğünde zil çalar"],
+                [Timer, "Hazırlık süresini bildir, müşteri anında görsün"],
+                [UtensilsCrossed, "Ürün ekle, fiyat güncelle, tükeneni kapat"],
+                [ChartColumn, "Günlük ciro, komisyon ve hakediş tabloları"],
+              ] as const
+            ).map(([FeatureIcon, text]) => (
               <li key={text} className="flex items-center gap-3 text-[15px] text-on-deep">
-                <span className="flex size-9 items-center justify-center rounded-xl bg-white/10 text-lg">
-                  {emoji}
+                <span className="flex size-9 items-center justify-center rounded-xl bg-white/10 text-on-deep">
+                  <FeatureIcon className="size-[18px]" aria-hidden />
                 </span>
                 {text}
               </li>
@@ -232,7 +245,9 @@ export function VendorLogin({ demoPassword }: { demoPassword?: string }) {
                       email === item.email ? "bg-brand-soft" : "hover:bg-surface-2"
                     )}
                   >
-                    <span className="text-xl">{item.emoji}</span>
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-muted" aria-hidden>
+                      <Store className="size-[18px]" />
+                    </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-bold text-ink">{item.name}</span>
                       <span className="block truncate text-xs text-muted">{item.email}</span>

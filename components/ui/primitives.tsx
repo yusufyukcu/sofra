@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Loader2, Star } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Minus, Plus, Star, type LucideIcon } from "lucide-react";
 import type { ComponentPropsWithRef, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -376,7 +376,7 @@ export function QuantityStepper({
           "flex items-center justify-center rounded-l-xl font-bold text-brand transition-colors hover:bg-surface-2 disabled:text-muted/50"
         )}
       >
-        −
+        <Minus className={size === "sm" ? "size-4" : "size-[18px]"} strokeWidth={2.6} aria-hidden />
       </button>
       <span
         className={cn(
@@ -396,7 +396,7 @@ export function QuantityStepper({
           "flex items-center justify-center rounded-r-xl font-bold text-brand transition-colors hover:bg-surface-2 disabled:text-muted/50"
         )}
       >
-        +
+        <Plus className={size === "sm" ? "size-4" : "size-[18px]"} strokeWidth={2.6} aria-hidden />
       </button>
     </div>
   );
@@ -407,20 +407,20 @@ export function QuantityStepper({
 /* ------------------------------------------------------------------ */
 
 export function EmptyState({
-  emoji,
+  icon: Icon,
   title,
   description,
   action,
 }: {
-  emoji: string;
+  icon: LucideIcon;
   title: string;
   description?: string;
   action?: ReactNode;
 }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-surface/60 px-6 py-14 text-center">
-      <span className="text-5xl" aria-hidden>
-        {emoji}
+      <span className="flex size-16 items-center justify-center rounded-full bg-brand-soft text-brand" aria-hidden>
+        <Icon className="size-7" strokeWidth={1.9} />
       </span>
       <h3 className="font-display mt-4 text-lg font-extrabold text-ink">{title}</h3>
       {description && (

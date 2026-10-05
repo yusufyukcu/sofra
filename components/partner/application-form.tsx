@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { CheckCircle2, Copy, MapPin, Send } from "lucide-react";
+import { cuisineIcon } from "@sofra/core";
+import { Icon } from "@/components/ui/icon";
 import { CATEGORIES, DEFAULT_CENTER } from "@/lib/constants";
 import type { LatLng } from "@/lib/types";
 import { api, errorMessage } from "@/lib/api-client";
@@ -235,7 +237,7 @@ export function ApplicationForm() {
                           : "border-border bg-surface text-text hover:bg-surface-2")
                       }
                     >
-                      <span aria-hidden>{c.emoji}</span>
+                      <Icon name={cuisineIcon(c.id)} className="size-4" />
                       {c.name}
                     </button>
                   );

@@ -1,18 +1,24 @@
 "use client";
 
 import {
+  Ban,
   ChevronDown,
   ChevronUp,
   Pencil,
   Plus,
   Send,
+  TicketPercent,
   Trash2,
 } from "lucide-react";
+import Image from "next/image";
 import { useEffect, useState } from "react";
+import { BANNERS, CATEGORIES } from "@sofra/core";
 import { api, errorMessage } from "@/lib/api-client";
 import { useDebounced } from "@/lib/hooks";
 import type { Banner, Coupon, PushCampaign } from "@/lib/types";
 import { cn, formatPrice, relativeTime } from "@/lib/utils";
+import { LogoTile } from "@/components/brand/logo";
+import { BannerArt } from "@/components/discovery/banner-art";
 import { ConfirmDialog, Modal } from "@/components/ui/modal";
 import {
   Badge,
@@ -43,6 +49,15 @@ const SEGMENTS: { id: PushCampaign["segment"]; label: string; hint: string }[] =
   { id: "active", label: "Aktif", hint: "Son 30 günde sipariş verenler" },
   { id: "lapsed", label: "Uzaklaşan", hint: "30 gündür sipariş vermeyenler" },
   { id: "new", label: "Yeni", hint: "Henüz sipariş vermemiş olanlar" },
+];
+
+/** Afişte kullanılabilecek fotoğraflar: vitrin afişlerininkiler ve mutfak kapakları */
+const BANNER_IMAGES = [
+  ...new Set(
+    [...BANNERS.map((b) => b.image), ...CATEGORIES.map((c) => c.image)].filter(
+      (src): src is string => Boolean(src)
+    )
+  ),
 ];
 
 const GRADIENTS: [string, string][] = [
@@ -154,7 +169,7 @@ export function MarketingPanel() {
       {tab === "coupons" &&
         (data.coupons.length === 0 ? (
           <EmptyState
-            emoji="🎟️"
+            icon={TicketPercent}
             title="Henüz kampanya yok"
             description="İlk promosyon kodunu oluştur."
             action={
@@ -271,12 +286,14 @@ export function MarketingPanel() {
               )}
             >
               <span
-                className="flex size-14 shrink-0 items-center justify-center rounded-xl text-2xl"
+                className="relative size-14 shrink-0 overflow-hidden rounded-xl"
                 style={{
                   backgroundImage: `linear-gradient(120deg, ${banner.gradient[0]}, ${banner.gradient[1]})`,
                 }}
               >
-                {banner.emoji}
+                {banner.image && (
+                  <Image src={banner.image} alt="" fill sizes="56px" className="object-cover" />
+                )}
               </span>
 
               <div className="min-w-0 flex-1">
@@ -576,9 +593,7 @@ function PushComposer({
           <p className="mb-2 text-xs font-semibold text-muted">Önizleme</p>
           <div className="rounded-2xl border border-border bg-surface-2 p-3.5">
             <div className="flex items-center gap-2">
-              <span className="flex size-7 items-center justify-center rounded-lg bg-brand text-sm">
-                🍽️
-              </span>
+              <LogoTile className="size-7 rounded-lg" />
               <span className="text-xs font-semibold text-muted">
                 Sofra · şimdi
               </span>
@@ -851,7 +866,6 @@ function CouponModal({
                     on ? "bg-brand-soft" : "hover:bg-surface-2"
                   )}
                 >
-                  <span>{r.emoji}</span>
                   <span className="min-w-0 flex-1 truncate text-ink">
                     {r.name}
                   </span>
@@ -883,15 +897,15 @@ function BannerModal({
   const [title, setTitle] = useState(banner?.title ?? "");
   const [subtitle, setSubtitle] = useState(banner?.subtitle ?? "");
   const [code, setCode] = useState(banner?.code ?? "");
-  const [emoji, setEmoji] = useState(banner?.emoji ?? "🎉");
+  const [image, setImage] = useState<string | null>(
+    banner ? (banner.image ?? null) : BANNER_IMAGES[0]
+  );
   const [gradient, setGradient] = useState<[string, string]>(
     banner?.gradient ?? GRADIENTS[0]
   );
   const [href, setHref] = useState(banner?.href ?? "/");
   const [active, setActive] = useState(banner?.active !== false);
   const [busy, setBusy] = useState(false);
-
-  const EMOJIS = ["🎉", "🛵", "🍔", "🍰", "🥗", "☕", "🔥", "⭐", "🎁", "🌙"];
 
   return (
     <Modal
@@ -917,7 +931,7 @@ function BannerModal({
                 title,
                 subtitle,
                 code: code || undefined,
-                emoji,
+                image,
                 gradient,
                 href,
                 active,
@@ -933,18 +947,13 @@ function BannerModal({
       <div className="space-y-4">
         {/* Canlı önizleme */}
         <div
-          className="relative flex items-center gap-4 overflow-hidden rounded-3xl p-6 text-white"
+          className="group relative flex items-center gap-4 overflow-hidden rounded-3xl p-6 text-white"
           style={{
             backgroundImage: `linear-gradient(120deg, ${gradient[0]}, ${gradient[1]})`,
           }}
         >
-          <span
-            aria-hidden
-            className="absolute -right-5 -top-7 text-[7.5rem] opacity-20"
-          >
-            {emoji}
-          </span>
-          <span className="relative min-w-0 flex-1">
+          <BannerArt banner={{ image: image ?? undefined }} sizes="240px" />
+          <span className={cn("relative min-w-0 flex-1", image && "pr-[34%]")}>
             <span className="font-display block text-xl font-extrabold leading-tight">
               {title.trim() || "Afiş başlığı"}
             </span>
@@ -993,21 +1002,37 @@ function BannerModal({
         </div>
 
         <div>
-          <p className="mb-2 text-sm font-semibold text-ink">Simge</p>
-          <div className="flex flex-wrap gap-1.5">
-            {EMOJIS.map((item) => (
+          <p className="mb-2 text-sm font-semibold text-ink">Görsel</p>
+          <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-7">
+            <button
+              type="button"
+              onClick={() => setImage(null)}
+              aria-label="Görselsiz"
+              aria-pressed={image === null}
+              className={cn(
+                "flex aspect-square items-center justify-center rounded-lg border text-muted transition-colors",
+                image === null
+                  ? "border-brand bg-brand-soft text-brand"
+                  : "border-border bg-surface hover:bg-surface-2"
+              )}
+            >
+              <Ban className="size-5" />
+            </button>
+            {BANNER_IMAGES.map((src) => (
               <button
-                key={item}
+                key={src}
                 type="button"
-                onClick={() => setEmoji(item)}
+                onClick={() => setImage(src)}
+                aria-label={`Görsel: ${src.split("/").pop()?.replace(".webp", "")}`}
+                aria-pressed={image === src}
                 className={cn(
-                  "flex size-9 items-center justify-center rounded-lg border text-lg transition-colors",
-                  emoji === item
-                    ? "border-brand bg-brand-soft"
-                    : "border-border bg-surface hover:bg-surface-2"
+                  "relative aspect-square overflow-hidden rounded-lg transition",
+                  image === src
+                    ? "ring-2 ring-brand ring-offset-2 ring-offset-surface"
+                    : "opacity-85 hover:opacity-100"
                 )}
               >
-                {item}
+                <Image src={src} alt="" fill sizes="64px" className="object-cover" />
               </button>
             ))}
           </div>

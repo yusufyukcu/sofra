@@ -389,6 +389,9 @@ export type CourierStage =
   | "picked_up"
   | "delivered";
 
+/** Teslimatın ayağı: restorana gidiş (`pickup`) ya da müşteriye götürüş (`dropoff`). */
+export type RouteLeg = "pickup" | "dropoff";
+
 /**
  * Kuryeye gönderilen, süresi sınırlı teslimat teklifi.
  * Reddedilir veya süresi dolarsa sıradaki en yakın kuryeye geçer.
@@ -471,10 +474,23 @@ export interface Order {
   readyAt?: string;
   /** Kuryeye ödenecek paket ücreti */
   courierFee?: number;
-  /** Kurye canlı konumu (yalnızca platform kuryesinde) */
+  /** Kuryenin cihazından gelen canlı konum (yalnızca platform kuryesinde) */
   courierPoint?: LatLng;
-  /** Kuryenin izleyeceği rota (restoran → adres) */
+  /** Kurye konumunun son geldiği an — eskiyse harita "güncellenemiyor" der */
+  courierLocatedAt?: string;
+  /**
+   * Kuryenin şu anki ayağının yol çizgisi (yol tarifi servisinden): önce
+   * kurye → restoran, sonra restoran → adres; kurye saparsa bulunduğu
+   * yerden yenisi. Ayak değişince yenisi gelene kadar eskisi kullanılmaz
+   * (bkz. `currentRoute`).
+   */
   courierRoute?: LatLng[];
+  /** `courierRoute`'un ait olduğu ayak */
+  courierRouteLeg?: RouteLeg;
+  /** Rotanın yol mesafesi (m) */
+  courierRouteDistanceM?: number;
+  /** Yol tarifi servisinin rota için verdiği süre (sn, trafiksiz) */
+  courierRouteDurationS?: number;
   createdAt: string;
   /** Tahmini teslim zamanı (ISO) */
   etaAt: string;
@@ -495,11 +511,6 @@ export interface Order {
   travelMinutes: number;
   /** İptali kim başlattı */
   cancelledBy?: "user" | "vendor" | "support";
-  /**
-   * Demo modunda vardiyada kurye yoksa teslimatı simülasyon üstlenir.
-   * Bu siparişte gerçek bir kurye yoktur (bahşiş ve kurye puanı sorulmaz).
-   */
-  simulated?: boolean;
   /** Bu siparişe yapılan iadelerin toplamı (sipariş tutarını aşamaz) */
   refundedTotal?: number;
 }

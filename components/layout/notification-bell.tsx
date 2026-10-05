@@ -60,11 +60,11 @@ export function NotificationBell() {
     <Link
       href="/hesabim/bildirimler"
       aria-label={unread > 0 ? `Bildirimler, ${unread} okunmamış` : "Bildirimler"}
-      className="relative flex size-10 items-center justify-center rounded-xl text-on-deep-muted transition-colors hover:bg-white/10 hover:text-on-deep"
+      className="relative flex size-10 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-2 hover:text-ink"
     >
       <Bell className="size-5" />
       {unread > 0 && (
-        <span className="tabular absolute right-1 top-1 flex min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-extrabold leading-4 text-brand-contrast">
+        <span className="tabular absolute right-1 top-1 flex min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-extrabold leading-4 text-brand-contrast ring-2 ring-surface">
           {unread > 9 ? "9+" : unread}
         </span>
       )}
